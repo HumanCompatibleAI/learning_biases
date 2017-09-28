@@ -1,4 +1,5 @@
 from collections import defaultdict
+import random
 
 class GridworldMdp:
     """A grid world where the objective is to navigate to one of many rewards.
@@ -14,6 +15,7 @@ class GridworldMdp:
         self.width = len(grid[0])
         self.living_reward = living_reward
         self.noise = noise
+        self.terminal_state = 'Terminal State'
 
         self.walls = [[space == 'X' for space in row] for row in grid]
         self.populate_rewards_and_start_state(grid)
@@ -63,30 +65,33 @@ class GridworldMdp:
 
     def get_states(self):
         coords = [(x, y) for x in range(self.width) for y in range(self.height)]
-        return [(x, y) for x, y in coords if not self.walls[y][x]]
+        all_states = [(x, y) for x, y in coords if not self.walls[y][x]]
+        all_states.append(self.terminal_state)
+        return all_states
 
     def get_actions(self, state):
         """Returns list of valid actions for 'state'.
 
         Note that you can request moves into walls.
         """
-        x, y = state
-        if state in self.rewards or self.walls[y][x]:
+        if self.is_terminal(state):
             return []
+        x, y = state
+        if self.walls[y][x]:
+            return []
+        if state in self.rewards:
+            return [Direction.EXIT]
         act = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
         return act
 
     def get_reward(self, state, action):
         """Get reward for state, action transition."""
-        # TODO(rohinmshah): This would be harder for a neural net to understand
-        # compared to a reward function that only looked at the current state.
-        next_state = Direction.move_in_direction(state, action)
-        if next_state in self.rewards:
-            return self.rewards[next_state]
+        if state in self.rewards and action == Direction.EXIT:
+            return self.rewards[state]
         return self.living_reward
 
     def is_terminal(self, state):
-        return state in self.rewards
+        return state == self.terminal_state
 
     def get_transition_states_and_probs(self, state, action):
         """Information about possible transitions for the action.
@@ -97,6 +102,9 @@ class GridworldMdp:
         """
         if action not in self.get_actions(state):
             raise ValueError("Illegal action %s in state %s" % (action, state))
+
+        if action == Direction.EXIT:
+            return [(self.terminal_state, 1.0)]
 
         next_state = self.attempt_to_move_in_direction(state, action)
         if self.noise == 0.0:
@@ -111,15 +119,59 @@ class GridworldMdp:
         return successors.items()
 
     def attempt_to_move_in_direction(self, state, action):
+        """Return the new state an agent would be in if it took the action.
+
+        Requires: action is in self.get_actions(state).
+        """
         x, y = state
         newx, newy = Direction.move_in_direction(state, action)
         return state if self.walls[newy][newx] else (newx, newy)
+
+class GridworldEnvironment(object):
+
+    def __init__(self, gridworld):
+        self.gridworld = gridworld
+        self.reset()
+
+    def get_current_state(self):
+        return self.state
+
+    def get_actions(self, state):
+        return self.gridworld.get_actions(state)
+
+    def perform_action(self, action):
+        state = self.get_current_state()
+        next_state, reward = self.get_random_next_state(state, action)
+        self.state = next_state
+        return (next_state, reward)
+
+    def get_random_next_state(self, state, action):
+        rand = random.random()
+        sum = 0.0
+        results = self.gridworld.get_transition_states_and_probs(state, action)
+        for next_state, prob in results:
+            sum += prob
+            if sum > 1.0:
+                raise ValueError('Total transition probability more than one.')
+            if rand < sum:
+                reward = self.gridworld.get_reward(state, action)
+                return (next_state, reward)
+        raise ValueError('Total transition probability less than one.')
+
+    def reset(self):
+        self.state = self.gridworld.get_start_state()
+
+    def is_done(self):
+        return self.gridworld.is_terminal(self.get_current_state())
 
 class Direction:
     NORTH = (0, -1)
     SOUTH = (0, 1)
     EAST  = (1, 0)
     WEST  = (-1, 0)
+    # This is hacky, but we do want to ensure that EXIT is distinct from the
+    # other actions, and so we define it here instead of in an Action class.
+    EXIT = 0
 
     @staticmethod
     def move_in_direction(point, direction):
