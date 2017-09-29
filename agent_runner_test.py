@@ -12,8 +12,8 @@ class DirectionalAgent(Agent):
         Agent.__init__(self, mdp, gamma)
         self.default_action = direction
 
-    def get_action(self):
-        if self.default_action not in self.mdp.get_actions(self.state):
+    def get_action(self, state):
+        if self.default_action not in self.mdp.get_actions(state):
             return Direction.EXIT
         return self.default_action
 
@@ -28,6 +28,8 @@ class TestAgentRunner(unittest.TestCase):
         # Keep going east to get the 9 reward
         mdp1 = GridworldMdp(grid, living_reward=0)
         env1 = GridworldEnvironment(mdp1)
+        # Make sure that run_agent resets the environment
+        env1.perform_action(Direction.NORTH)
         east = Direction.EAST
         agent1 = DirectionalAgent(mdp1, east)
         trajectory = [((x, 3), east, (x + 1, 3), 0) for x in range(1, 7)]

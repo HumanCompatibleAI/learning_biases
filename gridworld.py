@@ -1,7 +1,7 @@
 from collections import defaultdict
 import random
 
-class GridworldMdp:
+class GridworldMdp(object):
     """A grid world where the objective is to navigate to one of many rewards.
 
     Specifies all of the static information that an agent has access to when
@@ -164,7 +164,7 @@ class GridworldEnvironment(object):
     def is_done(self):
         return self.gridworld.is_terminal(self.get_current_state())
 
-class Direction:
+class Direction(object):
     NORTH = (0, -1)
     SOUTH = (0, 1)
     EAST  = (1, 0)
