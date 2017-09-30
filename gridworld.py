@@ -49,6 +49,8 @@ class GridworldMdp(object):
         all_elements = [element for row in grid for element in row]
         assert all(is_valid_element(element) for element in all_elements), 'Invalid element: must be X, A, blank space, or a number'
         assert all_elements.count('A') == 1, "'A' must be present exactly once"
+        floats = [element for element in all_elements if is_float(element)]
+        assert len(floats) >= 1, 'There must at least one reward square'
 
     def populate_rewards_and_start_state(self, grid):
         self.rewards = {}
@@ -59,6 +61,32 @@ class GridworldMdp(object):
                     self.rewards[(x, y)] = float(grid[y][x])
                 elif grid[y][x] == 'A':
                     self.start_state = (x, y)
+
+    @staticmethod
+    def generate_random(height, width):
+        grid = [['X'] * width for _ in range(height)]
+        for y in range(1, height - 1):
+            for x in range(1, width - 1):
+                if random.random() < 0.5:
+                    grid[y][x] = ' '
+                elif random.random() < 0.1:
+                    # About 5% chance of happening
+                    grid[y][x] = random.randint(-9, 9)
+
+        def set_random_position_to(token):
+            starty = random.randint(1, height - 2)
+            startx = random.randint(1, width - 2)
+            grid[starty][startx] = token
+
+        set_random_position_to(3)
+        set_random_position_to('A')
+        try:
+            return GridworldMdp(grid)
+        except AssertionError:
+            # It is possible (but very unlikely) that we generated a grid with
+            # no rewards, added a 3 reward, and then overwrote the 3 reward with
+            # an A. In this case, just try again.
+            return GridworldMdp.generate_random(height, width)
 
     def get_start_state(self):
         return self.start_state
@@ -126,6 +154,27 @@ class GridworldMdp(object):
         x, y = state
         newx, newy = Direction.move_in_direction(state, action)
         return state if self.walls[newy][newx] else (newx, newy)
+
+    def __str__(self):
+        def get_char(x, y):
+            if self.walls[y][x]:
+                return 'X'
+            elif (x, y) in self.rewards:
+                reward = self.rewards[(x, y)]
+                # Convert to an int if it would not lose information
+                reward = int(reward) if int(reward) == reward else reward
+                posneg_char = 'R' if reward >= 0 else 'N'
+                reward_str = str(reward)
+                return reward_str if len(reward_str) == 1 else posneg_char
+            elif (x, y) == self.get_start_state():
+                return 'A'
+            else:
+                return ' '
+
+        def get_row_str(y):
+            return ''.join([get_char(x, y) for x in range(self.width)])
+
+        return '\n'.join([get_row_str(y) for y in range(self.height)])
 
 class GridworldEnvironment(object):
 

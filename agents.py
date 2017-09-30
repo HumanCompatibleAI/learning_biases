@@ -3,10 +3,13 @@ from collections import defaultdict
 import random
 
 class ValueIterationLikeAgent(Agent):
-    def __init__(self, mdp, gamma=1.0, beta=None, num_iters=100):
-        super(ValueIterationLikeAgent, self).__init__(mdp, gamma)
+    def __init__(self, gamma=1.0, beta=None, num_iters=100):
+        super(ValueIterationLikeAgent, self).__init__(gamma)
         self.beta = beta
         self.num_iters = num_iters
+
+    def set_mdp(self, mdp):
+        super(ValueIterationLikeAgent, self).set_mdp(mdp)
         self.compute_values()
 
     def compute_values(self):
@@ -71,13 +74,12 @@ class ValueIterationLikeAgent(Agent):
         return mu
 
 class OptimalAgent(ValueIterationLikeAgent):
-    def __init__(self, mdp, gamma=1.0, beta=None, num_iters=100):
-        super(OptimalAgent, self).__init__(mdp, gamma, beta, num_iters)
+    pass
 
 class DelayDependentAgent(ValueIterationLikeAgent):
-    def __init__(self, mdp, max_delay, gamma=1.0, beta=None, num_iters=100):
+    def __init__(self, max_delay, gamma=1.0, beta=None, num_iters=100):
+        super(DelayDependentAgent, self).__init__(gamma, beta, num_iters)
         self.max_delay = max_delay
-        super(DelayDependentAgent, self).__init__(mdp, gamma, beta, num_iters)
 
     def get_mus(self):
         states = self.mdp.get_states()
@@ -96,11 +98,11 @@ class DelayDependentAgent(ValueIterationLikeAgent):
         return mu[0]
 
 class TimeDiscountingAgent(DelayDependentAgent):
-    def __init__(self, mdp, max_delay, discount_constant,
+    def __init__(self, max_delay, discount_constant,
                  gamma=1.0, beta=None, num_iters=100):
-        self.discount_constant = discount_constant
         super(TimeDiscountingAgent, self).__init__(
-            mdp, max_delay, gamma, beta, num_iters)
+            max_delay, gamma, beta, num_iters)
+        self.discount_constant = discount_constant
 
     def get_reward(self, mu, a):
         s, d = mu
@@ -116,11 +118,10 @@ class SophisticatedTimeDiscountingAgent(TimeDiscountingAgent):
         return (s, 0)
 
 class MyopicAgent(DelayDependentAgent):
-    def __init__(self, mdp, horizon, gamma=1.0, beta=None, num_iters=100):
-        self.horizon = horizon
+    def __init__(self, horizon, gamma=1.0, beta=None, num_iters=100):
         # The maximum delay should be the horizon.
-        super(MyopicAgent, self).__init__(
-            mdp, horizon, gamma, beta, num_iters)
+        super(MyopicAgent, self).__init__(horizon, gamma, beta, num_iters)
+        self.horizon = horizon
 
     def get_reward(self, mu, a):
         s, d = mu

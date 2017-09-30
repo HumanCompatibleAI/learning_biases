@@ -8,8 +8,8 @@ class DirectionalAgent(Agent):
 
     This agent only plays grid worlds.
     """
-    def __init__(self, mdp, direction, gamma=1.0):
-        Agent.__init__(self, mdp, gamma)
+    def __init__(self, direction, gamma=1.0):
+        Agent.__init__(self, gamma)
         self.default_action = direction
 
     def get_action(self, state):
@@ -31,7 +31,8 @@ class TestAgentRunner(unittest.TestCase):
         # Make sure that run_agent resets the environment
         env1.perform_action(Direction.NORTH)
         east = Direction.EAST
-        agent1 = DirectionalAgent(mdp1, east)
+        agent1 = DirectionalAgent(east)
+        agent1.set_mdp(mdp1)
         trajectory = [((x, 3), east, (x + 1, 3), 0) for x in range(1, 7)]
         trajectory.append(((7, 3), Direction.EXIT, mdp1.terminal_state, 9))
         self.assertEqual(run_agent(agent1, env1, episode_length=10), trajectory)
@@ -40,7 +41,8 @@ class TestAgentRunner(unittest.TestCase):
         mdp2 = GridworldMdp(grid, living_reward=0)
         env2 = GridworldEnvironment(mdp2)
         north = Direction.NORTH
-        agent2 = DirectionalAgent(mdp2, north)
+        agent2 = DirectionalAgent(north)
+        agent2.set_mdp(mdp2)
         trajectory = [((1, y), north, (1, y - 1), 0) for y in range(3, 1, -1)]
         trajectory.append(((1, 1), Direction.EXIT, mdp2.terminal_state, 2))
         self.assertEqual(run_agent(agent2, env2, episode_length=10), trajectory)
@@ -49,7 +51,8 @@ class TestAgentRunner(unittest.TestCase):
         mdp3 = GridworldMdp(grid, living_reward=-0.1)
         env3 = GridworldEnvironment(mdp3)
         south = Direction.SOUTH
-        agent3 = DirectionalAgent(mdp3, south)
+        agent3 = DirectionalAgent(south)
+        agent3.set_mdp(mdp3)
         trajectory = [((1, 3), south, (1, 3), -0.1)] * 10
         self.assertEqual(run_agent(agent3, env3, episode_length=10), trajectory)
 
