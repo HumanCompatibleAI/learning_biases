@@ -1,4 +1,5 @@
 from collections import defaultdict
+import numpy as np
 import random
 
 class GridworldMdp(object):
@@ -62,31 +63,37 @@ class GridworldMdp(object):
                 elif grid[y][x] == 'A':
                     self.start_state = (x, y)
 
+    def convert_to_numpy_input(self):
+        walls = np.array(self.walls, dtype=int)
+        start_state = self.start_state
+        rewards = np.zeros([self.height, self.width], dtype=float)
+        for x, y in self.rewards:
+            rewards[y, x] = self.rewards[(x, y)]
+        return walls, rewards, start_state
+
     @staticmethod
     def generate_random(height, width):
         grid = [['X'] * width for _ in range(height)]
         for y in range(1, height - 1):
             for x in range(1, width - 1):
-                if random.random() < 0.5:
-                    grid[y][x] = ' '
-                elif random.random() < 0.1:
-                    # About 5% chance of happening
+                if random.random() < 0.05:
                     grid[y][x] = random.randint(-9, 9)
+                    while grid[y][x] == 0:
+                        grid[y][x] = random.randint(-9, 9)
+                elif random.random() < 0.9:
+                    grid[y][x] = ' '
 
         def set_random_position_to(token):
-            starty = random.randint(1, height - 2)
-            startx = random.randint(1, width - 2)
-            grid[starty][startx] = token
+            current_val = None
+            while current_val not in ['X', ' ']:
+                y = random.randint(1, height - 2)
+                x = random.randint(1, width - 2)
+                current_val = grid[y][x]
+            grid[y][x] = token
 
         set_random_position_to(3)
         set_random_position_to('A')
-        try:
-            return GridworldMdp(grid)
-        except AssertionError:
-            # It is possible (but very unlikely) that we generated a grid with
-            # no rewards, added a 3 reward, and then overwrote the 3 reward with
-            # an A. In this case, just try again.
-            return GridworldMdp.generate_random(height, width)
+        return GridworldMdp(grid)
 
     def get_start_state(self):
         return self.start_state
@@ -100,7 +107,9 @@ class GridworldMdp(object):
     def get_actions(self, state):
         """Returns list of valid actions for 'state'.
 
-        Note that you can request moves into walls.
+        Note that you can request moves into walls. The order in which actions
+        are returned is guaranteed to be deterministic, in order to allow agents
+        to implement deterministic behavior.
         """
         if self.is_terminal(state):
             return []
@@ -220,7 +229,10 @@ class Direction(object):
     WEST  = (-1, 0)
     # This is hacky, but we do want to ensure that EXIT is distinct from the
     # other actions, and so we define it here instead of in an Action class.
-    EXIT = 0
+    EXIT = 4
+    INDEX_TO_DIRECTION = [NORTH, SOUTH, EAST, WEST, EXIT]
+    DIRECTION_TO_INDEX = { a:i for i, a in enumerate(INDEX_TO_DIRECTION) }
+    ALL_DIRECTIONS = INDEX_TO_DIRECTION
 
     @staticmethod
     def move_in_direction(point, direction):
@@ -235,3 +247,11 @@ class Direction(object):
         elif direction in [Direction.EAST, Direction.WEST]:
             return [Direction.NORTH, Direction.SOUTH]
         raise ValueError('Invalid direction: %s' % direction)
+
+    @staticmethod
+    def get_number_from_direction(direction):
+        return Direction.DIRECTION_TO_INDEX[direction]
+
+    @staticmethod
+    def get_direction_from_number(number):
+        return Direction.INDEX_TO_DIRECTION[number]

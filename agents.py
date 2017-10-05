@@ -3,7 +3,7 @@ from collections import defaultdict
 import random
 
 class ValueIterationLikeAgent(Agent):
-    def __init__(self, gamma=1.0, beta=None, num_iters=100):
+    def __init__(self, gamma=1.0, beta=None, num_iters=50):
         super(ValueIterationLikeAgent, self).__init__(gamma)
         self.beta = beta
         self.num_iters = num_iters
@@ -14,7 +14,7 @@ class ValueIterationLikeAgent(Agent):
 
     def compute_values(self):
         values = defaultdict(float)
-        for _ in range(self.num_iters):
+        for iter in range(self.num_iters):
             new_values = defaultdict(float)
             for mu in self.get_mus():
                 actions = self.get_actions(mu)
@@ -24,8 +24,20 @@ class ValueIterationLikeAgent(Agent):
                 qvalues = [(self.qvalue(new_mu, a, values), a) for a in actions]
                 _, chosen_action = max(qvalues)
                 new_values[mu] = self.qvalue(mu, chosen_action, values)
+
+            if self.converged(values, new_values):
+                self.values = new_values
+                return
+
             values = new_values
+
         self.values = values
+
+    def converged(self, values, new_values):
+        for mu in new_values.keys():
+            if abs(values[mu] - new_values[mu]) > 1e-3:
+                return False
+        return True
 
     def qvalue(self, mu, a, values=None):
         if values is None:
@@ -47,7 +59,7 @@ class ValueIterationLikeAgent(Agent):
                 best_value, best_actions = action_value, [a]
             elif action_value == best_value:
                 best_actions.append(a)
-        return random.choice(best_actions)
+        return best_actions[0] # random.choice(best_actions)
 
     def get_mus(self):
         return self.mdp.get_states()
@@ -77,7 +89,7 @@ class OptimalAgent(ValueIterationLikeAgent):
     pass
 
 class DelayDependentAgent(ValueIterationLikeAgent):
-    def __init__(self, max_delay, gamma=1.0, beta=None, num_iters=100):
+    def __init__(self, max_delay, gamma=1.0, beta=None, num_iters=50):
         super(DelayDependentAgent, self).__init__(gamma, beta, num_iters)
         self.max_delay = max_delay
 
@@ -99,7 +111,7 @@ class DelayDependentAgent(ValueIterationLikeAgent):
 
 class TimeDiscountingAgent(DelayDependentAgent):
     def __init__(self, max_delay, discount_constant,
-                 gamma=1.0, beta=None, num_iters=100):
+                 gamma=1.0, beta=None, num_iters=50):
         super(TimeDiscountingAgent, self).__init__(
             max_delay, gamma, beta, num_iters)
         self.discount_constant = discount_constant
@@ -118,7 +130,7 @@ class SophisticatedTimeDiscountingAgent(TimeDiscountingAgent):
         return (s, 0)
 
 class MyopicAgent(DelayDependentAgent):
-    def __init__(self, horizon, gamma=1.0, beta=None, num_iters=100):
+    def __init__(self, horizon, gamma=1.0, beta=None, num_iters=50):
         # The maximum delay should be the horizon.
         super(MyopicAgent, self).__init__(horizon, gamma, beta, num_iters)
         self.horizon = horizon
