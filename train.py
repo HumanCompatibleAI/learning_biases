@@ -11,7 +11,6 @@ from utils import fmt_row
 
 import sys
 sys.path.insert(0, '../tensorflow-value-iteration-networks')
-from data import process_gridworld_data
 
 # Data
 tf.app.flags.DEFINE_integer('imsize',         8,

@@ -8,9 +8,26 @@ class GridworldMdp(object):
     Specifies all of the static information that an agent has access to when
     playing in the given grid world, including the state space, action space,
     transition probabilities, rewards, start space, etc.
+
+    Once an agent arrives at a state with a reward, the agent must take the EXIT
+    action which will give it the reward. In any other state, the agent can take
+    any of the four cardinal directions as an action, getting a living reward
+    (typically negative in order to incentivize shorter paths).
     """
 
     def __init__(self, grid, living_reward=-0.01, noise=0):
+        """Initializes the MDP.
+
+        grid: A sequence of sequences of spaces, representing a grid of a
+        certain height and width. See assert_valid_grid for details on the grid
+        format.
+        living_reward: The reward obtained when taking any action besides EXIT.
+        noise: Probability that when the agent takes a non-EXIT action (that is,
+        a cardinal direction), it instead moves in one of the two adjacent
+        cardinal directions.
+
+        Raises: AssertionError if the grid is invalid.
+        """
         self.assert_valid_grid(grid)
         self.height = len(grid)
         self.width = len(grid[0])
@@ -22,6 +39,17 @@ class GridworldMdp(object):
         self.populate_rewards_and_start_state(grid)
 
     def assert_valid_grid(self, grid):
+        """Raises an AssertionError if the grid is invalid.
+
+        grid:  A sequence of sequences of spaces, representing a grid of a
+        certain height and width. grid[y][x] is the space at row y and column
+        x. A space must be either 'X' (representing a wall), ' ' (representing
+        an empty space), 'A' (representing the start state), or a value v so
+        that float(v) succeeds (representing a reward).
+
+        Often, grid will be a list of strings, in which case the rewards must be
+        single digit positive rewards.
+        """
         height = len(grid)
         width = len(grid[0])
 
@@ -54,6 +82,14 @@ class GridworldMdp(object):
         assert len(floats) >= 1, 'There must at least one reward square'
 
     def populate_rewards_and_start_state(self, grid):
+        """Sets self.rewards and self.start_state based on grid.
+
+        Assumes that grid is a valid grid.
+
+        grid: A sequence of sequences of spaces, representing a grid of a
+        certain height and width. See assert_valid_grid for details on the grid
+        format.
+        """
         self.rewards = {}
         self.start_state = None
         for y in range(len(grid)):
@@ -64,6 +100,12 @@ class GridworldMdp(object):
                     self.start_state = (x, y)
 
     def convert_to_numpy_input(self):
+        """Encodes this MDP in a format well-suited for deep models.
+
+        Returns three things -- a grid of indicators for whether or not a wall
+        is present, a grid of reward values (not including living reward), and
+        the start state (a tuple in the format x, y).
+        """
         walls = np.array(self.walls, dtype=int)
         start_state = self.start_state
         rewards = np.zeros([self.height, self.width], dtype=float)
@@ -73,6 +115,11 @@ class GridworldMdp(object):
 
     @staticmethod
     def generate_random(height, width):
+        """Generates a random instance of a Gridworld.
+
+        Note that based on the generated walls and start position, it may be
+        impossible for the agent to ever reach a reward.
+        """
         grid = [['X'] * width for _ in range(height)]
         for y in range(1, height - 1):
             for x in range(1, width - 1):
@@ -96,16 +143,21 @@ class GridworldMdp(object):
         return GridworldMdp(grid)
 
     def get_start_state(self):
+        """Returns the start state."""
         return self.start_state
 
     def get_states(self):
+        """Returns a list of all possible states the agent can be in.
+
+        Note it is not guaranteed that the agent can reach all of these states.
+        """
         coords = [(x, y) for x in range(self.width) for y in range(self.height)]
         all_states = [(x, y) for x, y in coords if not self.walls[y][x]]
         all_states.append(self.terminal_state)
         return all_states
 
     def get_actions(self, state):
-        """Returns list of valid actions for 'state'.
+        """Returns the list of valid actions for 'state'.
 
         Note that you can request moves into walls. The order in which actions
         are returned is guaranteed to be deterministic, in order to allow agents
@@ -122,16 +174,25 @@ class GridworldMdp(object):
         return act
 
     def get_reward(self, state, action):
-        """Get reward for state, action transition."""
+        """Get reward for state, action transition.
+
+        This is the living reward, except when we take EXIT, in which case we
+        return the reward for the current state.
+        """
         if state in self.rewards and action == Direction.EXIT:
             return self.rewards[state]
         return self.living_reward
 
     def is_terminal(self, state):
+        """Returns True if the current state is terminal, False otherwise.
+
+        A state is terminal if there are no actions available from it (which
+        means that the episode is over).
+        """
         return state == self.terminal_state
 
     def get_transition_states_and_probs(self, state, action):
-        """Information about possible transitions for the action.
+        """Gets information about possible transitions for the action.
 
         Returns list of (next_state, prob) pairs representing the states
         reachable from 'state' by taking 'action' along with their transition
