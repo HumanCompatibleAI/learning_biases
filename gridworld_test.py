@@ -55,6 +55,7 @@ class TestGridworld(unittest.TestCase):
         self.assertEqual(str(self.mdp3), expected)
 
     def test_constructor_invalid_inputs(self):
+        # Height and width must be at least 2.
         with self.assertRaises(AssertionError):
             mdp = GridworldMdp(['X', 'X', 'X'])
         with self.assertRaises(AssertionError):

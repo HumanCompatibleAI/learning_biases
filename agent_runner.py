@@ -6,6 +6,12 @@ def run_agent(agent, env, episode_length=float("inf")):
     The agent will keep being asked for actions until the environment says the
     episode is over, or once the episode_length has been reached.
 
+    agent: An Agent (which in particular has get_action and inform_minibatch).
+    env: An Environment in which the agent will act.
+    episode_length: The maximum number of actions that the agent can take. If
+    the agent has not reached a terminal state by this point, the episode is
+    terminated early.
+
     Returns the trajectory that the agent took, which is a list of (s, a, s', r)
     tuples.
     """

@@ -226,6 +226,15 @@ class GridworldMdp(object):
         return state if self.walls[newy][newx] else (newx, newy)
 
     def __str__(self):
+        """Returns a string representation of this grid world.
+
+        The returned string has a line for every row, and each space is exactly
+        one character. These are encoded in the same way as the grid input to
+        the constructor -- walls are 'X', empty spaces are ' ', the start state
+        is 'A', and rewards are their own values. However, rewards like 3.5 or
+        -9 cannot be represented with a single character. Such rewards are
+        encoded as 'R' (if positive) or 'N' (if negative).
+        """
         def get_char(x, y):
             if self.walls[y][x]:
                 return 'X'
@@ -246,7 +255,14 @@ class GridworldMdp(object):
 
         return '\n'.join([get_row_str(y) for y in range(self.height)])
 
+# TODO(rohinmshah): This is a generic MDP environment, it isn't specific to
+# Gridworlds. Put it in its own file and rename the gridworld field to mdp.
 class GridworldEnvironment(object):
+    """An environment containing a single agent that can take actions.
+
+    The environment keeps track of the current state of the agent, and updates
+    it as the agent takes actions, and provides rewards to the agent.
+    """
 
     def __init__(self, gridworld):
         self.gridworld = gridworld
@@ -259,12 +275,14 @@ class GridworldEnvironment(object):
         return self.gridworld.get_actions(state)
 
     def perform_action(self, action):
+        """Performs the action, updating the state and providing a reward."""
         state = self.get_current_state()
         next_state, reward = self.get_random_next_state(state, action)
         self.state = next_state
         return (next_state, reward)
 
     def get_random_next_state(self, state, action):
+        """Chooses the next state according to T(state, action)."""
         rand = random.random()
         sum = 0.0
         results = self.gridworld.get_transition_states_and_probs(state, action)
@@ -278,12 +296,19 @@ class GridworldEnvironment(object):
         raise ValueError('Total transition probability less than one.')
 
     def reset(self):
+        """Resets the environment. Does NOT reset the agent."""
         self.state = self.gridworld.get_start_state()
 
     def is_done(self):
+        """Returns True if the episode is over and the agent cannot act."""
         return self.gridworld.is_terminal(self.get_current_state())
 
 class Direction(object):
+    """A class that contains the five actions available in Gridworlds.
+
+    Includes definitions of the actions as well as utility functions for
+    manipulating them or applying them.
+    """
     NORTH = (0, -1)
     SOUTH = (0, 1)
     EAST  = (1, 0)
@@ -297,12 +322,21 @@ class Direction(object):
 
     @staticmethod
     def move_in_direction(point, direction):
+        """Takes a step in the given direction and returns the new point.
+
+        point: Tuple (x, y) representing a point in the x-y plane.
+        direction: One of the Directions, except not Direction.EXIT.
+        """
         x, y = point
         dx, dy = direction
         return (x + dx, y + dy)
 
     @staticmethod
     def get_adjacent_directions(direction):
+        """Returns the directions within 90 degrees of the given direction.
+
+        direction: One of the Directions, except not Direction.EXIT.
+        """
         if direction in [Direction.NORTH, Direction.SOUTH]:
             return [Direction.EAST, Direction.WEST]
         elif direction in [Direction.EAST, Direction.WEST]:
