@@ -91,15 +91,15 @@ class ValueIterationLikeAgent(Agent):
         Note that this is a normal state s, not a generalized state mu.
         """
         # TODO(rohinmshah): Take beta into account
+        mu = self.extend_state_to_mu(s)
+        actions = self.mdp.get_actions(s)
         if self.beta is not None:
-            q_vals = [self.qvalue(mu, a) for a in self.mdp.get_actions(s)]
+            q_vals = [self.qvalue(mu, a) for a in actions]
             action_dist = np.exp(q_vals)
             action_dist = action_dist / np.sum(action_dist)
-            return np.random.choice(self.mdp.get_actions(), p=action_dist)
-            
-        mu = self.extend_state_to_mu(s)
+            return actions[np.random.choice(np.arange(len(actions)), p=action_dist)]       
         best_value, best_actions = float("-inf"), []
-        for a in self.mdp.get_actions(s):
+        for a in actions:
             action_value = self.qvalue(mu, a)
             if action_value > best_value:
                 best_value, best_actions = action_value, [a]
