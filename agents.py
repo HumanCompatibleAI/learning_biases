@@ -1,5 +1,6 @@
 from agent_interface import Agent
 from collections import defaultdict
+import numpy as np
 import random
 
 class ValueIterationLikeAgent(Agent):
@@ -91,8 +92,11 @@ class ValueIterationLikeAgent(Agent):
         """
         # TODO(rohinmshah): Take beta into account
         if self.beta is not None:
-            print(self.beta)
-            raise NotImplementedError("Noisy action choice not implemented!")
+            q_vals = [self.qvalue(mu, a) for a in self.mdp.get_actions(s)]
+            action_dist = np.exp(q_vals)
+            action_dist = action_dist / np.sum(action_dist)
+            return np.random.choice(self.mdp.get_actions(), p=action_dist)
+            
         mu = self.extend_state_to_mu(s)
         best_value, best_actions = float("-inf"), []
         for a in self.mdp.get_actions(s):
