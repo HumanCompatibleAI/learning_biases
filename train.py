@@ -123,43 +123,40 @@ with tf.Session() as sess:
         summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
     sess.run(init)
 
-    print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
-    for epoch in range(int(config.epochs)):
+    def run_epoch(data, ops_to_run, ops_to_average):
         tstart = time.time()
-        avg_err, avg_cost = 0.0, 0.0
-        num_batches = int(imagetrain.shape[0]/batch_size)
+        image_data, reward_data, S1_data, S2_data, y_data = data
+        averages = [0.0] * len(ops_to_average)
+        num_batches = int(image_data.shape[0] / batch_size)
         # Loop over all batches
         for i in range(num_batches):
             start, end = i * batch_size, (i + 1) * batch_size
-            # Run optimization op (backprop) and cost op (to get loss value)
             fd = {
-                image: imagetrain[start:end],
-                reward: rewardtrain[start:end],
-                S1: S1train[start:end],
-                S2: S2train[start:end],
-                y: ytrain[start * state_batch_size:end * state_batch_size]
+                image: image_data[start:end],
+                reward: reward_data[start:end],
+                S1: S1_data[start:end],
+                S2: S2_data[start:end],
+                y: y_data[start * state_batch_size:end * state_batch_size]
             }
-            _, e_, c_ = sess.run([planner_optimizer, err, cost], feed_dict=fd)
-            avg_err += e_
-            avg_cost += c_
-        avg_err = avg_err / num_batches
-        avg_cost = avg_cost / num_batches
+            results = sess.run(ops_to_run + ops_to_average, feed_dict=fd)
+            num_ops_to_run = len(ops_to_run)
+            op_results, average_op_results = results[:num_ops_to_run], results[num_ops_to_run:]
+            averages = [x + y for x, y in zip(averages, average_op_results)]
+
+        averages = [x / num_batches for x in averages]
+        elapsed = time.time() - tstart
+        return op_results, averages, elapsed
+
+    train_data = (imagetrain, rewardtrain, S1train, S2train, ytrain)
+    test1_data = (imagetest1, rewardtest1, S1test1, S2test1, ytest1)
+
+    print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
+    for epoch in range(int(config.epochs)):
+        _, (avg_cost, avg_err), elapsed = run_epoch(
+            train_data, [planner_optimizer], [cost, err])
         # Display logs per epoch step
         if epoch % config.display_step == 0:
-            elapsed = time.time() - tstart
-            num_batches = int(imagetest1.shape[0]/batch_size)
-            test1_err = 0.0
-            for i in range(num_batches):
-                start, end = i * batch_size, (i + 1) * batch_size
-                batch_err = err.eval({
-                    image: imagetest1[start:end],
-                    reward: rewardtest1[start:end],
-                    S1: S1test1[start:end],
-                    S2: S2test1[start:end],
-                    y: ytest1[start * state_batch_size:end * state_batch_size],
-                })
-                test1_err += batch_err
-            test1_err = test1_err / num_batches
+            _, (test1_err,), _ = run_epoch(test1_data, [], [err])
             print(fmt_row(10, [epoch, avg_cost, avg_err, test1_err, elapsed]))
         if config.log:
             summary = tf.Summary()
@@ -168,25 +165,13 @@ with tf.Session() as sess:
             summary.value.add(tag='Average cost', simple_value=float(avg_cost))
             summary_writer.add_summary(summary, epoch)
     print("Finished training!")
-    num_batches = int(imagetest1.shape[0]/batch_size)
-    test1_err = 0.0
-    for i in range(num_batches):
-        start, end = i * batch_size, (i + 1) * batch_size
-        batch_err = err.eval({
-            image: imagetest1[start:end],
-            reward: rewardtest1[start:end],
-            S1: S1test1[start:end],
-            S2: S2test1[start:end],
-            y: ytest1[start * state_batch_size:end * state_batch_size],
-        })
-        test1_err += batch_err
-    test1_err = test1_err / num_batches
+    _, (test1_err,), _ = run_epoch(test1_data, [], [err])
     print('Final Accuracy: ' + str(100 * (1 - test1_err)))
 
     print('Beginning IRL inference')
     # It is required that the number of unknown reward functions be equal to the
     # batch size. If we tried to train multiple batches, then they would all be
-    # modifying the *same* reward function, which would clearly be bad.
+    # modifying the same reward function, which would be bad.
     print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
     for epoch in range(config.reward_epochs):
         tstart = time.time()
