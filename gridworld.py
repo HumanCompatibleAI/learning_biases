@@ -114,7 +114,7 @@ class GridworldMdp(object):
         return walls, rewards, start_state
 
     @staticmethod
-    def generate_random(height, width):
+    def generate_random(height, width, pr_wall, pr_reward):
         """Generates a random instance of a Gridworld.
 
         Note that based on the generated walls and start position, it may be
@@ -123,11 +123,12 @@ class GridworldMdp(object):
         grid = [['X'] * width for _ in range(height)]
         for y in range(1, height - 1):
             for x in range(1, width - 1):
-                if random.random() < 0.05:
+                if random.random() < pr_reward:
                     grid[y][x] = random.randint(-9, 9)
+                    # Don't allow 0 rewards
                     while grid[y][x] == 0:
                         grid[y][x] = random.randint(-9, 9)
-                elif random.random() < 0.9:
+                elif random.random() >= pr_wall:
                     grid[y][x] = ' '
 
         def set_random_position_to(token):
