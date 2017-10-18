@@ -94,10 +94,12 @@ class ValueIterationLikeAgent(Agent):
         mu = self.extend_state_to_mu(s)
         actions = self.mdp.get_actions(s)
         if self.beta is not None:
-            q_vals = [self.qvalue(mu, a) for a in actions]
-            action_dist = np.exp(q_vals)
+            q_vals = np.array([self.qvalue(mu, a) for a in actions])
+            action_dist = np.exp(self.beta*q_vals)
             action_dist = action_dist / np.sum(action_dist)
-            return actions[np.random.choice(np.arange(len(actions)), p=action_dist)]       
+            # print("beta working")
+            return actions[np.random.choice(np.arange(len(actions)), p=action_dist)] 
+
         best_value, best_actions = float("-inf"), []
         for a in actions:
             action_value = self.qvalue(mu, a)
