@@ -6,7 +6,7 @@ from utils import conv2d_flipkernel
 
 def VI_Block(X, S1, S2, config):
     k    = config.k    # Number of value iterations performed
-    ch_i = config.ch_i # Channels in input layer
+    ch_i = 2           # Channels in input layer, hardcoded to 2 for now
     ch_h = config.ch_h # Channels in initial hidden layer
     ch_q = config.ch_q # Channels in q layer (~actions)
     state_batch_size = config.statebatchsize # k+1 state inputs for each channel
@@ -63,7 +63,7 @@ def VI_Block(X, S1, S2, config):
 # similar to the normal VI_Block except there are separate weights for each q layer
 def VI_Untied_Block(X, S1, S2, config):
     k    = config.k    # Number of value iterations performed
-    ch_i = config.ch_i # Channels in input layer
+    ch_i = 2           # Channels in input layer, hardcoded to 2 for now
     ch_h = config.ch_h # Channels in initial hidden layer
     ch_q = config.ch_q # Channels in q layer (~actions)
     state_batch_size = config.statebatchsize # k+1 state inputs for each channel

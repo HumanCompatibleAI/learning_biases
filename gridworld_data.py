@@ -45,7 +45,10 @@ def generate_example(agent, config):
     config: Configuration parameters.
 
     Returns: A tuple of four items:
-      image: Numpy array of size imsize x imsize x 2 (walls and rewards)
+      image: Numpy array of size imsize x imsize, each element is 1 if there is
+             a wall at that location, 0 otherwise.
+      rewards: Numpy array of size imsize x imsize, each element is the reward
+               obtained at that state. (Most will be zero.)
       y_coords: Numpy array of integers representing y coordinates (rows).
       x_coords: Numpy array of integers representing x coordinates (columns).
       action_labels: Numpy array of integers representing agent actions.
@@ -56,7 +59,8 @@ def generate_example(agent, config):
     train a planning module to recreate the actions of the agent.
     """
     expected_length, imsize = config.statebatchsize, config.imsize
-    mdp = GridworldMdp.generate_random(imsize, imsize)
+    pr_wall, pr_reward = config.wall_prob, config.reward_prob
+    mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
     agent.set_mdp(mdp)
 
     def get_minibatch():
@@ -66,32 +70,43 @@ def generate_example(agent, config):
     minibatches = [get_minibatch() for _ in range(expected_length)]
 
     walls, rewards, _ = mdp.convert_to_numpy_input()
-    image = np.stack([walls, rewards], axis=-1)
     y_coords = np.array([y for (x, y), _ in minibatches])
     x_coords = np.array([x for (x, y), _ in minibatches])
     action_labels = np.array(
         [Direction.get_number_from_direction(a) for _, a in minibatches])
-    return image, y_coords, x_coords, action_labels
+    return walls, rewards, y_coords, x_coords, action_labels
 
 def generate_n_examples(n, agent, config):
     """Calls generate_example n times to create a dataset of examples of size n.
 
-    Returns the same four Numpy arrays as generate_example, except that they now
+    Returns the same five Numpy arrays as generate_example, except that they now
     have shape (n, *previous_shape).
     """
     data = [generate_example(agent, config) for _ in range(n)]
-    image, S1, S2, labels = zip(*data)
-    return np.array(image), np.array(S1), np.array(S2), np.array(labels)
+    walls, rewards, S1, S2, labels = map(np.array, zip(*data))
+    return walls, rewards, S1, S2, labels
 
-def generate_gridworld_data(config, num_train=1000, num_test=1000):
+def generate_gridworld_data(agent, config, num_train=1000, num_test=100):
     """Generates training and test data for Gridworld data."""
     size = config.statebatchsize
-    agent = create_agent(config)
     print('Generating %d training examples' % num_train)
-    Xtrain, S1train, S2train, ytrain = generate_n_examples(num_train, agent, config)
+    imagetrain, rewardtrain, S1train, S2train, ytrain = generate_n_examples(num_train, agent, config)
     print('Generating %d test examples' % num_test)
-    Xtest, S1test, S2test, ytest = generate_n_examples(num_test, agent, config)
-    return Xtrain, S1train, S2train, ytrain, Xtest, S1test, S2test, ytest
+    imagetest, rewardtest, S1test, S2test, ytest = generate_n_examples(num_test, agent, config)
+    return imagetrain, rewardtrain, S1train, S2train, ytrain, imagetest, rewardtest, S1test, S2test, ytest
+
+def generate_gridworld_irl(config, num_train=1000, num_test=100, num_mdps=10):
+    """Generates an IRL problem for Gridworlds.
+
+    Returns 15 Numpy arrays, from 3 calls to generate_n_examples, corresponding
+    to train data, test data for step 1, and test data for step 2.
+    """
+    agent = create_agent(config)
+    step1_data = generate_gridworld_data(agent, config, num_train, num_test)
+    print('Generating %d unknown reward examples' % num_mdps)
+    step2_data = generate_n_examples(num_mdps, agent, config)
+    return step1_data + step2_data
+    
 
 def create_agent(config):
     """Creates the agent specified in config."""
@@ -125,16 +140,20 @@ def create_agent(config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--imsize', type=int, default=8)
+    parser.add_argument('--wall_prob', type=float, default=0.05)
+    parser.add_argument('--reward_prob', type=int, default=0)
+    parser.add_argument('--statebatchsize', type=int, default=10)
     args = parser.parse_args()
     if args.seed is None:
         args.seed = int(random.random() * 100000)
     print('Using seed ' + str(args.seed))
     random.seed(args.seed)
-    image, y, x, labels = generate_example(8, 8)
+    walls, rewards, y, x, labels = generate_example(agents.OptimalAgent(), args)
     print('Walls:')
-    print(image[:,:,0])
+    print(walls)
     print('Rewards:')
-    print(image[:,:,1])
+    print(rewards)
     print('Y coords:')
     print(y)
     print('X coords:')
