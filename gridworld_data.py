@@ -86,8 +86,7 @@ def generate_n_examples(n, agent, config):
     walls, rewards, S1, S2, labels = map(np.array, zip(*data))
     return walls, rewards, S1, S2, labels
 
-
-def generate_gridworld_data(config, num_train=250, num_test=1000//4):
+def generate_gridworld_data(agent, config, num_train=1000, num_test=100):
     """Generates training and test data for Gridworld data."""
     size = config.statebatchsize
     print('Generating %d training examples' % num_train)
