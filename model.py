@@ -2,7 +2,9 @@
 
 import numpy as np
 import tensorflow as tf
-from utils import conv2d_flipkernel
+
+def conv2d(x, k, name=None):
+    return tf.nn.conv2d(x, k, name=name, strides=(1, 1, 1, 1), padding='SAME')
 
 def VI_Block(X, S1, S2, config):
     k    = config.k    # Number of value iterations performed
@@ -21,21 +23,20 @@ def VI_Block(X, S1, S2, config):
     w_o   = tf.Variable(np.random.randn(ch_q, 8)          * 0.01, dtype=tf.float32)
 
     # initial conv layer over image+reward prior
-    h = conv2d_flipkernel(X, w0, name="h0") + bias
+    h = conv2d(X, w0, name="h0") + bias
 
-    r = conv2d_flipkernel(h, w1, name="r")
-    q = conv2d_flipkernel(r, w, name="q")
+    r = conv2d(h, w1, name="r")
+    q = conv2d(r, w, name="q")
     v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
 
     for i in range(0, k-1):
         rv = tf.concat([r, v], 3)
         wwfb = tf.concat([w, w_fb], 2)
-        q = conv2d_flipkernel(rv, wwfb, name="q")
+        q = conv2d(rv, wwfb, name="q")
         v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
 
     # do one last convolution
-    q = conv2d_flipkernel(tf.concat([r, v], 3),
-                          tf.concat([w, w_fb], 2), name="q")
+    q = conv2d(tf.concat([r, v], 3), tf.concat([w, w_fb], 2), name="q")
 
     # CHANGE TO THEANO ORDERING
     # Since we are selecting over channels, it becomes easier to work with
@@ -79,21 +80,21 @@ def VI_Untied_Block(X, S1, S2, config):
     w_o = tf.Variable(np.random.randn(ch_q, 8)          * 0.01, dtype=tf.float32)
 
     # initial conv layer over image+reward prior
-    h = conv2d_flipkernel(X, w0, name="h0") + bias
+    h = conv2d(X, w0, name="h0") + bias
 
-    r = conv2d_flipkernel(h, w1, name="r")
-    q = conv2d_flipkernel(r, w_l[0], name="q")
+    r = conv2d(h, w1, name="r")
+    q = conv2d(r, w_l[0], name="q")
     v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
 
     for i in range(0, k-1):
         rv = tf.concat([r, v], 3)
         wwfb = tf.concat([w_l[i+1], w_fb_l[i]], 2)
-        q = conv2d_flipkernel(rv, wwfb, name="q")
+        q = conv2d(rv, wwfb, name="q")
         v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
 
     # do one last convolution
-    q = conv2d_flipkernel(tf.concat([r, v], 3),
-                          tf.concat([w_l[k], w_fb_l[k-1]], 2), name="q")
+    q = conv2d(tf.concat([r, v], 3),
+               tf.concat([w_l[k], w_fb_l[k-1]], 2), name="q")
 
     # CHANGE TO THEANO ORDERING
     # Since we are selecting over channels, it becomes easier to work with
