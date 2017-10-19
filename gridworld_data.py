@@ -86,25 +86,25 @@ def generate_n_examples(n, agent, config):
     walls, rewards, S1, S2, labels = map(np.array, zip(*data))
     return walls, rewards, S1, S2, labels
 
-def generate_gridworld_data(agent, config, num_train=1000, num_test=100):
+def generate_gridworld_data(agent, config):
     """Generates training and test data for Gridworld data."""
     size = config.statebatchsize
-    print('Generating %d training examples' % num_train)
-    imagetrain, rewardtrain, S1train, S2train, ytrain = generate_n_examples(num_train, agent, config)
-    print('Generating %d test examples' % num_test)
-    imagetest, rewardtest, S1test, S2test, ytest = generate_n_examples(num_test, agent, config)
+    print('Generating %d training examples' % config.num_train)
+    imagetrain, rewardtrain, S1train, S2train, ytrain = generate_n_examples(config.num_train, agent, config)
+    print('Generating %d test examples' % config.num_test)
+    imagetest, rewardtest, S1test, S2test, ytest = generate_n_examples(config.num_test, agent, config)
     return imagetrain, rewardtrain, S1train, S2train, ytrain, imagetest, rewardtest, S1test, S2test, ytest
 
-def generate_gridworld_irl(config, num_train=1000, num_test=100, num_mdps=10):
+def generate_gridworld_irl(config):
     """Generates an IRL problem for Gridworlds.
 
     Returns 15 Numpy arrays, from 3 calls to generate_n_examples, corresponding
     to train data, test data for step 1, and test data for step 2.
     """
     agent = create_agent(config)
-    step1_data = generate_gridworld_data(agent, config, num_train, num_test)
-    print('Generating %d unknown reward examples' % num_mdps)
-    step2_data = generate_n_examples(num_mdps, agent, config)
+    step1_data = generate_gridworld_data(agent, config)
+    print('Generating %d unknown reward examples' % config.num_mdps)
+    step2_data = generate_n_examples(config.num_mdps, agent, config)
     return step1_data + step2_data
 
 def create_agent(config):

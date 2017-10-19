@@ -19,59 +19,66 @@ import sys
 sys.path.insert(0, '../tensorflow-value-iteration-networks')
 
 # Data
-tf.app.flags.DEFINE_integer('imsize',         14,
-                            'Size of input image')
-tf.app.flags.DEFINE_float('wall_prob',      0.05,
-                            'Probability of having a wall at any particular space in the gridworld')
-tf.app.flags.DEFINE_float('reward_prob',    0,
-                            'Probability of having a reward at any particular space in the gridworld')
-# Parameters
-tf.app.flags.DEFINE_float('lr',               0.001,
-                          'Learning rate for RMSProp')
-tf.app.flags.DEFINE_integer('epochs',         100,
-                            'Maximum epochs to train for')
-tf.app.flags.DEFINE_integer('reward_epochs',  10,
-                            'Number of epochs to run when inferring reward function')
-tf.app.flags.DEFINE_integer('k',              10,
-                            'Number of value iterations')
-tf.app.flags.DEFINE_integer('ch_h',           150,
-                            'Channels in initial hidden layer')
-tf.app.flags.DEFINE_integer('ch_q',           5,
-                            'Channels in q layer (~actions)')
-tf.app.flags.DEFINE_integer('batchsize',      12,
-                            'Batch size')
-tf.app.flags.DEFINE_integer('statebatchsize', 10,
-                            'Number of state inputs for each sample (real number, technically is k+1)')
-tf.app.flags.DEFINE_boolean('untied_weights', False,
-                            'Untie weights of VI network')
+tf.app.flags.DEFINE_integer('imsize', 8, 'Size of input image')
+tf.app.flags.DEFINE_float(
+    'wall_prob', 0.05,
+    'Probability of having a wall at any particular space in the gridworld')
+tf.app.flags.DEFINE_float(
+    'reward_prob', 0,
+    'Probability of having a reward at any particular space in the gridworld')
+tf.app.flags.DEFINE_integer(
+    'num_train', 500, 'Number of examples for training the planning module')
+tf.app.flags.DEFINE_integer(
+    'num_test', 200, 'Number of examples for testing the planning module')
+
+# Hyperparameters
+tf.app.flags.DEFINE_float(
+    'lr', 0.01, 'Learning rate when training the planning module')
+tf.app.flags.DEFINE_integer(
+    'epochs', 30, 'Number of epochs to train the planning module for')
+tf.app.flags.DEFINE_float(
+    'reward_lr', 0.1, 'Learning rate when inferring a reward function')
+tf.app.flags.DEFINE_integer(
+    'reward_epochs', 30, 'Number of epochs when inferring a reward function')
+tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
+tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
+tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer (~actions)')
+tf.app.flags.DEFINE_integer('batchsize', 12, 'Batch size')
+tf.app.flags.DEFINE_integer(
+    'statebatchsize', 10,
+    'Number of state inputs for each sample (real number, technically is k+1)')
+tf.app.flags.DEFINE_boolean('untied_weights', False, 'Untie weights of VIN')
+
 # Agents
-tf.app.flags.DEFINE_string('agent',           'optimal',
-                           'Agent to generate training data with')
-tf.app.flags.DEFINE_float('gamma',            1.0,
-                          'Discount factor')
-tf.app.flags.DEFINE_float('beta',             None,
-                          'Noise when selecting actions')
-tf.app.flags.DEFINE_integer('num_iters',      50,
-                            'Number of iterations of value iteration the agent should run.')
-tf.app.flags.DEFINE_integer('max_delay',      5,
-                            'Maximum delay that the agent should use. Only affects naive/sophisticated and myopic agents.')
-tf.app.flags.DEFINE_float('hyperbolic_constant', 1.0,
-                          'Discount for the future for hyperbolic time discounters')
-# Misc.
-tf.app.flags.DEFINE_integer('seed',           0,
-                            'Random seed for numpy')
-tf.app.flags.DEFINE_integer('display_step',   1,
-                            'Print summary output every n epochs')
-tf.app.flags.DEFINE_boolean('log',            False,
-                            'Enable for tensorboard summary')
-tf.app.flags.DEFINE_string('logdir',          '/tmp/planner-vin/',
-                           'Directory to store tensorboard summary')
-tf.app.flags.DEFINE_integer("num_train_ex", 2000,
-                            'Number of training examples')
-tf.app.flags.DEFINE_integer("num_test_ex", 300,
-                            'Number of testing examples')
+tf.app.flags.DEFINE_string(
+    'agent', 'optimal', 'Agent to generate training data with')
+tf.app.flags.DEFINE_float('gamma', 1.0, 'Discount factor')
+tf.app.flags.DEFINE_float('beta', None, 'Noise when selecting actions')
+tf.app.flags.DEFINE_integer(
+    'num_iters', 50,
+    'Number of iterations of value iteration the agent should run.')
+tf.app.flags.DEFINE_integer(
+    'max_delay', 5,
+    'Maximum delay that the agent should use. '
+    'Only affects naive/sophisticated and myopic agents.')
+tf.app.flags.DEFINE_float(
+    'hyperbolic_constant', 1.0,
+    'Discount for the future for hyperbolic time discounters')
+
+# Miscellaneous
+tf.app.flags.DEFINE_integer('seed', 0, 'Random seed for both numpy and random')
+tf.app.flags.DEFINE_integer(
+    'display_step', 1, 'Print summary output every n epochs')
+tf.app.flags.DEFINE_boolean('log', False, 'Enables tensorboard summary')
+tf.app.flags.DEFINE_string(
+    'logdir', '/tmp/planner-vin/', 'Directory to store tensorboard summary')
 
 config = tf.app.flags.FLAGS
+
+# It is required that the number of unknown reward functions be equal to the
+# batch size. If we tried to train multiple batches, then they would all be
+# modifying the same reward function, which would be bad.
+config.num_mdps = config.batchsize
 
 np.random.seed(config.seed)
 random.seed(config.seed)
@@ -99,16 +106,21 @@ if (config.untied_weights):
 else:
     logits, nn = VI_Block(X, S1, S2, config)
 
-# Define loss and optimizers
+# Define loss
 y_ = tf.cast(y, tf.int64)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
     logits=logits, labels=y_, name='cross_entropy')
 cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy_mean')
 tf.add_to_collection('losses', cross_entropy_mean)
-
 cost = tf.add_n(tf.get_collection('losses'), name='total_loss')
-planner_optimizer = tf.train.RMSPropOptimizer(learning_rate=config.lr, epsilon=1e-6, centered=True).minimize(cost)
-reward_optimizer = tf.train.RMSPropOptimizer(learning_rate=config.lr * 100, epsilon=1e-6, centered=True).minimize(cost, var_list=[reward])
+
+# Define optimizers
+planner_optimizer = tf.train.RMSPropOptimizer(
+    learning_rate=config.lr, epsilon=1e-6, centered=True)
+planner_optimize_op = planner_optimizer.minimize(cost)
+reward_optimizer = tf.train.RMSPropOptimizer(
+    learning_rate=config.reward_lr, epsilon=1e-6, centered=True)
+reward_optimize_op = reward_optimizer.minimize(cost, var_list=[reward])
 
 # Test model & calculate accuracy
 cp = tf.cast(tf.argmax(nn, 1), tf.int32)
@@ -123,9 +135,7 @@ builder = tf.saved_model.builder.SavedModelBuilder(config.logdir+'model/')
 
 imagetrain, rewardtrain, S1train, S2train, ytrain, \
 imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
-imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(
-    config, config.num_train_ex, config.num_test_ex, batch_size
-)
+imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(config)
 ytrain = np.reshape(ytrain, [-1])
 ytest1 = np.reshape(ytest1, [-1])
 ytest2 = np.reshape(ytest2, [-1])
@@ -170,7 +180,7 @@ with tf.Session() as sess:
     print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
     for epoch in range(int(config.epochs)):
         _, (avg_cost, avg_err), elapsed = run_epoch(
-            train_data, [planner_optimizer], [cost, err])
+            train_data, [planner_optimize_op], [cost, err])
         # Display logs per epoch step
         if epoch % config.display_step == 0:
             _, (test1_err,), _ = run_epoch(test1_data, [], [err])
@@ -191,9 +201,6 @@ with tf.Session() as sess:
     print('Final Accuracy: ' + str(100 * (1 - test1_err)))
 
     print('Beginning IRL inference')
-    # It is required that the number of unknown reward functions be equal to the
-    # batch size. If we tried to train multiple batches, then they would all be
-    # modifying the same reward function, which would be bad.
     print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
     for epoch in range(config.reward_epochs):
         tstart = time.time()
@@ -204,7 +211,7 @@ with tf.Session() as sess:
             y: ytest2,
         }
         _, predicted_reward, e_, c_ = sess.run(
-            [reward_optimizer, reward, err, cost], feed_dict=fd)
+            [reward_optimize_op, reward, err, cost], feed_dict=fd)
         elapsed = time.time() - tstart
         print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
