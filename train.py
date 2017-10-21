@@ -4,6 +4,10 @@ import time
 import numpy as np
 import random
 import tensorflow as tf
+import matplotlib
+matplotlib.use("tkagg")
+import matplotlib.pyplot as plt
+
 
 import agents
 from gridworld_data import generate_gridworld_irl
@@ -186,7 +190,15 @@ with tf.Session() as sess:
         elapsed = time.time() - tstart
         print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
+    fig, axes = plt.subplots(1,2)
     print('The first reward should be:')
     print(rewardtest2[0])
     print('The inferred reward is:')
     print(reward.eval()[0])
+    axes[0].imshow(rewardtest2[0],cmap='hot',interpolation='nearest')
+    axes[0].set_title("Truth")
+    axes[1].imshow(reward.eval()[0],cmap='hot',interpolation='nearest')
+    axes[1].set_title("Predicted")
+    fig.suptitle("Comparison of Reward Functions")
+    fig.savefig("predictioneval")
+
