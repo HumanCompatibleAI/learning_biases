@@ -97,7 +97,6 @@ class ValueIterationLikeAgent(Agent):
             q_vals = np.array([self.qvalue(mu, a) for a in actions])
             action_dist = np.exp(self.beta*q_vals)
             action_dist = action_dist / np.sum(action_dist)
-            # print("beta working")
             return actions[np.random.choice(np.arange(len(actions)), p=action_dist)] 
 
         best_value, best_actions = float("-inf"), []
