@@ -314,27 +314,52 @@ class GridworldEnvironment(object):
         print("env state is: {}".format(self.state))
         grid = []
         pgrid = ""
-        for w in range(self.gridworld.width):
+        for h in range(self.gridworld.height):
             row = []
             str_row = ""
-            for h in range(self.gridworld.height):
+            for w in range(self.gridworld.width):
                 char = ""
-                # transpose the (x,y) coords
                 if self.gridworld.walls[h][w]:
                     char = "X"
                 elif self.state == (w,h):
-                    print("A here")
                     char = 'A'
                 elif (h,w) in list(self.gridworld.rewards.keys()):
-                    char = str(round(self.gridworld.rewards[(h,w)]))
+                    char = str(int(round(self.gridworld.rewards[(h,w)])))
                 else:
                     char = " "
                 str_row+="{} ".format(char)
                 row.append(char)
             grid.append(str_row)
             pgrid+="{}\n".format(str_row)
-        # make pretty option
         return grid, pgrid
+
+    def perform_rollout(self, agent, max_iter=5, print_step=5):
+        """Performs rollouts of the agent in MDP up to max_iter or 
+        'Terminal State'
+    
+        print_step: number of actions between printing
+
+        return: array of (s,a,r) triplets
+        """
+        rollout_idx, p_idx = max_iter, 0
+        trajectory = []
+        while rollout_idx > 0 and not self.is_done():
+            if p_idx == print_step:
+                _, grid = self.convert_to_grid()
+                print("Step: {}".format(max_iter-rollout_idx))
+                print("-"*10)
+                print(grid)
+                p_idx = 0
+            s, a = self.state, agent.get_action(self.state)
+            s_prime, r = self.perform_action(a)
+
+            trajectory.append((s,a,r))
+            
+            rollout_idx -= 1
+            p_idx += 1
+        if self.is_done():
+            print("Terminal state reached in {} steps".format(max_iter-rollout_idx))
+        return trajectory
 
 
 class Direction(object):
