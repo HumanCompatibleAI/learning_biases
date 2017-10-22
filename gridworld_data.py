@@ -26,7 +26,7 @@ def print_training_example(mdp, trajectory):
 # TODO(rohinmshah): This really belongs in gridworld.py
 def get_random_start_state(mdp):
     """Returns a state in mdp that would be a legal start state for an agent.
-
+    Avoids walls and reward/exit states.
     mdp: A Gridworld MDP (not a generic MDP).
 
     Returns: Randomly chosen state (x, y).
@@ -107,7 +107,9 @@ def generate_gridworld_irl(config, num_train=1000, num_test=100, num_mdps=10):
     step2_data = generate_n_examples(num_mdps, agent, config)
     return step1_data + step2_data
     
-
+def generate_gridworld_grid(self):
+    """Generates grid from gri
+    """
 def create_agent(config):
     """Creates the agent specified in config."""
     if config.agent == 'optimal':
