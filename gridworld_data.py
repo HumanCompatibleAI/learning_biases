@@ -142,7 +142,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--imsize', type=int, default=8)
     parser.add_argument('--wall_prob', type=float, default=0.05)
-    parser.add_argument('--reward_prob', type=int, default=0)
+    parser.add_argument('--reward_prob', type=float, default=0)
     parser.add_argument('--statebatchsize', type=int, default=10)
     args = parser.parse_args()
     if args.seed is None:
