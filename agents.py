@@ -90,7 +90,6 @@ class ValueIterationLikeAgent(Agent):
 
         Note that this is a normal state s, not a generalized state mu.
         """
-        # TODO(rohinmshah): Take beta into account
         mu = self.extend_state_to_mu(s)
         actions = self.mdp.get_actions(s)
         if self.beta is not None:

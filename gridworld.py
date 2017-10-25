@@ -323,8 +323,9 @@ class GridworldEnvironment(object):
                     char = "X"
                 elif self.state == (w,h):
                     char = 'A'
-                elif (h,w) in list(self.gridworld.rewards.keys()):
-                    char = str(int(round(self.gridworld.rewards[(h,w)])))
+                elif (w,h) in list(self.gridworld.rewards.keys()):
+                    # print((w,h), self.gridworld.rewards[(w,h)])
+                    char = str(int(round(self.gridworld.rewards[(w,h)])))
                 else:
                     char = " "
                 str_row+="{} ".format(char)
@@ -353,10 +354,13 @@ class GridworldEnvironment(object):
             s, a = self.state, agent.get_action(self.state)
             s_prime, r = self.perform_action(a)
 
-            trajectory.append((s,a,r))
+            trajectory.append((s,a,s_prime,r))
+
+            agent.inform_minibatch(s, a, s_prime, r)
             
             rollout_idx -= 1
             p_idx += 1
+
         if self.is_done():
             print("Terminal state reached in {} steps".format(max_iter-rollout_idx))
         return trajectory

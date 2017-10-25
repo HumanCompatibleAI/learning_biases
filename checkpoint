@@ -1,0 +1,2 @@
+model_checkpoint_path: "/tmp/planner-vin/"
+all_model_checkpoint_paths: "/tmp/planner-vin/"

@@ -13,21 +13,22 @@ import agents
 from gridworld_data import generate_gridworld_irl
 from model import VI_Block, VI_Untied_Block
 from utils import fmt_row
+# from tf.saved_model.tag_constants import SERVING, TRAINING
 
 import sys
 sys.path.insert(0, '../tensorflow-value-iteration-networks')
 
 # Data
-tf.app.flags.DEFINE_integer('imsize',         8,
+tf.app.flags.DEFINE_integer('imsize',         14,
                             'Size of input image')
-tf.app.flags.DEFINE_integer('wall_prob',      0.05,
+tf.app.flags.DEFINE_float('wall_prob',      0.05,
                             'Probability of having a wall at any particular space in the gridworld')
-tf.app.flags.DEFINE_integer('reward_prob',    0,
+tf.app.flags.DEFINE_float('reward_prob',    0,
                             'Probability of having a reward at any particular space in the gridworld')
 # Parameters
 tf.app.flags.DEFINE_float('lr',               0.001,
                           'Learning rate for RMSProp')
-tf.app.flags.DEFINE_integer('epochs',         30,
+tf.app.flags.DEFINE_integer('epochs',         100,
                             'Maximum epochs to train for')
 tf.app.flags.DEFINE_integer('reward_epochs',  10,
                             'Number of epochs to run when inferring reward function')
@@ -65,6 +66,10 @@ tf.app.flags.DEFINE_boolean('log',            False,
                             'Enable for tensorboard summary')
 tf.app.flags.DEFINE_string('logdir',          '/tmp/planner-vin/',
                            'Directory to store tensorboard summary')
+tf.app.flags.DEFINE_integer("num_train_ex", 2000,
+                            'Number of training examples')
+tf.app.flags.DEFINE_integer("num_test_ex", 300,
+                            'Number of testing examples')
 
 config = tf.app.flags.FLAGS
 
@@ -113,7 +118,14 @@ err = tf.reduce_mean(tf.cast(tf.not_equal(cp, y), dtype=tf.float32))
 init = tf.global_variables_initializer()
 saver = tf.train.Saver()
 
-imagetrain, rewardtrain, S1train, S2train, ytrain, imagetest1, rewardtest1, S1test1, S2test1, ytest1, imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(config, 500, 100, batch_size)
+# Saving model in SavedModel format
+builder = tf.saved_model.builder.SavedModelBuilder(config.logdir+'model/')
+
+imagetrain, rewardtrain, S1train, S2train, ytrain, \
+imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
+imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(
+    config, config.num_train_ex, config.num_test_ex, batch_size
+)
 ytrain = np.reshape(ytrain, [-1])
 ytest1 = np.reshape(ytest1, [-1])
 ytest2 = np.reshape(ytest2, [-1])
@@ -126,6 +138,7 @@ with tf.Session() as sess:
         summary_op = tf.summary.merge_all()
         summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
     sess.run(init)
+    builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING])
 
     def run_epoch(data, ops_to_run, ops_to_average):
         tstart = time.time()
@@ -146,7 +159,7 @@ with tf.Session() as sess:
             num_ops_to_run = len(ops_to_run)
             op_results, average_op_results = results[:num_ops_to_run], results[num_ops_to_run:]
             averages = [x + y for x, y in zip(averages, average_op_results)]
-
+        
         averages = [x / num_batches for x in averages]
         elapsed = time.time() - tstart
         return op_results, averages, elapsed
@@ -168,8 +181,13 @@ with tf.Session() as sess:
             summary.value.add(tag='Average error', simple_value=float(avg_err))
             summary.value.add(tag='Average cost', simple_value=float(avg_cost))
             summary_writer.add_summary(summary, epoch)
+            # saver.save(sess, config.logdir)
+  
     print("Finished training!")
     _, (test1_err,), _ = run_epoch(test1_data, [], [err])
+    # saving SavedModel instance
+    savepath = builder.save()
+    print("model saved 2: {}".format(savepath))
     print('Final Accuracy: ' + str(100 * (1 - test1_err)))
 
     print('Beginning IRL inference')
@@ -190,6 +208,7 @@ with tf.Session() as sess:
         elapsed = time.time() - tstart
         print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
+    # this saves reward
     fig, axes = plt.subplots(1,2)
     print('The first reward should be:')
     print(rewardtest2[0])
