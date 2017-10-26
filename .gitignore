@@ -1,6 +1,9 @@
 *~
 *.swp
 
+# prediction image will always be updating
+predictioneval.png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
