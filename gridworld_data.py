@@ -41,7 +41,8 @@ def generate_example(expected_length, agent, config, other_agents=[]):
                obtained at that state. (Most will be zero.)
       y_coords: Numpy array of integers representing y coordinates (rows).
       x_coords: Numpy array of integers representing x coordinates (columns).
-      action_labels: Numpy array of integers representing agent actions.
+      action_labels: Numpy array of size len(x_coords) x 5. The probability
+                     distributions over actions for each state.
       num_different: Numpy array of size `len(other_agents)`. `num_different[i]`
                      is the number of states where `other_agents[i]` would
                      choose a different action compared to `agent`.
@@ -61,8 +62,8 @@ def generate_example(expected_length, agent, config, other_agents=[]):
 
     def get_minibatch():
         state = mdp.get_random_start_state()
-        action = agent.get_action(state)
-        return state, action
+        action_dist = agent.get_action_distribution(state)
+        return state, action_dist
 
     agent.set_mdp(mdp)
     minibatches = [get_minibatch() for _ in range(expected_length)]
@@ -70,7 +71,8 @@ def generate_example(expected_length, agent, config, other_agents=[]):
     def calculate_different(other_agent):
         other_agent.set_mdp(mdp)
         def differs(s, a):
-            return other_agent.get_action(s) != a
+            # TODO(rohinmshah): Use something like KL-divergence here
+            return other_agent.get_action_distribution(s) != a
         return sum([(1 if differs(s, a) else 0) for s, a in minibatches])
 
     num_different = np.array([calculate_different(o) for o in other_agents])
@@ -78,7 +80,8 @@ def generate_example(expected_length, agent, config, other_agents=[]):
     y_coords = np.array([y for (x, y), _ in minibatches])
     x_coords = np.array([x for (x, y), _ in minibatches])
     action_labels = np.array(
-        [Direction.get_number_from_direction(a) for _, a in minibatches])
+        [action_dist.as_numpy_array(Direction.get_number_from_direction, 5)
+         for _, action_dist in minibatches])
     return walls, rewards, y_coords, x_coords, action_labels, num_different
 
 def generate_n_examples(n, agent, config, other_agents=[]):
@@ -104,7 +107,8 @@ def generate_gridworld_data(agent, config, other_agents=[]):
     imagetrain, rewardtrain, S1train, S2train, ytrain = generate_n_examples(config.num_train, agent, config, other_agents)
     print('Generating %d test examples' % config.num_test)
     imagetest, rewardtest, S1test, S2test, ytest = generate_n_examples(config.num_test, agent, config, other_agents)
-    return imagetrain, rewardtrain, S1train, S2train, ytrain, imagetest, rewardtest, S1test, S2test, ytest
+    return imagetrain, rewardtrain, S1train, S2train, ytrain, \
+           imagetest, rewardtest, S1test, S2test, ytest
 
 def generate_gridworld_irl(config):
     """Generates an IRL problem for Gridworlds.

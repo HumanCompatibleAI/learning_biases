@@ -1,5 +1,6 @@
 from agent_interface import Agent
 from collections import defaultdict
+from utils import Distribution
 import numpy as np
 import random
 
@@ -85,8 +86,8 @@ class ValueIterationLikeAgent(Agent):
         transitions = self.get_transition_mus_and_probs(mu, a)
         return r + self.gamma * sum([p * values[mu2] for mu2, p in transitions])
 
-    def get_action(self, s):
-        """Returns the action that the agent takes in the given state.
+    def get_action_distribution(self, s):
+        """Returns a Distribution over actions.
 
         Note that this is a normal state s, not a generalized state mu.
         """
@@ -95,8 +96,7 @@ class ValueIterationLikeAgent(Agent):
         if self.beta is not None:
             q_vals = np.array([self.qvalue(mu, a) for a in actions])
             action_dist = np.exp(self.beta*q_vals)
-            action_dist = action_dist / np.sum(action_dist)
-            return actions[np.random.choice(np.arange(len(actions)), p=action_dist)] 
+            return Distribution(dict(zip(actions, action_dist)))
 
         best_value, best_actions = float("-inf"), []
         for a in actions:
@@ -105,7 +105,8 @@ class ValueIterationLikeAgent(Agent):
                 best_value, best_actions = action_value, [a]
             elif action_value == best_value:
                 best_actions.append(a)
-        return best_actions[0] # random.choice(best_actions)
+        # return Distribution({a : 1 for a in best_actions})
+        return Distribution({best_actions[0] : 1})
 
     def get_mus(self):
         """Returns all possible generalized states the agent could be in.

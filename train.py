@@ -45,7 +45,8 @@ tf.app.flags.DEFINE_integer(
     'reward_epochs', 30, 'Number of epochs when inferring a reward function')
 tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
 tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
-tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer (~actions)')
+tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
+tf.app.flags.DEFINE_integer('num_actions', 5, 'Number of actions')
 tf.app.flags.DEFINE_integer('batchsize', 12, 'Batch size')
 tf.app.flags.DEFINE_integer(
     'statebatchsize', 10,
@@ -102,6 +103,8 @@ random.seed(config.seed)
 # reward can be trained in step 2.)
 batch_size, state_batch_size = config.batchsize, config.statebatchsize
 imsize = config.imsize
+num_actions = config.num_actions
+
 image = tf.placeholder(
     tf.float32, name="image", shape=[batch_size, imsize, imsize])
 reward = tf.Variable(
@@ -111,7 +114,7 @@ X  = tf.stack([image, reward], axis=-1)
 S1 = tf.placeholder(tf.int32, name="S1", shape=[batch_size, state_batch_size])
 # symbolic input batches of horizontal positions
 S2 = tf.placeholder(tf.int32, name="S2", shape=[batch_size, state_batch_size])
-y  = tf.placeholder(tf.int32, name="y",  shape=[batch_size * state_batch_size])
+y  = tf.placeholder(tf.float32, name="y",  shape=[batch_size * state_batch_size, num_actions])
 
 # Construct model (Value Iteration Network)
 if (config.untied_weights):
@@ -120,9 +123,8 @@ else:
     logits, nn = VI_Block(X, S1, S2, config)
 
 # Define loss
-y_ = tf.cast(y, tf.int64)
-cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-    logits=logits, labels=y_, name='cross_entropy')
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+    logits=logits, labels=y, name='cross_entropy')
 cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy_mean')
 tf.add_to_collection('losses', cross_entropy_mean)
 cost = tf.add_n(tf.get_collection('losses'), name='total_loss')
@@ -137,7 +139,9 @@ reward_optimize_op = reward_optimizer.minimize(cost, var_list=[reward])
 
 # Test model & calculate accuracy
 cp = tf.cast(tf.argmax(nn, 1), tf.int32)
-err = tf.reduce_mean(tf.cast(tf.not_equal(cp, y), dtype=tf.float32))
+# Use the most probable action even for the gold labels
+most_likely_y = tf.cast(tf.argmax(y, axis=1), tf.int32)
+err = tf.reduce_mean(tf.cast(tf.not_equal(cp, most_likely_y), dtype=tf.float32))
 
 # Initializing the variables
 init = tf.global_variables_initializer()
@@ -149,9 +153,9 @@ builder = tf.saved_model.builder.SavedModelBuilder(config.logdir+'model/')
 imagetrain, rewardtrain, S1train, S2train, ytrain, \
 imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
 imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(config)
-ytrain = np.reshape(ytrain, [-1])
-ytest1 = np.reshape(ytest1, [-1])
-ytest2 = np.reshape(ytest2, [-1])
+ytrain = np.reshape(ytrain, [-1, num_actions])
+ytest1 = np.reshape(ytest1, [-1, num_actions])
+ytest2 = np.reshape(ytest2, [-1, num_actions])
 
 # Launch the graph
 with tf.Session() as sess:

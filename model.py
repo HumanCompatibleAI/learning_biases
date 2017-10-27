@@ -11,6 +11,7 @@ def VI_Block(X, S1, S2, config):
     ch_i = 2           # Channels in input layer, hardcoded to 2 for now
     ch_h = config.ch_h # Channels in initial hidden layer
     ch_q = config.ch_q # Channels in q layer (~actions)
+    num_actions = config.num_actions
     state_batch_size = config.statebatchsize # k+1 state inputs for each channel
 
     bias  = tf.Variable(np.random.randn(1, 1, 1, ch_h)    * 0.01, dtype=tf.float32)
@@ -20,7 +21,7 @@ def VI_Block(X, S1, S2, config):
     w     = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
     # feedback weights from v layer into q layer (~transition probabilities in Bellman equation)
     w_fb  = tf.Variable(np.random.randn(3, 3, 1, ch_q)    * 0.01, dtype=tf.float32)
-    w_o   = tf.Variable(np.random.randn(ch_q, 8)          * 0.01, dtype=tf.float32)
+    w_o   = tf.Variable(np.random.randn(ch_q, num_actions) * 0.01, dtype=tf.float32)
 
     # initial conv layer over image+reward prior
     h = conv2d(X, w0, name="h0") + bias
