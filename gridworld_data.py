@@ -23,28 +23,18 @@ def print_training_example(mdp, trajectory):
     mdp_string_with_trajectory = '\n'.join([''.join(row) for row in mdp_grid])
     print(mdp_string_with_trajectory)
 
-# TODO(rohinmshah): This really belongs in gridworld.py
-def get_random_start_state(mdp):
-    """Returns a state in mdp that would be a legal start state for an agent.
-    Avoids walls and reward/exit states.
-    mdp: A Gridworld MDP (not a generic MDP).
-
-    Returns: Randomly chosen state (x, y).
-    """
-    y = random.randint(1, mdp.height - 2)
-    x = random.randint(1, mdp.width - 2)
-    while mdp.walls[y][x] or (x, y) in mdp.rewards:
-        y = random.randint(1, mdp.height - 2)
-        x = random.randint(1, mdp.width - 2)
-    return (x, y)
-
-def generate_example(agent, config):
+def generate_example(expected_length, agent, config, other_agents=[]):
     """Generates an example Gridworld and corresponding agent actions.
 
+    expected_length: The number of state/action pairs to generate.
     agent: The agent that acts in the generated MDP.
     config: Configuration parameters.
+    other_agents: List of Agents that we wish to distinguish `agent` from. In
+        particular, for every agent O in other_agent, there will be at least one
+        (x, y) pair in the returned coords such that the action chosen by O is
+        different from the action chosen by `agent`.
 
-    Returns: A tuple of four items:
+    Returns: A tuple of six items:
       image: Numpy array of size imsize x imsize, each element is 1 if there is
              a wall at that location, 0 otherwise.
       rewards: Numpy array of size imsize x imsize, each element is the reward
@@ -52,103 +42,138 @@ def generate_example(agent, config):
       y_coords: Numpy array of integers representing y coordinates (rows).
       x_coords: Numpy array of integers representing x coordinates (columns).
       action_labels: Numpy array of integers representing agent actions.
+      num_different: Numpy array of size `len(other_agents)`. `num_different[i]`
+                     is the number of states where `other_agents[i]` would
+                     choose a different action compared to `agent`.
 
     y_coords, x_coords and action_labels all have the same length, given by
     config.statebatchsize. For every i < L, the action taken by the agent in
     state (x_coords[i], y_coords[i]) is action_labels[i]. This can be used to
     train a planning module to recreate the actions of the agent.
     """
-    expected_length, imsize = config.statebatchsize, config.imsize
+    assert len(other_agents) <= expected_length
+    imsize = config.imsize
     pr_wall, pr_reward = config.wall_prob, config.reward_prob
-    mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
-    agent.set_mdp(mdp)
+    if config.simple_mdp:
+        mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
+    else:
+        mdp = GridworldMdp.generate_random_connected(imsize, imsize, pr_reward)
 
     def get_minibatch():
-        state = get_random_start_state(mdp)
+        state = mdp.get_random_start_state()
         action = agent.get_action(state)
         return state, action
+
+    agent.set_mdp(mdp)
     minibatches = [get_minibatch() for _ in range(expected_length)]
 
+    def calculate_different(other_agent):
+        other_agent.set_mdp(mdp)
+        def differs(s, a):
+            return other_agent.get_action(s) != a
+        return sum([(1 if differs(s, a) else 0) for s, a in minibatches])
+
+    num_different = np.array([calculate_different(o) for o in other_agents])
     walls, rewards, _ = mdp.convert_to_numpy_input()
     y_coords = np.array([y for (x, y), _ in minibatches])
     x_coords = np.array([x for (x, y), _ in minibatches])
     action_labels = np.array(
         [Direction.get_number_from_direction(a) for _, a in minibatches])
-    return walls, rewards, y_coords, x_coords, action_labels
+    return walls, rewards, y_coords, x_coords, action_labels, num_different
 
-def generate_n_examples(n, agent, config):
+def generate_n_examples(n, agent, config, other_agents=[]):
     """Calls generate_example n times to create a dataset of examples of size n.
 
     Returns the same five Numpy arrays as generate_example, except that they now
-    have shape (n, *previous_shape).
+    have shape (n, *previous_shape). (The last Numpy array from generate_example
+    is analyzed and printed out, and so is not returned.)
     """
-    data = [generate_example(agent, config) for _ in range(n)]
-    walls, rewards, S1, S2, labels = map(np.array, zip(*data))
+    size = config.statebatchsize
+    data = [generate_example(size, agent, config, other_agents) for _ in range(n)]
+    walls, rewards, S1, S2, labels, num_different = map(np.array, zip(*data))
+    num_different = np.array(num_different)
+    fraction_different = np.sum(num_different, axis=0) * 1.0 / (n * size)
+    print('Fraction of states where agents choose different actions:')
+    print(fraction_different)
     return walls, rewards, S1, S2, labels
 
-def generate_gridworld_data(agent, config, num_train=1000, num_test=100):
+def generate_gridworld_data(agent, config, other_agents=[]):
     """Generates training and test data for Gridworld data."""
     size = config.statebatchsize
-    print('Generating %d training examples' % num_train)
-    imagetrain, rewardtrain, S1train, S2train, ytrain = generate_n_examples(num_train, agent, config)
-    print('Generating %d test examples' % num_test)
-    imagetest, rewardtest, S1test, S2test, ytest = generate_n_examples(num_test, agent, config)
+    print('Generating %d training examples' % config.num_train)
+    imagetrain, rewardtrain, S1train, S2train, ytrain = generate_n_examples(config.num_train, agent, config, other_agents)
+    print('Generating %d test examples' % config.num_test)
+    imagetest, rewardtest, S1test, S2test, ytest = generate_n_examples(config.num_test, agent, config, other_agents)
     return imagetrain, rewardtrain, S1train, S2train, ytrain, imagetest, rewardtest, S1test, S2test, ytest
 
-def generate_gridworld_irl(config, num_train=1000, num_test=100, num_mdps=10):
+def generate_gridworld_irl(config):
     """Generates an IRL problem for Gridworlds.
 
     Returns 15 Numpy arrays, from 3 calls to generate_n_examples, corresponding
     to train data, test data for step 1, and test data for step 2.
     """
-    agent = create_agent(config)
-    step1_data = generate_gridworld_data(agent, config, num_train, num_test)
+    agent = create_agent(
+        config.agent, config.gamma, config.beta,
+        config.num_iters, config.max_delay,
+        config.hyperbolic_constant)
+    other_agents = []
+    if config.other_agent is not None:
+        other_agent = create_agent(
+            config.other_agent, config.other_gamma, config.other_beta,
+            config.other_num_iters, config.other_max_delay,
+            config.other_hyperbolic_constant)
+        other_agents.append(other_agent)
+
+    step1_data = generate_gridworld_data(agent, config, other_agents)
+    num_mdps = config.num_mdps
     print('Generating %d unknown reward examples' % num_mdps)
-    step2_data = generate_n_examples(num_mdps, agent, config)
+    step2_data = generate_n_examples(num_mdps, agent, config, other_agents)
     return step1_data + step2_data
 
-def create_agent(config):
+def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
     """Creates the agent specified in config."""
-    if config.agent == 'optimal':
+    if agent == 'optimal':
         return agents.OptimalAgent(
-            gamma=config.gamma,
-            beta=config.beta,
-            num_iters=config.num_iters)
-    elif config.agent == 'naive':
+            gamma=gamma,
+            beta=beta,
+            num_iters=num_iters)
+    elif agent == 'naive':
         return agents.NaiveTimeDiscountingAgent(
-            config.max_delay,
-            config.hyperbolic_constant,
-            gamma=config.gamma,
-            beta=config.beta,
-            num_iters=config.num_iters)
-    elif config.agent == 'sophisticated':
+            max_delay,
+            hyperbolic_constant,
+            gamma=gamma,
+            beta=beta,
+            num_iters=num_iters)
+    elif agent == 'sophisticated':
         return agents.SophisticatedTimeDiscountingAgent(
-            config.max_delay,
-            config.hyperbolic_constant,
-            gamma=config.gamma,
-            beta=config.beta,
-            num_iters=config.num_iters)
-    elif config.agent == 'myopic':
+            max_delay,
+            hyperbolic_constant,
+            gamma=gamma,
+            beta=beta,
+            num_iters=num_iters)
+    elif agent == 'myopic':
         return agents.MyopicAgent(
-            config.max_delay,
-            gamma=config.gamma,
-            beta=config.beta,
-            num_iters=config.num_iters)
-    raise ValueError('Invalid agent: ' + config.agent)
+            max_delay,
+            gamma=gamma,
+            beta=beta,
+            num_iters=num_iters)
+    raise ValueError('Invalid agent: ' + agent)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--imsize', type=int, default=8)
     parser.add_argument('--wall_prob', type=float, default=0.05)
-    parser.add_argument('--reward_prob', type=float, default=0)
+    parser.add_argument('--reward_prob', type=float, default=0.05)
     parser.add_argument('--statebatchsize', type=int, default=10)
     args = parser.parse_args()
     if args.seed is None:
         args.seed = int(random.random() * 100000)
     print('Using seed ' + str(args.seed))
     random.seed(args.seed)
-    walls, rewards, y, x, labels = generate_example(agents.OptimalAgent(), args)
+    agent = agents.OptimalAgent()
+    other_agent = agents.NaiveTimeDiscountingAgent(20, 1)
+    walls, rewards, y, x, labels, num_different = generate_example(10, agent, args, [other_agent])
     print('Walls:')
     print(walls)
     print('Rewards:')
@@ -159,3 +184,4 @@ if __name__ == '__main__':
     print(x)
     print('Optimal actions:')
     print(labels)
+    print('Fraction of actions that are different across agents: ' + str(num_different[0] / 10.0))
