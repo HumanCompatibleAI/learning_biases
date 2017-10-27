@@ -1,4 +1,5 @@
 from collections import defaultdict
+from disjoint_sets import DisjointSets
 import numpy as np
 import random
 
@@ -99,6 +100,20 @@ class GridworldMdp(object):
                 elif grid[y][x] == 'A':
                     self.start_state = (x, y)
 
+    def get_random_start_state(self):
+        """Returns a state that would be a legal start state for an agent.
+
+        Avoids walls and reward/exit states.
+
+        Returns: Randomly chosen state (x, y).
+        """
+        y = random.randint(1, self.height - 2)
+        x = random.randint(1, self.width - 2)
+        while self.walls[y][x] or (x, y) in self.rewards:
+            y = random.randint(1, self.height - 2)
+            x = random.randint(1, self.width - 2)
+        return (x, y)
+
     def convert_to_numpy_input(self):
         """Encodes this MDP in a format well-suited for deep models.
 
@@ -142,6 +157,48 @@ class GridworldMdp(object):
 
         set_random_position_to(3)
         set_random_position_to('A')
+        return GridworldMdp(grid)
+
+    @staticmethod
+    def generate_random_connected(height, width, pr_reward):
+        """Generates a random instance of a Gridworld.
+
+        Unlike with generate_random, it is guaranteed that the agent
+        can reach a reward. However, that reward might be negative.
+        """
+        directions = [
+            Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
+        grid = [['X'] * width for _ in range(height)]
+        walls = [(x, y) for x in range(1, width-1) for y in range(1, height-1)]
+        random.shuffle(walls)
+        min_free_spots = len(walls) / 2
+        dsets = DisjointSets([])
+        while dsets.get_num_elements() < min_free_spots or not dsets.is_connected():
+            x, y = walls.pop()
+            grid[y][x] = ' '
+            dsets.add_singleton((x, y))
+            for direction in directions:
+                newx, newy = Direction.move_in_direction((x, y), direction)
+                if dsets.contains((newx, newy)):
+                    dsets.union((x, y), (newx, newy))
+
+        def set_random_position_to(token):
+            current_val = None
+            while current_val not in ['X', ' ']:
+                y = random.randint(1, height - 2)
+                x = random.randint(1, width - 2)
+                current_val = grid[y][x]
+            grid[y][x] = token
+
+        set_random_position_to(3)
+        set_random_position_to('A')
+        while random.random() < pr_reward:
+            reward = random.randint(-9, 9)
+            # Don't allow 0 rewards
+            while reward == 0:
+                reward = random.randint(-9, 9)
+            set_random_position_to(reward)
+
         return GridworldMdp(grid)
 
     def get_start_state(self):

@@ -19,12 +19,15 @@ import sys
 sys.path.insert(0, '../tensorflow-value-iteration-networks')
 
 # Data
+tf.app.flags.DEFINE_boolean(
+    'simple_mdp', False, 'Whether to use the simple random MDP generator')
 tf.app.flags.DEFINE_integer('imsize', 8, 'Size of input image')
 tf.app.flags.DEFINE_float(
     'wall_prob', 0.05,
-    'Probability of having a wall at any particular space in the gridworld')
+    'Probability of having a wall at any particular space in the gridworld. '
+    'Has no effect if --simple_mdp is False.')
 tf.app.flags.DEFINE_float(
-    'reward_prob', 0,
+    'reward_prob', 0.05,
     'Probability of having a reward at any particular space in the gridworld')
 tf.app.flags.DEFINE_integer(
     'num_train', 500, 'Number of examples for training the planning module')
@@ -49,7 +52,7 @@ tf.app.flags.DEFINE_integer(
     'Number of state inputs for each sample (real number, technically is k+1)')
 tf.app.flags.DEFINE_boolean('untied_weights', False, 'Untie weights of VIN')
 
-# Agents
+# Agent
 tf.app.flags.DEFINE_string(
     'agent', 'optimal', 'Agent to generate training data with')
 tf.app.flags.DEFINE_float('gamma', 1.0, 'Discount factor')
@@ -64,6 +67,16 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_float(
     'hyperbolic_constant', 1.0,
     'Discount for the future for hyperbolic time discounters')
+
+# Other Agent
+tf.app.flags.DEFINE_string(
+    'other_agent', None, 'Agent to distinguish from')
+tf.app.flags.DEFINE_float('other_gamma', 1.0, 'Gamma for other agent')
+tf.app.flags.DEFINE_float('other_beta', None, 'Beta for other agent')
+tf.app.flags.DEFINE_integer('other_num_iters', 50, 'Num iters for other agent')
+tf.app.flags.DEFINE_integer('other_max_delay', 5, 'Max delay for other agent')
+tf.app.flags.DEFINE_float(
+    'other_hyperbolic_constant', 1.0, 'Hyperbolic constant for other agent')
 
 # Miscellaneous
 tf.app.flags.DEFINE_integer('seed', 0, 'Random seed for both numpy and random')
@@ -219,17 +232,18 @@ with tf.Session() as sess:
     fig, axes = plt.subplots(1,2)
     print('The first reward should be:')
     print(rewardtest2[0])
+    inferred_reward = reward.eval()[0]
+    normalized_inferred_reward = inferred_reward / inferred_reward.max()
     print('The inferred reward is:')
-    print(reward.eval()[0])
+    print(normalized_inferred_reward)
     true = axes[0].imshow(rewardtest2[0],cmap='hot',interpolation='nearest')
     axes[0].set_title("Truth")
     cbaxes = fig.add_axes([0.02, 0.1, 0.02, 0.8])
     cb = plt.colorbar(true, cax=cbaxes)
-    tensor = axes[1].imshow(reward.eval()[0],cmap='hot',interpolation='nearest')
+    tensor = axes[1].imshow(normalized_inferred_reward, cmap='hot', interpolation='nearest')
     axes[1].set_title("Predicted")
     cbaxes2 = fig.add_axes([0.925, 0.1, 0.02, 0.8])
     plt.colorbar(tensor, cax=cbaxes2)
     # plt.colorbar.make_axes(axes[1], location='left')
     fig.suptitle("Comparison of Reward Functions")
     fig.savefig("predictioneval")
-
