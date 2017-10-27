@@ -1,7 +1,6 @@
 from collections import defaultdict
 import numpy as np
 import random
-from functools import reduce
 
 class GridworldMdp(object):
     """A grid world where the objective is to navigate to one of many rewards.
@@ -325,7 +324,12 @@ class GridworldEnvironment(object):
                     char = 'A'
                 elif (w,h) in list(self.gridworld.rewards.keys()):
                     # print((w,h), self.gridworld.rewards[(w,h)])
-                    char = str(int(round(self.gridworld.rewards[(w,h)])))
+                    if self.gridworld.rewards[(w,h)] > 0:
+                        char = 'P'
+                    elif self.gridworld.rewards[(w,h)] == 0:
+                        char = '0'
+                    else:
+                        char = 'N'
                 else:
                     char = " "
                 str_row+="{} ".format(char)
@@ -333,38 +337,6 @@ class GridworldEnvironment(object):
             grid.append(str_row)
             pgrid+="{}\n".format(str_row)
         return grid, pgrid
-
-    def perform_rollout(self, agent, max_iter=5, print_step=5):
-        """Performs rollouts of the agent in MDP up to max_iter or 
-        'Terminal State'
-    
-        print_step: number of actions between printing
-
-        return: array of (s,a,r) triplets
-        """
-        rollout_idx, p_idx = max_iter, 0
-        trajectory = []
-        while rollout_idx > 0 and not self.is_done():
-            if p_idx == print_step:
-                _, grid = self.convert_to_grid()
-                print("Step: {}".format(max_iter-rollout_idx))
-                print("-"*10)
-                print(grid)
-                p_idx = 0
-            s, a = self.state, agent.get_action(self.state)
-            s_prime, r = self.perform_action(a)
-
-            trajectory.append((s,a,s_prime,r))
-
-            agent.inform_minibatch(s, a, s_prime, r)
-            
-            rollout_idx -= 1
-            p_idx += 1
-
-        if self.is_done():
-            print("Terminal state reached in {} steps".format(max_iter-rollout_idx))
-        return trajectory
-
 
 class Direction(object):
     """A class that contains the five actions available in Gridworlds.

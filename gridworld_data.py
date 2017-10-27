@@ -6,23 +6,6 @@ import agents
 from agent_runner import run_agent
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
 
-# Currently unused, but may be useful later
-def print_training_example(mdp, trajectory):
-    """Prints the gridworld with the trajectory overlaid on top of it.
-
-    mdp: A Gridworld MDP (not a generic MDP).
-    trajectory: The trajectory of the agent in the MDP.
-    """
-    # Drop the last two next states, which are the terminal state and the state
-    # with the reward. Note this does a reasonable thing even when the agent
-    # never got to the reward.
-    states_to_mark = [next_state for _, _, next_state, _ in trajectory[:-2]]
-    mdp_grid = [[c for c in row] for row in str(mdp).split('\n')]
-    for x, y in states_to_mark:
-        mdp_grid[y][x] = '.'
-    mdp_string_with_trajectory = '\n'.join([''.join(row) for row in mdp_grid])
-    print(mdp_string_with_trajectory)
-
 # TODO(rohinmshah): This really belongs in gridworld.py
 def get_random_start_state(mdp):
     """Returns a state in mdp that would be a legal start state for an agent.
@@ -106,10 +89,7 @@ def generate_gridworld_irl(config, num_train=1000, num_test=100, num_mdps=10):
     print('Generating %d unknown reward examples' % num_mdps)
     step2_data = generate_n_examples(num_mdps, agent, config)
     return step1_data + step2_data
-    
-def generate_gridworld_grid(self):
-    """Generates grid from gri
-    """
+
 def create_agent(config):
     """Creates the agent specified in config."""
     if config.agent == 'optimal':

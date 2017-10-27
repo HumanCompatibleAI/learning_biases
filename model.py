@@ -76,7 +76,6 @@ def VI_Untied_Block(X, S1, S2, config):
     w_l    = [tf.Variable(np.random.randn(3, 3, 1, ch_q)   * 0.01, dtype=tf.float32) for i in range(0, k+1)]
     # feedback weights from v layer into q layer (~transition probabilities in Bellman equation)
     w_fb_l = [tf.Variable(np.random.randn(3, 3, 1, ch_q)   * 0.01, dtype=tf.float32) for i in range(0,k)]
-    # w_o    = tf.Variable(np.random.randn(ch_q, 8)          * 0.01, dtype=tf.float32)
     w_o = tf.Variable(np.random.randn(ch_q, 8)          * 0.01, dtype=tf.float32)
 
     # initial conv layer over image+reward prior
@@ -114,7 +113,6 @@ def VI_Untied_Block(X, S1, S2, config):
     q_out = tf.gather_nd(tf.transpose(q, [2, 3, 0, 1]), idx_in, name="q_out")
 
     # add logits
-    # logits = tf.matmul(q_out, w_o)
     logits = tf.matmul(q_out, w_o)
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")
