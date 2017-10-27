@@ -54,34 +54,40 @@ def generate_example(expected_length, agent, config, other_agents=[]):
     """
     assert len(other_agents) <= expected_length
     imsize = config.imsize
+    num_actions = config.num_actions
     pr_wall, pr_reward = config.wall_prob, config.reward_prob
     if config.simple_mdp:
         mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
     else:
         mdp = GridworldMdp.generate_random_connected(imsize, imsize, pr_reward)
 
+    def dist_to_numpy(dist):
+        return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
+
     def get_minibatch():
         state = mdp.get_random_start_state()
-        action_dist = agent.get_action_distribution(state)
+        action_dist = dist_to_numpy(agent.get_action_distribution(state))
         return state, action_dist
 
     agent.set_mdp(mdp)
     minibatches = [get_minibatch() for _ in range(expected_length)]
 
+    threshold = config.action_distance_threshold
     def calculate_different(other_agent):
         other_agent.set_mdp(mdp)
-        def differs(s, a):
-            # TODO(rohinmshah): Use something like KL-divergence here
-            return other_agent.get_action_distribution(s) != a
+        def differs(s, action_dist):
+            dist = dist_to_numpy(other_agent.get_action_distribution(s))
+            # TODO(rohinmshah): L2 norm is not the right distance metric for
+            # probability distributions, maybe use something else?
+            # Not KL divergence, since it may be undefined
+            return np.linalg.norm(action_dist - dist) > threshold
         return sum([(1 if differs(s, a) else 0) for s, a in minibatches])
 
     num_different = np.array([calculate_different(o) for o in other_agents])
     walls, rewards, _ = mdp.convert_to_numpy_input()
     y_coords = np.array([y for (x, y), _ in minibatches])
     x_coords = np.array([x for (x, y), _ in minibatches])
-    action_labels = np.array(
-        [action_dist.as_numpy_array(Direction.get_number_from_direction, 5)
-         for _, action_dist in minibatches])
+    action_labels = np.array([action_dist for _, action_dist in minibatches])
     return walls, rewards, y_coords, x_coords, action_labels, num_different
 
 def generate_n_examples(n, agent, config, other_agents=[]):

@@ -95,7 +95,8 @@ class ValueIterationLikeAgent(Agent):
         actions = self.mdp.get_actions(s)
         if self.beta is not None:
             q_vals = np.array([self.qvalue(mu, a) for a in actions])
-            action_dist = np.exp(self.beta*q_vals)
+            q_vals = q_vals - np.mean(q_vals)  # To prevent overflow in exp
+            action_dist = np.exp(self.beta * q_vals)
             return Distribution(dict(zip(actions, action_dist)))
 
         best_value, best_actions = float("-inf"), []

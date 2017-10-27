@@ -29,6 +29,9 @@ tf.app.flags.DEFINE_float(
 tf.app.flags.DEFINE_float(
     'reward_prob', 0.05,
     'Probability of having a reward at any particular space in the gridworld')
+tf.app.flags.DEFINE_float(
+    'action_distance_threshold', 0.5,
+    'Minimum distance between two action distributions to be "different"')
 tf.app.flags.DEFINE_integer(
     'num_train', 500, 'Number of examples for training the planning module')
 tf.app.flags.DEFINE_integer(
