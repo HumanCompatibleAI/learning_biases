@@ -305,39 +305,6 @@ class GridworldEnvironment(object):
         """Returns True if the episode is over and the agent cannot act."""
         return self.gridworld.is_terminal(self.get_current_state())
 
-    def convert_to_grid(self):
-        """Encodes this MDP in a format for 'visualization' purposes
-
-        Returns an array of rows corresponding to the new grid
-        """
-        print("env state is: {}".format(self.state))
-        grid = []
-        pgrid = ""
-        for h in range(self.gridworld.height):
-            row = []
-            str_row = ""
-            for w in range(self.gridworld.width):
-                char = ""
-                if self.gridworld.walls[h][w]:
-                    char = "X"
-                elif self.state == (w,h):
-                    char = 'A'
-                elif (w,h) in list(self.gridworld.rewards.keys()):
-                    # print((w,h), self.gridworld.rewards[(w,h)])
-                    if self.gridworld.rewards[(w,h)] > 0:
-                        char = 'P'
-                    elif self.gridworld.rewards[(w,h)] == 0:
-                        char = '0'
-                    else:
-                        char = 'N'
-                else:
-                    char = " "
-                str_row+="{} ".format(char)
-                row.append(char)
-            grid.append(str_row)
-            pgrid+="{}\n".format(str_row)
-        return grid, pgrid
-
 class Direction(object):
     """A class that contains the five actions available in Gridworlds.
 

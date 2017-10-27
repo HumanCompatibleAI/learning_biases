@@ -6,6 +6,23 @@ import agents
 from agent_runner import run_agent
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
 
+# Currently unused, but may be useful later
+def print_training_example(mdp, trajectory):
+    """Prints the gridworld with the trajectory overlaid on top of it.
+
+    mdp: A Gridworld MDP (not a generic MDP).
+    trajectory: The trajectory of the agent in the MDP.
+    """
+    # Drop the last two next states, which are the terminal state and the state
+    # with the reward. Note this does a reasonable thing even when the agent
+    # never got to the reward.
+    states_to_mark = [next_state for _, _, next_state, _ in trajectory[:-2]]
+    mdp_grid = [[c for c in row] for row in str(mdp).split('\n')]
+    for x, y in states_to_mark:
+        mdp_grid[y][x] = '.'
+    mdp_string_with_trajectory = '\n'.join([''.join(row) for row in mdp_grid])
+    print(mdp_string_with_trajectory)
+
 # TODO(rohinmshah): This really belongs in gridworld.py
 def get_random_start_state(mdp):
     """Returns a state in mdp that would be a legal start state for an agent.
