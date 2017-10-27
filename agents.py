@@ -1,5 +1,6 @@
 from agent_interface import Agent
 from collections import defaultdict
+import numpy as np
 import random
 
 class ValueIterationLikeAgent(Agent):
@@ -89,13 +90,16 @@ class ValueIterationLikeAgent(Agent):
 
         Note that this is a normal state s, not a generalized state mu.
         """
-        # TODO(rohinmshah): Take beta into account
-        if self.beta is not None:
-            print(self.beta)
-            raise NotImplementedError("Noisy action choice not implemented!")
         mu = self.extend_state_to_mu(s)
+        actions = self.mdp.get_actions(s)
+        if self.beta is not None:
+            q_vals = np.array([self.qvalue(mu, a) for a in actions])
+            action_dist = np.exp(self.beta*q_vals)
+            action_dist = action_dist / np.sum(action_dist)
+            return actions[np.random.choice(np.arange(len(actions)), p=action_dist)] 
+
         best_value, best_actions = float("-inf"), []
-        for a in self.mdp.get_actions(s):
+        for a in actions:
             action_value = self.qvalue(mu, a)
             if action_value > best_value:
                 best_value, best_actions = action_value, [a]

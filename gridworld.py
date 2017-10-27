@@ -113,6 +113,7 @@ class GridworldMdp(object):
             rewards[y, x] = self.rewards[(x, y)]
         return walls, rewards, start_state
 
+
     @staticmethod
     def generate_random(height, width, pr_wall, pr_reward):
         """Generates a random instance of a Gridworld.

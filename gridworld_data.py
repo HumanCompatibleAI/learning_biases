@@ -26,7 +26,7 @@ def print_training_example(mdp, trajectory):
 # TODO(rohinmshah): This really belongs in gridworld.py
 def get_random_start_state(mdp):
     """Returns a state in mdp that would be a legal start state for an agent.
-
+    Avoids walls and reward/exit states.
     mdp: A Gridworld MDP (not a generic MDP).
 
     Returns: Randomly chosen state (x, y).
@@ -106,7 +106,6 @@ def generate_gridworld_irl(config, num_train=1000, num_test=100, num_mdps=10):
     print('Generating %d unknown reward examples' % num_mdps)
     step2_data = generate_n_examples(num_mdps, agent, config)
     return step1_data + step2_data
-    
 
 def create_agent(config):
     """Creates the agent specified in config."""
@@ -142,7 +141,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--imsize', type=int, default=8)
     parser.add_argument('--wall_prob', type=float, default=0.05)
-    parser.add_argument('--reward_prob', type=int, default=0)
+    parser.add_argument('--reward_prob', type=float, default=0)
     parser.add_argument('--statebatchsize', type=int, default=10)
     args = parser.parse_args()
     if args.seed is None:
