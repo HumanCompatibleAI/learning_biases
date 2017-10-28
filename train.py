@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 import agents
 from gridworld_data import generate_gridworld_irl
-from model import VI_Block, VI_Untied_Block
+from model import VI_Block
 from utils import fmt_row
 # from tf.saved_model.tag_constants import SERVING, TRAINING
 
@@ -39,13 +39,17 @@ tf.app.flags.DEFINE_integer(
 
 # Hyperparameters
 tf.app.flags.DEFINE_float(
+    'vin_regularizer_C', 0.0001, 'Regularization constant for the VIN')
+tf.app.flags.DEFINE_float(
+    'reward_regularizer_C', 0.0001, 'Regularization constant for the reward')
+tf.app.flags.DEFINE_float(
     'lr', 0.01, 'Learning rate when training the planning module')
-tf.app.flags.DEFINE_integer(
-    'epochs', 30, 'Number of epochs to train the planning module for')
 tf.app.flags.DEFINE_float(
     'reward_lr', 0.1, 'Learning rate when inferring a reward function')
 tf.app.flags.DEFINE_integer(
-    'reward_epochs', 30, 'Number of epochs when inferring a reward function')
+    'epochs', 50, 'Number of epochs to train the planning module for')
+tf.app.flags.DEFINE_integer(
+    'reward_epochs', 50, 'Number of epochs when inferring a reward function')
 tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
 tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
 tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
@@ -54,7 +58,6 @@ tf.app.flags.DEFINE_integer('batchsize', 12, 'Batch size')
 tf.app.flags.DEFINE_integer(
     'statebatchsize', 10,
     'Number of state inputs for each sample (real number, technically is k+1)')
-tf.app.flags.DEFINE_boolean('untied_weights', False, 'Untie weights of VIN')
 
 # Agent
 tf.app.flags.DEFINE_string(
@@ -120,25 +123,37 @@ S2 = tf.placeholder(tf.int32, name="S2", shape=[batch_size, state_batch_size])
 y  = tf.placeholder(tf.float32, name="y",  shape=[batch_size * state_batch_size, num_actions])
 
 # Construct model (Value Iteration Network)
-if (config.untied_weights):
-    logits, nn = VI_Untied_Block(X, S1, S2, config)
-else:
-    logits, nn = VI_Block(X, S1, S2, config)
+logits, nn = VI_Block(X, S1, S2, config)
 
-# Define loss
+# Define losses
 cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
     logits=logits, labels=y, name='cross_entropy')
 cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy_mean')
 tf.add_to_collection('losses', cross_entropy_mean)
-cost = tf.add_n(tf.get_collection('losses'), name='total_loss')
+
+logits_cost = tf.add_n(tf.get_collection('losses'), name='logits_loss')
+if config.vin_regularizer_C > 0:
+    vin_regularizer_cost = tf.add_n(
+        tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='vin_loss')
+    step1_cost = logits_cost + vin_regularizer_cost
+else:
+    step1_cost = logits_cost
+
+if config.reward_regularizer_C > 0:
+    l1_regularizer = tf.contrib.layers.l1_regularizer(config.reward_regularizer_C)
+    reward_regularizer_cost = tf.contrib.layers.apply_regularization(
+        l1_regularizer, [reward])
+    step2_cost = logits_cost + reward_regularizer_cost
+else:
+    step2_cost = logits_cost
 
 # Define optimizers
 planner_optimizer = tf.train.RMSPropOptimizer(
     learning_rate=config.lr, epsilon=1e-6, centered=True)
-planner_optimize_op = planner_optimizer.minimize(cost)
+planner_optimize_op = planner_optimizer.minimize(step1_cost)
 reward_optimizer = tf.train.RMSPropOptimizer(
     learning_rate=config.reward_lr, epsilon=1e-6, centered=True)
-reward_optimize_op = reward_optimizer.minimize(cost, var_list=[reward])
+reward_optimize_op = reward_optimizer.minimize(step2_cost, var_list=[reward])
 
 # Test model & calculate accuracy
 cp = tf.cast(tf.argmax(nn, 1), tf.int32)
@@ -200,7 +215,7 @@ with tf.Session() as sess:
     print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
     for epoch in range(int(config.epochs)):
         _, (avg_cost, avg_err), elapsed = run_epoch(
-            train_data, [planner_optimize_op], [cost, err])
+            train_data, [planner_optimize_op], [step1_cost, err])
         # Display logs per epoch step
         if epoch % config.display_step == 0:
             _, (test1_err,), _ = run_epoch(test1_data, [], [err])
@@ -231,12 +246,14 @@ with tf.Session() as sess:
             y: ytest2,
         }
         _, predicted_reward, e_, c_ = sess.run(
-            [reward_optimize_op, reward, err, cost], feed_dict=fd)
+            [reward_optimize_op, reward, err, step2_cost], feed_dict=fd)
         elapsed = time.time() - tstart
         print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
     # this saves reward
     fig, axes = plt.subplots(1,2)
+    print('The first set of walls is:')
+    print(imagetest2[0])
     print('The first reward should be:')
     print(rewardtest2[0])
     inferred_reward = reward.eval()[0]
