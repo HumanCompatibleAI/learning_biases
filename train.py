@@ -77,7 +77,11 @@ tf.app.flags.DEFINE_float(
 
 # Other Agent
 tf.app.flags.DEFINE_string(
-    'other_agent', None, 'Agent to distinguish from')
+    'other_agent', None,
+    'Agent to distinguish from. '
+    'In particular, when generating training data, we print the number of '
+    'training examples on which agent and other_agent would choose different '
+    'action distributions.')
 tf.app.flags.DEFINE_float('other_gamma', 1.0, 'Gamma for other agent')
 tf.app.flags.DEFINE_float('other_beta', None, 'Beta for other agent')
 tf.app.flags.DEFINE_integer('other_num_iters', 50, 'Num iters for other agent')
