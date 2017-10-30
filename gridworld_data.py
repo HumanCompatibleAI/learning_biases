@@ -30,9 +30,9 @@ def generate_example(expected_length, agent, config, other_agents=[]):
     agent: The agent that acts in the generated MDP.
     config: Configuration parameters.
     other_agents: List of Agents that we wish to distinguish `agent` from. In
-        particular, for every agent O in other_agent, there will be at least one
-        (x, y) pair in the returned coords such that the action chosen by O is
-        different from the action chosen by `agent`.
+      particular, for every other agent, for our randomly chosen training
+      examples, we report the number of examples (states) on which `agent` and
+      the other agent would choose different actions.
 
     Returns: A tuple of six items:
       image: Numpy array of size imsize x imsize, each element is 1 if there is
@@ -74,9 +74,15 @@ def generate_example(expected_length, agent, config, other_agents=[]):
 
     threshold = config.action_distance_threshold
     def calculate_different(other_agent):
+        """
+        Return the number of states in minibatches on which the action chosen by
+        `agent` is different from the action chosen by `other_agent`.
+        """
         other_agent.set_mdp(mdp)
         def differs(s, action_dist):
             dist = dist_to_numpy(other_agent.get_action_distribution(s))
+            # Two action distributions are "different" if they are sufficiently
+            # far away from each other according to some distance metric.
             # TODO(rohinmshah): L2 norm is not the right distance metric for
             # probability distributions, maybe use something else?
             # Not KL divergence, since it may be undefined

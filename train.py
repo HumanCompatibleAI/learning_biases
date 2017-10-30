@@ -213,20 +213,23 @@ with tf.Session() as sess:
     test1_data = (imagetest1, rewardtest1, S1test1, S2test1, ytest1)
 
     print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
-    for epoch in range(int(config.epochs)):
-        _, (avg_cost, avg_err), elapsed = run_epoch(
-            train_data, [planner_optimize_op], [step1_cost, err])
-        # Display logs per epoch step
-        if epoch % config.display_step == 0:
-            _, (test1_err,), _ = run_epoch(test1_data, [], [err])
-            print(fmt_row(10, [epoch, avg_cost, avg_err, test1_err, elapsed]))
-        if config.log:
-            summary = tf.Summary()
-            summary.ParseFromString(sess.run(summary_op))
-            summary.value.add(tag='Average error', simple_value=float(avg_err))
-            summary.value.add(tag='Average cost', simple_value=float(avg_cost))
-            summary_writer.add_summary(summary, epoch)
-            # saver.save(sess, config.logdir)
+    try:
+        for epoch in range(int(config.epochs)):
+            _, (avg_cost, avg_err), elapsed = run_epoch(
+                train_data, [planner_optimize_op], [step1_cost, err])
+            # Display logs per epoch step
+            if epoch % config.display_step == 0:
+                _, (test1_err,), _ = run_epoch(test1_data, [], [err])
+                print(fmt_row(10, [epoch, avg_cost, avg_err, test1_err, elapsed]))
+            if config.log:
+                summary = tf.Summary()
+                summary.ParseFromString(sess.run(summary_op))
+                summary.value.add(tag='Average error', simple_value=float(avg_err))
+                summary.value.add(tag='Average cost', simple_value=float(avg_cost))
+                summary_writer.add_summary(summary, epoch)
+                # saver.save(sess, config.logdir)
+    except KeyboardInterrupt:
+        pass
   
     print("Finished training!")
     _, (test1_err,), _ = run_epoch(test1_data, [], [err])
@@ -237,18 +240,21 @@ with tf.Session() as sess:
 
     print('Beginning IRL inference')
     print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
-    for epoch in range(config.reward_epochs):
-        tstart = time.time()
-        fd = {
-            image: imagetest2,
-            S1: S1test2,
-            S2: S2test2,
-            y: ytest2,
-        }
-        _, predicted_reward, e_, c_ = sess.run(
-            [reward_optimize_op, reward, err, step2_cost], feed_dict=fd)
-        elapsed = time.time() - tstart
-        print(fmt_row(10, [epoch, c_, e_, elapsed]))
+    try:
+        for epoch in range(config.reward_epochs):
+            tstart = time.time()
+            fd = {
+                image: imagetest2,
+                S1: S1test2,
+                S2: S2test2,
+                y: ytest2,
+            }
+            _, predicted_reward, e_, c_ = sess.run(
+                [reward_optimize_op, reward, err, step2_cost], feed_dict=fd)
+            elapsed = time.time() - tstart
+            print(fmt_row(10, [epoch, c_, e_, elapsed]))
+    except KeyboardInterrupt:
+        pass
 
     # this saves reward
     fig, axes = plt.subplots(1,2)
