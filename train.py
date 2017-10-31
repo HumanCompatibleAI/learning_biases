@@ -229,21 +229,37 @@ with tf.Session() as sess:
         print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
     # this saves reward
-    fig, axes = plt.subplots(1,2)
-    print('The first reward should be:')
-    print(rewardtest2[0])
-    inferred_reward = reward.eval()[0]
+
+def plot_reward(label, inferred_reward, filename='reward_comparison.png'):
+    """Plots rewards (true and predicted) and saves them to a file.
+
+    Also normalizes inferred_reward.
+    """
     normalized_inferred_reward = inferred_reward / inferred_reward.max()
+    print('The first reward should be:')
+    print(label)
     print('The inferred reward is:')
     print(normalized_inferred_reward)
-    true = axes[0].imshow(rewardtest2[0],cmap='hot',interpolation='nearest')
+
+    # set up plot
+    fig, axes = plt.subplots(1,2)
+
+    # truth plot
+    true = axes[0].imshow(label,cmap='hot',interpolation='nearest')
     axes[0].set_title("Truth")
     cbaxes = fig.add_axes([0.02, 0.1, 0.02, 0.8])
     cb = plt.colorbar(true, cax=cbaxes)
+
+    # inferred plot
     tensor = axes[1].imshow(normalized_inferred_reward, cmap='hot', interpolation='nearest')
     axes[1].set_title("Predicted")
     cbaxes2 = fig.add_axes([0.925, 0.1, 0.02, 0.8])
     plt.colorbar(tensor, cax=cbaxes2)
-    # plt.colorbar.make_axes(axes[1], location='left')
+
+    # titleing
     fig.suptitle("Comparison of Reward Functions")
-    fig.savefig("predictioneval")
+
+    # saving to file
+    fig.savefig(filename)
+
+    plot_reward(reward_test2[0], reward.eval()[0])
