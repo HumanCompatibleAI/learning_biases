@@ -1,8 +1,10 @@
 import unittest
+import numpy as np
 from agent_interface import Agent
 from agent_runner import run_agent
 from agents import OptimalAgent, NaiveTimeDiscountingAgent, SophisticatedTimeDiscountingAgent, MyopicAgent
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from utils import Distribution
 
 class TestAgents(unittest.TestCase):
     def setUp(self):
@@ -36,19 +38,62 @@ class TestAgents(unittest.TestCase):
         env = GridworldEnvironment(mdp)
         agent = OptimalAgent(num_iters=20)
         agent.set_mdp(mdp)
-        self.assertAlmostEqual(agent.values[mdp.get_start_state()], 8.2)
+
+        # Values
+        start_state = mdp.get_start_state()
+        self.assertAlmostEqual(agent.values[start_state], 8.2)
+
+        # Action distribution
+        action_dist = agent.get_action_distribution(start_state)
+        self.assertEqual(action_dist, Distribution({s : 1}))
+
+        # Trajectory
         actions, reward = self.run_on_env(agent, env)
         self.assertAlmostEqual(reward, 8.2)
         self.assertEqual(actions, [s, s, w, w, w, w, n, n, exit_act])
 
+        # Same thing, but with a discount factor
         mdp = GridworldMdp(grid, living_reward=0)
         env = GridworldEnvironment(mdp)
         agent = OptimalAgent(gamma=0.5, num_iters=20)
         agent.set_mdp(mdp)
-        self.assertAlmostEqual(agent.values[mdp.get_start_state()], 0.125)
+
+        # Values
+        self.assertAlmostEqual(agent.values[start_state], 0.125)
+
+        # Action distribution
+        action_dist = agent.get_action_distribution(start_state)
+        self.assertEqual(action_dist, Distribution({s : 1}))
+
+        # Trajectory
         actions, reward = self.run_on_env(agent, env, gamma=0.5)
         self.assertAlmostEqual(reward, 0.125)
         self.assertEqual(actions, [s, s, e, e, exit_act])
+
+        # Same thing, but with Boltzmann rationality
+        agent = OptimalAgent(beta=1, gamma=0.5, num_iters=20)
+        agent.set_mdp(mdp)
+
+        # Values
+        middle_state = (2, 3)
+        self.assertAlmostEqual(agent.values[start_state], 0.125)
+        self.assertAlmostEqual(agent.values[middle_state], 1.125)
+
+        # Action distribution
+        dist = agent.get_action_distribution(start_state).get_dict()
+        nprob, sprob, eprob, wprob = dist[n], dist[s], dist[e], dist[w]
+        for p in [nprob, sprob, eprob, wprob]:
+            self.assertTrue(0 < p < 1)
+        self.assertEqual(nprob, wprob)
+        self.assertTrue(sprob > nprob)
+        self.assertTrue(nprob > eprob)
+        dist = agent.get_action_distribution(middle_state).get_dict()
+        nprob, sprob, eprob, wprob = dist[n], dist[s], dist[e], dist[w]
+        for p in [nprob, sprob, eprob, wprob]:
+            self.assertTrue(0 < p < 1)
+        self.assertEqual(nprob, sprob)
+        self.assertTrue(wprob > eprob)
+        self.assertTrue(eprob > nprob)
 
     def test_time_discounting_agents(self):
         grid = [['X', 'X', 'X', 'X', 'X', 'X', 'X'],
