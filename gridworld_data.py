@@ -30,9 +30,9 @@ def generate_example(expected_length, agent, config, other_agents=[]):
     agent: The agent that acts in the generated MDP.
     config: Configuration parameters.
     other_agents: List of Agents that we wish to distinguish `agent` from. In
-        particular, for every agent O in other_agent, there will be at least one
-        (x, y) pair in the returned coords such that the action chosen by O is
-        different from the action chosen by `agent`.
+      particular, for every other agent, for our randomly chosen training
+      examples, we report the number of examples (states) on which `agent` and
+      the other agent would choose different actions.
 
     Returns: A tuple of six items:
       image: Numpy array of size imsize x imsize, each element is 1 if there is
@@ -41,7 +41,8 @@ def generate_example(expected_length, agent, config, other_agents=[]):
                obtained at that state. (Most will be zero.)
       y_coords: Numpy array of integers representing y coordinates (rows).
       x_coords: Numpy array of integers representing x coordinates (columns).
-      action_labels: Numpy array of integers representing agent actions.
+      action_labels: Numpy array of size len(x_coords) x 5. The probability
+                     distributions over actions for each state.
       num_different: Numpy array of size `len(other_agents)`. `num_different[i]`
                      is the number of states where `other_agents[i]` would
                      choose a different action compared to `agent`.
@@ -53,32 +54,46 @@ def generate_example(expected_length, agent, config, other_agents=[]):
     """
     assert len(other_agents) <= expected_length
     imsize = config.imsize
+    num_actions = config.num_actions
     pr_wall, pr_reward = config.wall_prob, config.reward_prob
     if config.simple_mdp:
         mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
     else:
         mdp = GridworldMdp.generate_random_connected(imsize, imsize, pr_reward)
 
+    def dist_to_numpy(dist):
+        return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
+
     def get_minibatch():
         state = mdp.get_random_start_state()
-        action = agent.get_action(state)
-        return state, action
+        action_dist = dist_to_numpy(agent.get_action_distribution(state))
+        return state, action_dist
 
     agent.set_mdp(mdp)
     minibatches = [get_minibatch() for _ in range(expected_length)]
 
+    threshold = config.action_distance_threshold
     def calculate_different(other_agent):
+        """
+        Return the number of states in minibatches on which the action chosen by
+        `agent` is different from the action chosen by `other_agent`.
+        """
         other_agent.set_mdp(mdp)
-        def differs(s, a):
-            return other_agent.get_action(s) != a
+        def differs(s, action_dist):
+            dist = dist_to_numpy(other_agent.get_action_distribution(s))
+            # Two action distributions are "different" if they are sufficiently
+            # far away from each other according to some distance metric.
+            # TODO(rohinmshah): L2 norm is not the right distance metric for
+            # probability distributions, maybe use something else?
+            # Not KL divergence, since it may be undefined
+            return np.linalg.norm(action_dist - dist) > threshold
         return sum([(1 if differs(s, a) else 0) for s, a in minibatches])
 
     num_different = np.array([calculate_different(o) for o in other_agents])
     walls, rewards, _ = mdp.convert_to_numpy_input()
     y_coords = np.array([y for (x, y), _ in minibatches])
     x_coords = np.array([x for (x, y), _ in minibatches])
-    action_labels = np.array(
-        [Direction.get_number_from_direction(a) for _, a in minibatches])
+    action_labels = np.array([action_dist for _, action_dist in minibatches])
     return walls, rewards, y_coords, x_coords, action_labels, num_different
 
 def generate_n_examples(n, agent, config, other_agents=[]):
@@ -104,7 +119,8 @@ def generate_gridworld_data(agent, config, other_agents=[]):
     imagetrain, rewardtrain, S1train, S2train, ytrain = generate_n_examples(config.num_train, agent, config, other_agents)
     print('Generating %d test examples' % config.num_test)
     imagetest, rewardtest, S1test, S2test, ytest = generate_n_examples(config.num_test, agent, config, other_agents)
-    return imagetrain, rewardtrain, S1train, S2train, ytrain, imagetest, rewardtest, S1test, S2test, ytest
+    return imagetrain, rewardtrain, S1train, S2train, ytrain, \
+           imagetest, rewardtest, S1test, S2test, ytest
 
 def generate_gridworld_irl(config):
     """Generates an IRL problem for Gridworlds.
