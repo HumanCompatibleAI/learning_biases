@@ -247,3 +247,4 @@ with tf.Session() as sess:
     # plt.colorbar.make_axes(axes[1], location='left')
     fig.suptitle("Comparison of Reward Functions")
     fig.savefig("predictioneval")
+
