@@ -1,6 +1,8 @@
 import argparse
 import numpy as np
 import random
+import csv
+import os.path as path
 
 import agents
 from agent_runner import run_agent
@@ -174,6 +176,39 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             beta=beta,
             num_iters=num_iters)
     raise ValueError('Invalid agent: ' + agent)
+
+def save_dataset(config, filename):
+    np.savez(filename, generate_gridworld_irl(config))
+
+def load_dataset(filename):
+    # imagetrain, rewardtrain, S1train, S2train, ytrain, \
+    # imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
+    # imagetest2, rewardtest2, S1test2, S2test2, ytest2 = np.load(filename)
+    return np.load(filename)
+
+def create_dataset_repo(foldername, config, imsizes, rewardprobs, seeds=[32,1729,7,4],agents=['optimal', 'naive', 'sophisticated', 'myopic'], epochs=[100], num_train=[5000], num_test=[1000], batchsize=[32]):
+    """Store dataset files into folder of numpy arrays.
+    Create index csv that tells us what each numpy array contains.
+    """
+    with open(path.join(foldername,"index.csv"), 'w', newline='') as indexfile:
+        csvfile = csv.writer(indexfile)
+        i = 0
+        trainsize = max(num_train)
+        testsize = max(num_test)
+        for imsize in imsizes:
+            for rewardp in rewardprobs:
+                for seed in seeds:
+                    for agent in agents:
+                        i+=1
+                        config.imsize=imsize
+                        config.seed = seed
+                        config.reward_prob = rewardp
+                        config.agent = agent
+                        config.epochs = epochs[0]
+                        config.num_train = trainsize
+                        config.num_test = testsize
+                        save_dataset(config, path.join(foldername, "{}.npz".format(i)))
+                        csvfile.writerow([i, imsize, wallp, rewardp, agent, epoch, num_train, num_test])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

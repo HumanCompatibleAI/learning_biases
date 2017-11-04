@@ -14,7 +14,7 @@ do
 					do
 					  rm -r /tmp/planner-vin/model/
 					  echo "beginning: epoch-$epochs imsize-$imsize wall_prob-$wallp reward_prob-$rewardp agent-$agent seed-$seed"
-					  run_script="$(time python train.py -imsize $imsize -epochs $epochs -wall_prob $wallp -reward_prob $rewardp -agent $agent -seed $seed> testing_files/imsize-$imsize-epochs-$epochs-wall_prob-$wallp-reward_prob-$rewardp-agent-$agent-seed-$seed.txt)"
+					  run_script="$(time python train.py --imsize $imsize --epochs $epochs --wall_prob $wallp --reward_prob $rewardp --agent $agent --seed $seed> testing_files/imsize-$imsize-epochs-$epochs-wall_prob-$wallp-reward_prob-$rewardp-agent-$agent-seed-$seed.txt)"
 					  mv predictioneval.png testing_files/imsize-$imsize-epochs-$epochs-wall_prob-$wallp-reward_prob-$rewardp-agent-$agent-seed-$seed.png
 					  echo "${run_script}"
 					done
