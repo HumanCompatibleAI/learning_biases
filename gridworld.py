@@ -182,13 +182,26 @@ class GridworldMdp(object):
                 if dsets.contains((newx, newy)):
                     dsets.union((x, y), (newx, newy))
 
-        def set_random_position_to(token):
-            current_val = None
-            while current_val not in ['X', ' ']:
-                y = random.randint(1, height - 2)
-                x = random.randint(1, width - 2)
-                current_val = grid[y][x]
-            grid[y][x] = token
+        def set_random_position_to(token, grid=grid):
+            # this loops through *available* positions in the grid & chooses random one
+            spots = find_available_spots(grid)
+            place = spots[np.random.choice(len(spots))]
+            grid[place[0]][place[1]] = token
+
+        def find_available_spots(grid):
+            spots = []
+            rewards = []
+            for y in range(1, height-1):
+                for x in range(1, width-1):
+                    if grid[y][x] in ['X', ' ']:
+                        spots.append((y, x))
+                    elif type(grid[y][x])==int:
+                        rewards.append((y, x))
+            if len(spots)==0:
+                print('\a')
+                print("no available spots\noverwriting existing reward values")
+                return rewards
+            return spots
 
         # Makes sure there is one reward
         set_random_position_to(3)

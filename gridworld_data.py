@@ -178,61 +178,73 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
     raise ValueError('Invalid agent: ' + agent)
 
 def save_dataset(config, filename):
-    np.savez(filename, generate_gridworld_irl(config))
+    np.savez(filename, *generate_gridworld_irl(config))
 
 def load_dataset(filename):
+    data = np.load(filename)
     # imagetrain, rewardtrain, S1train, S2train, ytrain, \
     # imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
     # imagetest2, rewardtest2, S1test2, S2test2, ytest2 = np.load(filename)
-    return np.load(filename)
-
-def create_dataset_repo(foldername, config, imsizes, rewardprobs, seeds=[32,1729,7,4],agents=['optimal', 'naive', 'sophisticated', 'myopic'], epochs=[100], num_train=[5000], num_test=[1000], batchsize=[32]):
-    """Store dataset files into folder of numpy arrays.
-    Create index csv that tells us what each numpy array contains.
-    """
-    with open(path.join(foldername,"index.csv"), 'w', newline='') as indexfile:
-        csvfile = csv.writer(indexfile)
-        i = 0
-        trainsize = max(num_train)
-        testsize = max(num_test)
-        for imsize in imsizes:
-            for rewardp in rewardprobs:
-                for seed in seeds:
-                    for agent in agents:
-                        i+=1
-                        config.imsize=imsize
-                        config.seed = seed
-                        config.reward_prob = rewardp
-                        config.agent = agent
-                        config.epochs = epochs[0]
-                        config.num_train = trainsize
-                        config.num_test = testsize
-                        save_dataset(config, path.join(foldername, "{}.npz".format(i)))
-                        csvfile.writerow([i, imsize, wallp, rewardp, agent, epoch, num_train, num_test])
+    return [data['arr_{}'.format(i)] for i in range(15)]
 
 if __name__ == '__main__':
+    # creates a dataset for given configuration and saves it to fname
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--imsize', type=int, default=8)
     parser.add_argument('--wall_prob', type=float, default=0.05)
     parser.add_argument('--reward_prob', type=float, default=0.05)
+    parser.add_argument('--batchsize', type=int, default=12)
     parser.add_argument('--statebatchsize', type=int, default=10)
-    args = parser.parse_args()
+
+    parser.add_argument('--num_actions', type=int, default=5)
+    parser.add_argument('--simple_mdp',type=bool, default=False)
+    parser.add_argument('--action_distance_threshold', type=float, default=0.5)
+
+    # default arguments for agent (not all will be used for any given agent)
+    parser.add_argument('--agent', default='optimal')
+    parser.add_argument('--gamma',type=float,default=1.0) # discount rate
+    # noisiness of action choosing
+    parser.add_argument('--beta',type=float,default=None)
+    # num iters for value iteration to run
+    parser.add_argument('--num_iters',type=int,default=50)
+    parser.add_argument('--max_delay',type=float,default=5)
+    parser.add_argument('--hyperbolic_constant',type=float,default=1.0)
+
+    parser.add_argument('--other_agent', type=str, default=None)
+
+    parser.add_argument('--num_train',type=int,default=1000)
+    parser.add_argument('--num_test',type=int,default=400)
+    parser.add_argument('--fname', type=str, default=None)
+
+    args = parser.parse_args()  
+    # this should probably be handled differently
+    args.num_mdps = args.batchsize
+
     if args.seed is None:
         args.seed = int(random.random() * 100000)
+    if args.fname is None:
+        name = "baselinetests/"
+        tmp = "num_train-{}-num_test-{}-seed-{}-imsize-{}-wallp-{}-rewardp-{}-batch-{}-statebatch-{}-simple_mdp-{}".format(
+            args.num_train, args.num_test, args.seed, args.imsize, args.wall_prob, args.reward_prob, args.batchsize, args.statebatchsize, args.simple_mdp)
+        tmp2 = "-adt-{}-agent-{}-gamma-{}-beta-{}-max_delay-{}-hc-{}.npz".format(
+            args.action_distance_threshold, args.agent, args.gamma, args.beta, args.max_delay, args.hyperbolic_constant)
+        args.fname = name+tmp+tmp2
     print('Using seed ' + str(args.seed))
     random.seed(args.seed)
-    agent = agents.OptimalAgent()
-    other_agent = agents.NaiveTimeDiscountingAgent(20, 1)
-    walls, rewards, y, x, labels, num_different = generate_example(10, agent, args, [other_agent])
-    print('Walls:')
-    print(walls)
-    print('Rewards:')
-    print(rewards)
-    print('Y coords:')
-    print(y)
-    print('X coords:')
-    print(x)
-    print('Optimal actions:')
-    print(labels)
-    print('Fraction of actions that are different across agents: ' + str(num_different[0] / 10.0))
+    save_dataset(args, args.fname)
+
+    # agent = agents.OptimalAgent()
+    # other_agent = agents.NaiveTimeDiscountingAgent(20, 1)
+    # walls, rewards, y, x, labels, num_different = generate_example(10, agent, args, [other_agent])
+    # print('Walls:')
+    # print(walls)
+    # print('Rewards:')
+    # print(rewards)
+    # print('Y coords:')
+    # print(y)
+    # print('X coords:')
+    # print(x)
+    # print('Optimal actions:')
+    # print(labels)
+    # print('Fraction of actions that are different across agents: ' + str(num_different[0] / 10.0))
