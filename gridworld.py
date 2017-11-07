@@ -190,7 +190,9 @@ class GridworldMdp(object):
                 current_val = grid[y][x]
             grid[y][x] = token
 
+        # Makes sure there is one reward
         set_random_position_to(3)
+        # Sets random starting point for agent
         set_random_position_to('A')
         while random.random() < pr_reward:
             reward = random.randint(-9, 9)
