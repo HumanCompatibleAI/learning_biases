@@ -184,7 +184,8 @@ def load_dataset(filename):
     data = np.load(filename)
     # imagetrain, rewardtrain, S1train, S2train, ytrain, \
     # imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
-    # imagetest2, rewardtest2, S1test2, S2test2, ytest2 = np.load(filename)
+    # imagetest2, rewardtest2, S1test2, S2test2, ytest2 = np.load(filename)['arr_0'] 
+                                                    #   = load_dataset(filename)
     return [data['arr_{}'.format(i)] for i in range(15)]
 
 if __name__ == '__main__':
@@ -192,7 +193,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--imsize', type=int, default=8)
-    parser.add_argument('--wall_prob', type=float, default=0.05)
     parser.add_argument('--reward_prob', type=float, default=0.05)
     parser.add_argument('--batchsize', type=int, default=12)
     parser.add_argument('--statebatchsize', type=int, default=10)
@@ -213,38 +213,24 @@ if __name__ == '__main__':
 
     parser.add_argument('--other_agent', type=str, default=None)
 
-    parser.add_argument('--num_train',type=int,default=1000)
-    parser.add_argument('--num_test',type=int,default=400)
+    parser.add_argument('--num_train',type=int,default=2500)
+    parser.add_argument('--num_test',type=int,default=800)
     parser.add_argument('--fname', type=str, default=None)
 
     args = parser.parse_args()  
     # this should probably be handled differently
     args.num_mdps = args.batchsize
+    args.wall_prob = 0 # not needed by new gridworld generator
 
     if args.seed is None:
         args.seed = int(random.random() * 100000)
     if args.fname is None:
-        name = "baselinetests/"
-        tmp = "num_train-{}-num_test-{}-seed-{}-imsize-{}-wallp-{}-rewardp-{}-batch-{}-statebatch-{}-simple_mdp-{}".format(
-            args.num_train, args.num_test, args.seed, args.imsize, args.wall_prob, args.reward_prob, args.batchsize, args.statebatchsize, args.simple_mdp)
+        name = "baselinetests2/"
+        tmp = "num_train-{}-num_test-{}-seed-{}-imsize-{}-rewardp-{}-batch-{}-statebatch-{}-simple_mdp-{}".format(
+            args.num_train, args.num_test, args.seed, args.imsize, args.reward_prob, args.batchsize, args.statebatchsize, args.simple_mdp)
         tmp2 = "-adt-{}-agent-{}-gamma-{}-beta-{}-max_delay-{}-hc-{}.npz".format(
             args.action_distance_threshold, args.agent, args.gamma, args.beta, args.max_delay, args.hyperbolic_constant)
         args.fname = name+tmp+tmp2
     print('Using seed ' + str(args.seed))
     random.seed(args.seed)
     save_dataset(args, args.fname)
-
-    # agent = agents.OptimalAgent()
-    # other_agent = agents.NaiveTimeDiscountingAgent(20, 1)
-    # walls, rewards, y, x, labels, num_different = generate_example(10, agent, args, [other_agent])
-    # print('Walls:')
-    # print(walls)
-    # print('Rewards:')
-    # print(rewards)
-    # print('Y coords:')
-    # print(y)
-    # print('X coords:')
-    # print(x)
-    # print('Optimal actions:')
-    # print(labels)
-    # print('Fraction of actions that are different across agents: ' + str(num_different[0] / 10.0))
