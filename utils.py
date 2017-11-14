@@ -1,6 +1,7 @@
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 import tensorflow as tf
 import numpy as np
+import re
 
 # helper methods to print nice table (taken from CGT code)
 def fmt_item(x, l):
@@ -16,6 +17,10 @@ def fmt_row(width, row):
     return out
 
 def init_flags():
+    # Data flags
+    #   Load data
+    tf.app.flags.DEFINE_string('datafile', None, 'Where to get data from, only used it not None')
+    #   Generate data
     tf.app.flags.DEFINE_boolean(
         'simple_mdp', False, 'Whether to use the simple random MDP generator')
     tf.app.flags.DEFINE_integer('imsize', 8, 'Size of input image')
@@ -101,6 +106,32 @@ def init_flags():
     # batch size. If we tried to train multiple batches, then they would all be
     # modifying the same reward function, which would be bad.
     config.num_mdps = config.batchsize
+
+    if config.datafile:
+        get_flag_data_from_filename(config, config.datafile) # gets everything including seed
+    return config
+
+def get_flag_data_from_filename(config, fname):
+    # From a filename, get all the hyperparameters and push them into config
+
+    names = ['num_train', 'num_test', 'seed', 'imsize',
+    'reward_prob', 'batchsize', 'statebatchsize', 'simple_mdp',
+    'action_distance_threshold', 'agent','beta', 'max_delay', 'hyperbolic_constant'
+    ]
+
+    values = re.findall(r"-([^-]*)[-\.]", fname)
+    for name, val in zip(names, values):
+        if val == 'None':
+            val = None
+        elif val == 'True':
+            val = True
+        elif val =='False':
+            val = False
+        elif '.' in val:
+            val = float(val)
+        elif re.search('\d', val):
+            val = int(val)
+        setattr(config, name, val)
     return config
 
 class Distribution(object):
