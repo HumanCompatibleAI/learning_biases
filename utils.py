@@ -45,11 +45,11 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'reward_regularizer_C', 0.0001, 'Regularization constant for the reward')
     tf.app.flags.DEFINE_float(
-        'lr', 0.01, 'Learning rate when training the planning module')
+        'lr', 0.025, 'Learning rate when training the planning module')
     tf.app.flags.DEFINE_float(
         'reward_lr', 0.1, 'Learning rate when inferring a reward function')
     tf.app.flags.DEFINE_integer(
-        'epochs', 50, 'Number of epochs to train the planning module for')
+        'epochs', 30, 'Number of epochs to train the planning module for')
     tf.app.flags.DEFINE_integer(
         'reward_epochs', 50, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
@@ -112,11 +112,11 @@ def init_flags():
     return config
 
 def get_flag_data_from_filename(config, fname):
-    # From a filename, get all the hyperparameters and push them into config
+    """ From a filename, get all the hyperparameters and push them into config """
 
     names = ['num_train', 'num_test', 'seed', 'imsize',
     'reward_prob', 'batchsize', 'statebatchsize', 'simple_mdp',
-    'action_distance_threshold', 'agent','beta', 'max_delay', 'hyperbolic_constant'
+    'action_distance_threshold', 'agent', 'gamma', 'beta', 'max_delay', 'hyperbolic_constant'
     ]
 
     values = re.findall(r"-([^-]*)[-\.]", fname)

@@ -10,19 +10,13 @@ import matplotlib.pyplot as plt
 
 
 import agents
-from gridworld_data import generate_gridworld_irl
+from gridworld_data import generate_gridworld_irl, load_dataset
 from model import VI_Block
 from utils import fmt_row, init_flags
 # from tf.saved_model.tag_constants import SERVING, TRAINING
 
 import sys
 sys.path.insert(0, '../tensorflow-value-iteration-networks')
-
-# Data
-
-# seed random generators
-np.random.seed(config.seed)
-random.seed(config.seed)
 
 def model_declaration(config):
     """Create model using config flags and also create model saver.
@@ -95,7 +89,8 @@ def model_declaration(config):
     # Saving model in SavedModel format
     builder = tf.saved_model.builder.SavedModelBuilder(config.logdir+'model/')
 
-    return builder, step1_cost, step2_cost, planner_optimize_op, reward_optimize_op
+    return (builder, init, saver), (err, step1_cost, step2_cost), \
+            (planner_optimize_op, reward_optimize_op), reward
 
 def plot_reward(label, inferred_reward, filename='reward_comparison.png'):
     """Plots rewards (true and predicted) and saves them to a file.
@@ -124,115 +119,124 @@ def plot_reward(label, inferred_reward, filename='reward_comparison.png'):
     fig.savefig(filename)
 
 if __name__=='__main__':
-    # get flags
+    # get flags || Data
     config = init_flags()
-    
+    # seed random generators
+    np.random.seed(config.seed)
+    random.seed(config.seed)
     # use flags to create model and retrieve relevant operations
-    builder, step1_cost, step2_cost, \
-    planner_optimize_op, reward_optimize_op = model_declaration(config)
+    saver_ops, cost_and_err, optimizers, reward = model_declaration(config)
+    builder, init, saver = saver_ops
+    err, step1_cost, step2_cost = cost_and_err
+    planner_optimize_op, reward_optimize_op = optimizers
 
-    imagetrain, rewardtrain, S1train, S2train, ytrain, \
-    imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
-    imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(config)
+    if config.datafile:
+        imagetrain, rewardtrain, S1train, S2train, ytrain, \
+        imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
+        imagetest2, rewardtest2, S1test2, S2test2, ytest2 = load_dataset(config.datafile)
+    else:
+        imagetrain, rewardtrain, S1train, S2train, ytrain, \
+        imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
+        imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(config)
+
+    batch_size, state_batch_size = config.batchsize, config.statebatchsize
+    imsize = config.imsize
+    num_actions = config.num_actions
 
     ytrain = np.reshape(ytrain, [-1, num_actions])
     ytest1 = np.reshape(ytest1, [-1, num_actions])
     ytest2 = np.reshape(ytest2, [-1, num_actions])
 
-# Launch the graph
-with tf.Session() as sess:
-    if config.log:
-        for var in tf.trainable_variables():
-            tf.summary.histogram(var.op.name, var)
-        summary_op = tf.summary.merge_all()
-        summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
-    sess.run(init)
-    builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING])
+    # Launch the graph
+    with tf.Session() as sess:
+        if config.log:
+            for var in tf.trainable_variables():
+                tf.summary.histogram(var.op.name, var)
+            summary_op = tf.summary.merge_all()
+            summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
+        sess.run(init)
+        builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING])
 
-    def run_epoch(data, ops_to_run, ops_to_average):
-        # needs sess, num_batches, batch_size, 
-        tstart = time.time()
-        image_data, reward_data, S1_data, S2_data, y_data = data
-        averages = [0.0] * len(ops_to_average)
-        num_batches = int(image_data.shape[0] / batch_size)
-        # Loop over all batches
-        for i in range(num_batches):
-            start, end = i * batch_size, (i + 1) * batch_size
-            fd = {
-                image: image_data[start:end],
-                reward: reward_data[start:end],
-                S1: S1_data[start:end],
-                S2: S2_data[start:end],
-                y: y_data[start * state_batch_size:end * state_batch_size]
-            }
-            results = sess.run(ops_to_run + ops_to_average, feed_dict=fd)
-            num_ops_to_run = len(ops_to_run)
-            op_results, average_op_results = results[:num_ops_to_run], results[num_ops_to_run:]
-            averages = [x + y for x, y in zip(averages, average_op_results)]
-        
-        averages = [x / num_batches for x in averages]
-        elapsed = time.time() - tstart
-        return op_results, averages, elapsed
-
-    train_data = (imagetrain, rewardtrain, S1train, S2train, ytrain)
-    test1_data = (imagetest1, rewardtest1, S1test1, S2test1, ytest1)
-
-    print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
-    try:
-        for epoch in range(int(config.epochs)):
-            _, (avg_cost, avg_err), elapsed = run_epoch(
-                train_data, [planner_optimize_op], [step1_cost, err])
-            # Display logs per epoch step
-            if epoch % config.display_step == 0:
-                _, (test1_err,), _ = run_epoch(test1_data, [], [err])
-                print(fmt_row(10, [epoch, avg_cost, avg_err, test1_err, elapsed]))
-            if config.log:
-                summary = tf.Summary()
-                summary.ParseFromString(sess.run(summary_op))
-                summary.value.add(tag='Average error', simple_value=float(avg_err))
-                summary.value.add(tag='Average cost', simple_value=float(avg_cost))
-                summary_writer.add_summary(summary, epoch)
-                # saver.save(sess, config.logdir)
-    except KeyboardInterrupt:
-        pass
-  
-    print("Finished training!")
-    _, (test1_err,), _ = run_epoch(test1_data, [], [err])
-    # saving SavedModel instance
-    savepath = builder.save()
-    print("model saved 2: {}".format(savepath))
-    print('Final Accuracy: ' + str(100 * (1 - test1_err)))
-
-    print('Beginning IRL inference')
-    print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
-    try:
-        for epoch in range(config.reward_epochs):
+        def run_epoch(data, ops_to_run, ops_to_average):
+            # needs sess, num_batches, batch_size, 
             tstart = time.time()
-            fd = {
-                image: imagetest2,
-                S1: S1test2,
-                S2: S2test2,
-                y: ytest2,
-            }
-            _, predicted_reward, e_, c_ = sess.run(
-                [reward_optimize_op, reward, err, step2_cost], feed_dict=fd)
+            image_data, reward_data, S1_data, S2_data, y_data = data
+            averages = [0.0] * len(ops_to_average)
+            num_batches = int(image_data.shape[0] / batch_size)
+            # Loop over all batches
+            for i in range(num_batches):
+                start, end = i * batch_size, (i + 1) * batch_size
+                fd = {
+                    "image:0": image_data[start:end],
+                    "reward:0": reward_data[start:end],
+                    "S1:0": S1_data[start:end],
+                    "S2:0": S2_data[start:end],
+                    "y:0": y_data[start * state_batch_size:end * state_batch_size]
+                }
+                results = sess.run(ops_to_run + ops_to_average, feed_dict=fd)
+                num_ops_to_run = len(ops_to_run)
+                op_results, average_op_results = results[:num_ops_to_run], results[num_ops_to_run:]
+                averages = [x + y for x, y in zip(averages, average_op_results)]
+            
+            averages = [x / num_batches for x in averages]
             elapsed = time.time() - tstart
-            print(fmt_row(10, [epoch, c_, e_, elapsed]))
-    except KeyboardInterrupt:
-        pass
+            return op_results, averages, elapsed
 
-    print('The first set of walls is:')
-    print(imagetest2[0])
-    print('The first reward should be:')
-    print(rewardtest2[0])
-    inferred_reward = reward.eval()[0]
-    print('The first reward should be:')
-    print(rewardtest2[0])
-    normalized_inferred_reward = inferred_reward / inferred_reward.max()
-    print('The inferred reward is:')
-    print(normalized_inferred_reward)
+        train_data = (imagetrain, rewardtrain, S1train, S2train, ytrain)
+        test1_data = (imagetest1, rewardtest1, S1test1, S2test1, ytest1)
 
-    plot_reward(reward_test2[0], normalized_inferred_reward)
+        print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
+        try:
+            for epoch in range(int(config.epochs)):
+                _, (avg_cost, avg_err), elapsed = run_epoch(
+                    train_data, [planner_optimize_op], [step1_cost, err])
+                # Display logs per epoch step
+                if epoch % config.display_step == 0:
+                    _, (test1_err,), _ = run_epoch(test1_data, [], [err])
+                    print(fmt_row(10, [epoch, avg_cost, avg_err, test1_err, elapsed]))
+                if config.log:
+                    summary = tf.Summary()
+                    summary.ParseFromString(sess.run(summary_op))
+                    summary.value.add(tag='Average error', simple_value=float(avg_err))
+                    summary.value.add(tag='Average cost', simple_value=float(avg_cost))
+                    summary_writer.add_summary(summary, epoch)
+                    # saver.save(sess, config.logdir)
+        except KeyboardInterrupt:
+            pass
+      
+        print("Finished training!")
+        _, (test1_err,), _ = run_epoch(test1_data, [], [err])
+        # saving SavedModel instance
+        savepath = builder.save()
+        print("model saved 2: {}".format(savepath))
+        print('Final Accuracy: ' + str(100 * (1 - test1_err)))
 
-    # but actually we should do the whole stuff here
+        print('Beginning IRL inference')
+        print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
+        try:
+            for epoch in range(config.reward_epochs):
+                tstart = time.time()
+                fd = {
+                    "image:0": imagetest2,
+                    "S1:0": S1test2,
+                    "S2:0": S2test2,
+                    "y:0": ytest2,
+                }
+                _, predicted_reward, e_, c_ = sess.run(
+                    [reward_optimize_op, reward, err, step2_cost], feed_dict=fd)
+                elapsed = time.time() - tstart
+                print(fmt_row(10, [epoch, c_, e_, elapsed]))
+        except KeyboardInterrupt:
+            pass
+
+        print('The first set of walls is:')
+        print(imagetest2[0])
+        print('The first reward should be:')
+        print(rewardtest2[0])
+        inferred_reward = reward.eval()[0]
+        normalized_inferred_reward = inferred_reward / inferred_reward.max()
+        print('The inferred reward is:')
+        print(normalized_inferred_reward)
+
+        plot_reward(rewardtest2[0], normalized_inferred_reward)
 
