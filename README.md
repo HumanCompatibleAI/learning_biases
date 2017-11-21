@@ -38,6 +38,10 @@ a few edits.
 
 `utils.py`: Utility functions.
 
+### Other
+
+`disjoint_sets.py`: An implementation of the disjoint sets data structure, used in `gridworld_data.py` to generate interesting grid worlds.
+
 ### Testing
 
 All of the `*_tests.py` contain tests for the corresponding `*.py` file. All of
