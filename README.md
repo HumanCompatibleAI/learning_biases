@@ -36,11 +36,11 @@ a few edits.
 
 `train.py`: Trains a VIN using gridworld data.
 
-`utils.py`: Utility functions.
-
 ### Other
 
 `disjoint_sets.py`: An implementation of the disjoint sets data structure, used in `gridworld_data.py` to generate interesting grid worlds.
+
+`utils.py`: Utility functions.
 
 ### Testing
 
