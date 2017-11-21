@@ -181,11 +181,12 @@ def save_dataset(config, filename):
     np.savez(filename, *generate_gridworld_irl(config))
 
 def load_dataset(filename):
-    data = np.load(filename)
+    """ Load dataset unpacks the numpy array with all the gridworld files"""
     # imagetrain, rewardtrain, S1train, S2train, ytrain, \
     # imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
     # imagetest2, rewardtest2, S1test2, S2test2, ytest2 = np.load(filename)['arr_0'] 
                                                     #   = load_dataset(filename)
+    data = np.load(filename)
     return [data['arr_{}'.format(i)] for i in range(15)]
 
 if __name__ == '__main__':
