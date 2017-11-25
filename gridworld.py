@@ -198,7 +198,9 @@ class GridworldMdp(object):
                     elif type(grid[y][x])==int:
                         rewards.append((y, x))
             if len(spots)==0:
-                raise Exception("no available spots\noverwriting existing reward values")
+                print('\a')
+                print("no available spots\noverwriting existing reward values")
+                return rewards
             return spots
 
         # Makes sure there is one reward
