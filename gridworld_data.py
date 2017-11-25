@@ -1,6 +1,8 @@
 import argparse
 import numpy as np
 import random
+import csv
+import os.path as path
 
 import agents
 from agent_runner import run_agent
@@ -175,29 +177,58 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             num_iters=num_iters)
     raise ValueError('Invalid agent: ' + agent)
 
+def save_dataset(config, filename):
+    np.savez(filename, *generate_gridworld_irl(config))
+
+def load_dataset(filename):
+    """ Load dataset unpacks the numpy array with all the gridworld files"""
+    data = np.load(filename)
+    return [data['arr_{}'.format(i)] for i in range(15)]
+
 if __name__ == '__main__':
+    # creates a dataset for given configuration and saves it to fname
+    # default fname is baselinetests2/num_train-XXX-num_test-XXX-imsize-XXX-....npz
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--imsize', type=int, default=8)
-    parser.add_argument('--wall_prob', type=float, default=0.05)
     parser.add_argument('--reward_prob', type=float, default=0.05)
+    parser.add_argument('--batchsize', type=int, default=12)
     parser.add_argument('--statebatchsize', type=int, default=10)
-    args = parser.parse_args()
+
+    parser.add_argument('--num_actions', type=int, default=5)
+    parser.add_argument('--simple_mdp',type=bool, default=False)
+    parser.add_argument('--action_distance_threshold', type=float, default=0.5)
+
+    # default arguments for agent (not all will be used for any given agent)
+    parser.add_argument('--agent', default='optimal')
+    parser.add_argument('--gamma',type=float,default=1.0) # discount rate
+    # noisiness of action choosing
+    parser.add_argument('--beta',type=float,default=None)
+    # num iters for value iteration to run
+    parser.add_argument('--num_iters',type=int,default=50)
+    parser.add_argument('--max_delay',type=float,default=5)
+    parser.add_argument('--hyperbolic_constant',type=float,default=1.0)
+
+    parser.add_argument('--other_agent', type=str, default=None)
+
+    parser.add_argument('--num_train',type=int,default=2500)
+    parser.add_argument('--num_test',type=int,default=800)
+    parser.add_argument('--fname', type=str, default=None)
+
+    args = parser.parse_args()  
+    
+    args.num_mdps = args.batchsize # this should probably be handled differently
+    args.wall_prob = 0 # not needed by new gridworld generator
+
     if args.seed is None:
         args.seed = int(random.random() * 100000)
+    if args.fname is None:
+        name = "baselinetests2/"
+        tmp = "num_train-{}-num_test-{}-seed-{}-imsize-{}-rewardp-{}-batch-{}-statebatch-{}-simple_mdp-{}".format(
+            args.num_train, args.num_test, args.seed, args.imsize, args.reward_prob, args.batchsize, args.statebatchsize, args.simple_mdp)
+        tmp2 = "-adt-{}-agent-{}-gamma-{}-beta-{}-max_delay-{}-hc-{}.npz".format(
+            args.action_distance_threshold, args.agent, args.gamma, args.beta, args.max_delay, args.hyperbolic_constant)
+        args.fname = name+tmp+tmp2
     print('Using seed ' + str(args.seed))
     random.seed(args.seed)
-    agent = agents.OptimalAgent()
-    other_agent = agents.NaiveTimeDiscountingAgent(20, 1)
-    walls, rewards, y, x, labels, num_different = generate_example(10, agent, args, [other_agent])
-    print('Walls:')
-    print(walls)
-    print('Rewards:')
-    print(rewards)
-    print('Y coords:')
-    print(y)
-    print('X coords:')
-    print(x)
-    print('Optimal actions:')
-    print(labels)
-    print('Fraction of actions that are different across agents: ' + str(num_different[0] / 10.0))
+    save_dataset(args, args.fname)
