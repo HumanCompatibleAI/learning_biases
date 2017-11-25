@@ -1,5 +1,7 @@
 #!/bin/bash
-
+# This runs the training process for generating data
+# The loops are the different parameters for the generated data
+# This is the only place the parameters are recorded other than in the filenames
 
 for seed in 32 1729 943 6543
 do

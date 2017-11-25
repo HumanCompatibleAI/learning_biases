@@ -182,15 +182,12 @@ def save_dataset(config, filename):
 
 def load_dataset(filename):
     """ Load dataset unpacks the numpy array with all the gridworld files"""
-    # imagetrain, rewardtrain, S1train, S2train, ytrain, \
-    # imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
-    # imagetest2, rewardtest2, S1test2, S2test2, ytest2 = np.load(filename)['arr_0'] 
-                                                    #   = load_dataset(filename)
     data = np.load(filename)
     return [data['arr_{}'.format(i)] for i in range(15)]
 
 if __name__ == '__main__':
     # creates a dataset for given configuration and saves it to fname
+    # default fname is baselinetests2/num_train-XXX-num_test-XXX-imsize-XXX-....npz
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--imsize', type=int, default=8)
@@ -219,8 +216,8 @@ if __name__ == '__main__':
     parser.add_argument('--fname', type=str, default=None)
 
     args = parser.parse_args()  
-    # this should probably be handled differently
-    args.num_mdps = args.batchsize
+    
+    args.num_mdps = args.batchsize # this should probably be handled differently
     args.wall_prob = 0 # not needed by new gridworld generator
 
     if args.seed is None:

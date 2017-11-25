@@ -1,6 +1,9 @@
 *~
 *.swp
 
+# Numpy archive files (usually gridworlds)
+*.npz
+
 # prediction image will always be updating
 predictioneval.png
 
