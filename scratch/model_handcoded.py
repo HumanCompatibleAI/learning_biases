@@ -18,26 +18,53 @@ def VI_Block(X, S1, S2, config):
     with tf.variable_scope('VIN', regularizer=regularizer, dtype=tf.float32):
         bias = tf.get_variable(
             name='bias',
-            initializer=tf.truncated_normal([1, 1, 1, ch_h], stddev=0.01))
+            initializer=tf.zeros([1, 1, 1, ch_h]))
+            #initializer=tf.truncated_normal([1, 1, 1, ch_h], stddev=0.01))
         # weights from inputs to q layer (~reward in Bellman equation)
+        w0_val = np.zeros([3, 3, ch_i, ch_h])
+        # Identify positive rewards
+        w0_val[1,1,:,0] = [0, 1]
+        # Identify negative rewards and walls
+        w0_val[1,1,:,1] = [10, -1]
         w0 = tf.get_variable(
             name='w0',
-            initializer=tf.truncated_normal([3, 3, ch_i, ch_h], stddev=0.01))
-        # TODO(rohinmshah): The 2 here should be a flag
+            initializer=tf.constant(w0_val, dtype=tf.float32))
+            #initializer=tf.truncated_normal([3, 3, ch_i, ch_h], stddev=0.01))
+        w1_val = np.zeros([1, 1, ch_h, 2])
+        # Combine positive and negative rewards into a single reward function
+        w1_val[0,0,0,0] = 1
+        w1_val[0,0,1,0] = -1
+        # Indicator that says that this position is either a reward or a wall
+        w1_val[0,0,1,1] = 1
         w1 = tf.get_variable(
             name='w1',
-            initializer=tf.truncated_normal([1, 1, ch_h, 2], stddev=0.01))
+            initializer=tf.constant(w1_val, dtype=tf.float32))
+        w_val = np.zeros([3, 3, 2, ch_q])
+        # If in a reward square or wall square, must choose exit
+        w_val[1,1,0,4] = 1
+        w_val[1,1,1,:] = [-100, -100, -100, -100, 0]
         w = tf.get_variable(
             name='w',
-            initializer=tf.truncated_normal([3, 3, 2, ch_q], stddev=0.01))
+            initializer=tf.constant(w_val, dtype=tf.float32))
         # feedback weights from v layer into q layer
         # (Similar to the transition probabilities in Bellman equation)
+        w_fb_val = np.zeros([3, 3, 1, ch_q])
+        w_fb_val[0,1,0,0] = 0.999
+        w_fb_val[2,1,0,1] = 0.999
+        w_fb_val[1,2,0,2] = 0.999
+        w_fb_val[1,0,0,3] = 0.999
         w_fb = tf.get_variable(
             name='w_fb',
-            initializer=tf.truncated_normal([3, 3, 1, ch_q], stddev=0.01))
+            initializer=tf.constant(w_fb_val, dtype=tf.float32))
+        w_o_val = np.zeros([ch_q, num_actions])
+        w_o_val[0,0] = 1
+        w_o_val[1,1] = 0.99999
+        w_o_val[2,2] = 0.99998
+        w_o_val[3,3] = 0.99997
+        w_o_val[4,4] = 1
         w_o = tf.get_variable(
             name='w_o',
-            initializer=tf.truncated_normal([ch_q, num_actions], stddev=0.01))
+            initializer=tf.constant(w_o_val, dtype=tf.float32))
 
     # initial conv layer over image+reward prior
     h = tf.nn.relu(conv2d(X, w0, name="h0") + bias)
@@ -55,6 +82,7 @@ def VI_Block(X, S1, S2, config):
 
     # do one last convolution
     q = conv2d(tf.concat([r, v], 3), wwfb, name="q")
+    q_all = q
 
     # CHANGE TO THEANO ORDERING
     # Since we are selecting over channels, it becomes easier to work with
@@ -78,4 +106,6 @@ def VI_Block(X, S1, S2, config):
     
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")
-    return logits, output
+    return logits, output, (r, q_out, q_all)
+    # TODO: Put this back in
+    # return logits, output

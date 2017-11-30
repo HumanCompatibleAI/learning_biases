@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
 from model import VI_Block
+# from scratch.model_handcoded import VI_Block
 from utils import fmt_row, init_flags
 # from tf.saved_model.tag_constants import SERVING, TRAINING
 
@@ -90,7 +91,7 @@ def model_declaration(config):
     builder = tf.saved_model.builder.SavedModelBuilder(config.logdir+'model/')
 
     return (builder, init, saver), (err, step1_cost, step2_cost), \
-            (planner_optimize_op, reward_optimize_op), reward
+        (planner_optimize_op, reward_optimize_op), reward
 
 def plot_reward(label, inferred_reward, filename='reward_comparison.png'):
     """Plots rewards (true and predicted) and saves them to a file.
