@@ -42,8 +42,12 @@ def model_declaration(config):
     S2 = tf.placeholder(tf.int32, name="S2", shape=[batch_size, state_batch_size])
     y  = tf.placeholder(tf.float32, name="y",  shape=[batch_size * state_batch_size, num_actions])
 
-    # Construct model (Value Iteration Network)
-    logits, nn = VI_Block(X, S1, S2, config)
+    if config.model == 'VIN':
+        # Construct model (Value Iteration Network)
+        logits, nn = VI_Block(X, S1, S2, config)
+    elif config.model == "SIMPLE":
+        # Construct model (Simple Model)
+        image = tf.placeholder()
 
     # Define losses
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
@@ -154,10 +158,12 @@ if __name__=='__main__':
             summary_op = tf.summary.merge_all()
             summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
         sess.run(init)
+
+        # The tag on this model is to access the weights explicitly
+        # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
         builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING])
 
         def run_epoch(data, ops_to_run, ops_to_average):
-            # needs sess, num_batches, batch_size, 
             tstart = time.time()
             image_data, reward_data, S1_data, S2_data, y_data = data
             averages = [0.0] * len(ops_to_average)

@@ -3,8 +3,63 @@
 import numpy as np
 import tensorflow as tf
 
-def conv2d(x, k, name=None):
-    return tf.nn.conv2d(x, k, name=name, strides=(1, 1, 1, 1), padding='SAME')
+def simple_model(X, S1, S2, config):
+    """ Creates Conv-Net to run on 3-channel Grid Input
+    Consists of 2 parts:
+    1) Encoder to represent input as latent vector
+    2) Simple regression model to map latent vector to q-values"""
+
+    # HYPERPARAMATERS
+    # ---------------------------
+    ch_i = 3
+    ch_h = config.ch_h  # Number of convolutions to perform
+    ch_q = config.ch_q  # Channels in q layer (~actions) 
+    imsize = config.imsize
+    num_actions = config.num_actions
+    state_batch_size = config.statebatchsize
+    # regularizer = tf.contrib.l2_regularizer(scale=0.001)
+
+    # ENCODER
+    # ---------------------------
+    with tf.variable_scope('CNN_ENCODER', dtype=tf.float32):
+        w = tf.get_variable(
+            name='conv_weight',
+            initializer=tf.truncated_normal([1,1,ch_i,1]))
+        b = tf.get_variable(
+            name='bias',
+            initializer=tf.truncated_normal([1,1,1,1]))
+
+    # Currently performs single dot product over every channel
+    conv = conv2d(X, w) + b
+
+    latent_space = tf.reshape(conv, [-1, imsize**2])
+
+    # PLANNER
+    # ---------------------------
+    with tf.variable_scope('PLANNER', dtype=tf.float32):
+        w = tf.get_variable(
+            name='fc_weight',
+            initializer=tf.truncated_normal([imsize**2,ch_q]))
+        b = tf.get_variable(
+            name='fc_bias',
+            initializer=tf.truncated_normal([1]))
+
+    q_out = tf.matmul(latent_space, w) + b # logits
+    return q_out, tf.softmax(q_out, name='output')
+
+def simple_model_preprocess(X, S1, S2):
+    """Turns X, S1, S2 format into image with three channels:
+    0 - walls
+    1 - rewards
+    2 - location of person
+
+    Final tensor shape - [len(S1) # statebatchsize, imsize, imsize, 3]
+    """
+    
+
+
+def conv2d(x, k, name=None, pad='SAME'):
+    return tf.nn.conv2d(x, k, name=name, strides=(1, 1, 1, 1), padding=pad)
 
 def VI_Block(X, S1, S2, config):
     k    = config.k    # Number of value iterations performed

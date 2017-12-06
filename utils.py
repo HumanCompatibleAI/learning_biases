@@ -40,6 +40,8 @@ def init_flags():
         'num_test', 200, 'Number of examples for testing the planning module')
 
     # Hyperparameters
+    tf.app.flags.DEFINE_string(
+        'model','VIN','VIN or SIMPLE')
     tf.app.flags.DEFINE_float(
         'vin_regularizer_C', 0.0001, 'Regularization constant for the VIN')
     tf.app.flags.DEFINE_float(
