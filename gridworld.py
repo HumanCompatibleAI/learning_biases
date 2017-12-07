@@ -241,7 +241,7 @@ class GridworldMdp(object):
             return []
         x, y = state
         if self.walls[y][x]:
-            return []
+            return [Direction.SELF_LOOP]
         if state in self.rewards:
             return [Direction.EXIT]
         act = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
@@ -277,6 +277,9 @@ class GridworldMdp(object):
 
         if action == Direction.EXIT:
             return [(self.terminal_state, 1.0)]
+
+        if action == Direction.SELF_LOOP:
+            return [(state, 1.0)]
 
         next_state = self.attempt_to_move_in_direction(state, action)
         if self.noise == 0.0:
@@ -390,7 +393,8 @@ class Direction(object):
     # This is hacky, but we do want to ensure that EXIT is distinct from the
     # other actions, and so we define it here instead of in an Action class.
     EXIT = 4
-    INDEX_TO_DIRECTION = [NORTH, SOUTH, EAST, WEST, EXIT]
+    SELF_LOOP = 5
+    INDEX_TO_DIRECTION = [NORTH, SOUTH, EAST, WEST, EXIT, SELF_LOOP]
     DIRECTION_TO_INDEX = { a:i for i, a in enumerate(INDEX_TO_DIRECTION) }
     ALL_DIRECTIONS = INDEX_TO_DIRECTION
 
@@ -399,7 +403,8 @@ class Direction(object):
         """Takes a step in the given direction and returns the new point.
 
         point: Tuple (x, y) representing a point in the x-y plane.
-        direction: One of the Directions, except not Direction.EXIT.
+        direction: One of the Directions, except not Direction.EXIT or
+                   Direction.SELF_LOOP.
         """
         x, y = point
         dx, dy = direction
@@ -409,7 +414,8 @@ class Direction(object):
     def get_adjacent_directions(direction):
         """Returns the directions within 90 degrees of the given direction.
 
-        direction: One of the Directions, except not Direction.EXIT.
+        direction: One of the Directions, except not Direction.EXIT or
+                   Direction.SELF_LOOP.
         """
         if direction in [Direction.NORTH, Direction.SOUTH]:
             return [Direction.EAST, Direction.WEST]

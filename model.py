@@ -41,13 +41,12 @@ def conv_layer(x,filter_shape,name,pad,strides,activation=tf.nn.relu):
 def conv2d(x, k, name=None, strides=(1,1,1,1),pad='SAME'):
     return tf.nn.conv2d(x, k, name=name, strides=strides, padding=pad)
 
-def VI_Block(X, S1, S2, config):
+def VI_Block(X, config):
     k    = config.k    # Number of value iterations performed
     ch_i = 2           # Channels in input layer, hardcoded to 2 for now
     ch_h = config.ch_h # Channels in initial hidden layer
     ch_q = config.ch_q # Channels in q layer (~actions)
     num_actions = config.num_actions
-    state_batch_size = config.statebatchsize # k+1 state inputs for each channel
     regularizer = tf.contrib.layers.l2_regularizer(scale=config.vin_regularizer_C)
 
     with tf.variable_scope('VIN', regularizer=regularizer, dtype=tf.float32):
@@ -88,23 +87,7 @@ def VI_Block(X, S1, S2, config):
 
     # do one last convolution
     q = conv2d(tf.concat([r, v], 3), tf.concat([w, w_fb], 2), name="q")
-
-    # CHANGE TO THEANO ORDERING
-    # Since we are selecting over channels, it becomes easier to work with
-    # the tensor when it is in NCHW format vs NHWC
-    q = tf.transpose(q, perm=[0, 3, 1, 2])
-
-    # Select the conv-net channels at the state position (S1,S2).
-    # This intuitively corresponds to each channel representing an action, and the convnet the Q function.
-    # The tricky thing is we want to select the same (S1,S2) position *for each* channel and for each sample
-    # TODO: performance can be improved here by substituting expensive
-    #       transpose calls with better indexing for gather_nd
-    bs = tf.shape(q)[0]
-    rprn = tf.reshape(tf.tile(tf.reshape(tf.range(bs), [-1, 1]), [1, state_batch_size]), [-1])
-    ins1 = tf.cast(tf.reshape(S1, [-1]), tf.int32)
-    ins2 = tf.cast(tf.reshape(S2, [-1]), tf.int32)
-    idx_in = tf.transpose(tf.stack([ins1, ins2, rprn]), [1, 0])
-    q_out = tf.gather_nd(tf.transpose(q, [2, 3, 0, 1]), idx_in, name="q_out")
+    q_out = tf.reshape(q, [-1, ch_q])
 
     # add logits
     logits = tf.matmul(q_out, w_o)

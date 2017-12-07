@@ -35,18 +35,18 @@ def model_declaration(config):
     reward = tf.Variable(
         tf.zeros([batch_size, imsize, imsize]), name='reward', trainable=False)
     X  = tf.stack([image, reward], axis=-1)
-    # symbolic input batches of vertical positions
-    S1 = tf.placeholder(tf.int32, name="S1", shape=[batch_size, state_batch_size])
-    # symbolic input batches of horizontal positions
-    S2 = tf.placeholder(tf.int32, name="S2", shape=[batch_size, state_batch_size])
-    y  = tf.placeholder(tf.float32, name="y",  shape=[batch_size * state_batch_size, num_actions])
+    y  = tf.placeholder(
+        tf.float32, name="y",  shape=[batch_size, imsize, imsize, num_actions])
 
     if config.model == 'VIN':
         # Construct model (Value Iteration Network)
-        logits, nn = VI_Block(X, S1, S2, config)
+        logits, nn = VI_Block(X, config)
     elif config.model == "SIMPLE":
         # Construct model (Simple Model)
-        logits, nn = simple_model(X, S1, S2, config)
+        logits, nn = simple_model(X, config)
+
+    logits = tf.reshape(logits, [-1, num_actions])
+    y = tf.reshape(y, [-1, num_actions])
 
     # Define losses
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
@@ -133,21 +133,17 @@ if __name__=='__main__':
     planner_optimize_op, reward_optimize_op = optimizers
 
     if config.datafile:
-        imagetrain, rewardtrain, S1train, S2train, ytrain, \
-        imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
-        imagetest2, rewardtest2, S1test2, S2test2, ytest2 = load_dataset(config.datafile)
+        imagetrain, rewardtrain, ytrain, \
+        imagetest1, rewardtest1, ytest1, \
+        imagetest2, rewardtest2, ytest2 = load_dataset(config.datafile)
     else:
-        imagetrain, rewardtrain, S1train, S2train, ytrain, \
-        imagetest1, rewardtest1, S1test1, S2test1, ytest1, \
-        imagetest2, rewardtest2, S1test2, S2test2, ytest2 = generate_gridworld_irl(config)
+        imagetrain, rewardtrain, ttrain, \
+        imagetest1, rewardtest1, ttest1, \
+        imagetest2, rewardtest2, ytest2 = generate_gridworld_irl(config)
 
-    batch_size, state_batch_size = config.batchsize, config.statebatchsize
+    batch_size = config.batchsize
     imsize = config.imsize
     num_actions = config.num_actions
-
-    ytrain = np.reshape(ytrain, [-1, num_actions])
-    ytest1 = np.reshape(ytest1, [-1, num_actions])
-    ytest2 = np.reshape(ytest2, [-1, num_actions])
 
     # Launch the graph
     with tf.Session() as sess:
@@ -164,7 +160,7 @@ if __name__=='__main__':
 
         def run_epoch(data, ops_to_run, ops_to_average):
             tstart = time.time()
-            image_data, reward_data, S1_data, S2_data, y_data = data
+            image_data, reward_data, y_data = data
             averages = [0.0] * len(ops_to_average)
             num_batches = int(image_data.shape[0] / batch_size)
             # Loop over all batches
@@ -173,9 +169,7 @@ if __name__=='__main__':
                 fd = {
                     "image:0": image_data[start:end],
                     "reward:0": reward_data[start:end],
-                    "S1:0": S1_data[start:end],
-                    "S2:0": S2_data[start:end],
-                    "y:0": y_data[start * state_batch_size:end * state_batch_size]
+                    "y:0": y_data[start:end]
                 }
                 results = sess.run(ops_to_run + ops_to_average, feed_dict=fd)
                 num_ops_to_run = len(ops_to_run)
@@ -186,8 +180,8 @@ if __name__=='__main__':
             elapsed = time.time() - tstart
             return op_results, averages, elapsed
 
-        train_data = (imagetrain, rewardtrain, S1train, S2train, ytrain)
-        test1_data = (imagetest1, rewardtest1, S1test1, S2test1, ytest1)
+        train_data = (imagetrain, rewardtrain, ytrain)
+        test1_data = (imagetest1, rewardtest1, ytest1)
 
         print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
         try:
@@ -223,8 +217,6 @@ if __name__=='__main__':
                 tstart = time.time()
                 fd = {
                     "image:0": imagetest2,
-                    "S1:0": S1test2,
-                    "S2:0": S2test2,
                     "y:0": ytest2,
                 }
                 _, predicted_reward, e_, c_ = sess.run(

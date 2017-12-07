@@ -56,12 +56,9 @@ def init_flags():
         'reward_epochs', 50, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
-    tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
-    tf.app.flags.DEFINE_integer('num_actions', 5, 'Number of actions')
+    tf.app.flags.DEFINE_integer('ch_q', 6, 'Channels in q layer')
+    tf.app.flags.DEFINE_integer('num_actions', 6, 'Number of actions')
     tf.app.flags.DEFINE_integer('batchsize', 12, 'Batch size')
-    tf.app.flags.DEFINE_integer(
-        'statebatchsize', 10,
-        'Number of state inputs for each sample (real number, technically is k+1)')
 
     # Agent
     tf.app.flags.DEFINE_string(
