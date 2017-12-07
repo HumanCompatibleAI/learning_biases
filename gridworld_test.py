@@ -117,10 +117,11 @@ class TestGridworld(unittest.TestCase):
     def test_actions(self):
         a = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
         all_acts = set(a)
+        self_loop_acts = set([Direction.SELF_LOOP])
         exit_acts = set([Direction.EXIT])
         no_acts = set([])
 
-        self.assertEqual(set(self.mdp1.get_actions((0, 0))), no_acts)
+        self.assertEqual(set(self.mdp1.get_actions((0, 0))), self_loop_acts)
         self.assertEqual(set(self.mdp1.get_actions((1, 1))), all_acts)
         self.assertEqual(set(self.mdp1.get_actions((1, 2))), exit_acts)
         self.assertEqual(set(self.mdp2.get_actions((6, 2))), all_acts)
@@ -153,9 +154,11 @@ class TestGridworld(unittest.TestCase):
     def test_transitions(self):
         n, s = Direction.NORTH, Direction.SOUTH
         e, w = Direction.EAST, Direction.WEST
-        exit_action = Direction.EXIT
+        exit_action, self_loop_action = Direction.EXIT, Direction.SELF_LOOP
 
         # Grid 1: No noise
+        result = self.mdp1.get_transition_states_and_probs((0, 0), self_loop_action)
+        self.assertEqual(set(result), set([((0, 0), 1)]))
         result = self.mdp1.get_transition_states_and_probs((1, 3), n)
         self.assertEqual(set(result), set([((1, 2), 1)]))
         result = self.mdp1.get_transition_states_and_probs((1, 2), exit_action)
