@@ -16,7 +16,6 @@ from utils import fmt_row, init_flags
 # from tf.saved_model.tag_constants import SERVING, TRAINING
 
 import sys
-sys.path.insert(0, '../tensorflow-value-iteration-networks')
 
 def model_declaration(config):
     """Create model using config flags and also create model saver.
