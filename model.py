@@ -9,6 +9,8 @@ def simple_model(X, S1, S2, config):
     1) Encoder to represent input as latent vector
     2) Simple regression model to map latent vector to q-values"""
 
+    X, S1, S2 = simple_model_preprocess(X1, S1, S2, config)
+
     # HYPERPARAMATERS
     # ---------------------------
     ch_i = 3
@@ -32,6 +34,7 @@ def simple_model(X, S1, S2, config):
     # Currently performs single dot product over every channel
     conv = conv2d(X, w) + b
 
+    # Flatten conv output
     latent_space = tf.reshape(conv, [-1, imsize**2])
 
     # PLANNER
@@ -47,15 +50,32 @@ def simple_model(X, S1, S2, config):
     q_out = tf.matmul(latent_space, w) + b # logits
     return q_out, tf.softmax(q_out, name='output')
 
-def simple_model_preprocess(X, S1, S2):
+def simple_model_preprocess(X, S1, S2, config):
     """Turns X, S1, S2 format into image with three channels:
-    0 - walls
-    1 - rewards
-    2 - location of person
+    X is actually already stacked. X[0] is walls, X[1] is rewards
 
-    Final tensor shape - [len(S1) # statebatchsize, imsize, imsize, 3]
+    Final tensor shape - [batchsize, statebatchsize, imsize, imsize, 3]
+
+    Returns an X where last index is position image
     """
-    
+
+    # Create an image array for every element of S1,S2
+    shapearr = S1.get_shape()
+    place_tensor = tf.zeros(
+        shape=[config.batchsize, config.imsize, config.imsize],
+        name='simple_preprocess_position')
+
+    for i in range(shapearr[0]):
+        place_tensor[S1[i],S2[i]]=1.0
+
+    """Here's what's bugging me- 
+    I know S1 S2 are really [batch, statebatch, 1, 1]
+
+    But I don't know output shape
+    Yes I do: [batchsize, ch_q]"""
+
+    X = tf.stack([X[0],X[1],place_tensor],name='simple_preprocess_stack')
+    return X, S1, S2
 
 
 def conv2d(x, k, name=None, pad='SAME'):

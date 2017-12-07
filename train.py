@@ -11,9 +11,8 @@ import matplotlib.pyplot as plt
 
 import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
-from model import VI_Block
+from model import VI_Block, simple_model
 from utils import fmt_row, init_flags
-# from tf.saved_model.tag_constants import SERVING, TRAINING
 
 import sys
 
@@ -47,7 +46,7 @@ def model_declaration(config):
         logits, nn = VI_Block(X, S1, S2, config)
     elif config.model == "SIMPLE":
         # Construct model (Simple Model)
-        image = tf.placeholder()
+        logits, nn = simple_model(X, S1, S2, config)
 
     # Define losses
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
@@ -207,6 +206,7 @@ if __name__=='__main__':
                     summary_writer.add_summary(summary, epoch)
                     # saver.save(sess, config.logdir)
         except KeyboardInterrupt:
+            print("Step 1 skipped")
             pass
       
         print("Finished training!")
@@ -232,6 +232,7 @@ if __name__=='__main__':
                 elapsed = time.time() - tstart
                 print(fmt_row(10, [epoch, c_, e_, elapsed]))
         except KeyboardInterrupt:
+            print("Step 2 skipped")
             pass
 
         print('The first set of walls is:')
