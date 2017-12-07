@@ -20,9 +20,9 @@ def simple_model(X, S1, S2, config):
     # ---------------------------
     # First conv down
     first = conv_layer(X,[1,1,ch_i,ch_q],'conv_0',pad='SAME')
-    
+
     conv = conv_layer(X,[3,3,ch_i,ch_i],'conv1',pad='VALID')
-    
+    # second = tf.nn.
 
     # Currently performs single dot product over every channel
     X = conv2d(X,w0)+b0
