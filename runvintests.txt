@@ -1,0 +1,4 @@
+This is the command to run the current model from the data.
+Normally, the code would grab the hyperparams from the filename, but this file is special bc hyperparams are hidden
+
+rm -r /tmp/planner-vin/model/; python3 train.py --datafile overtrain/optimalovertrain.npz --imsize 14 --epochs 50 --num_train 15000 --num_test 15000 --reward_prob 0.66 --batch 36 --k 30
