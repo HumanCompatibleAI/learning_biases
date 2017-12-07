@@ -24,14 +24,27 @@ def simple_model(X, S1, S2, config):
     # ENCODER
     # ---------------------------
     with tf.variable_scope('CNN_ENCODER', dtype=tf.float32):
+        w0 = tf.get_variable(
+            name='conv_weight_0',
+            initializer=tf.truncated_normal([3,3,ch_i,ch_i*4]))
+        b0 = tf.get_variable(
+            name='conv_bias_0',
+            initializer=tf.truncated_normal([1,1,1,ch_i]))
+        w1 = tf.get_variable(
+            name='conv_weight_1',
+            initializer=tf.truncated_normal([3,3,ch_i*4,ch_i-1]))
+        b1 = tf.get_variable(
+            name='conv_bias_1',
+            initializer=tf.truncated_normal([1,1,1,ch_i-1]))
         w = tf.get_variable(
-            name='conv_weight',
-            initializer=tf.truncated_normal([1,1,ch_i,1]))
+            name='conv_weight_final',
+            initializer=tf.truncated_normal([1,1,ch_i-1,1]))
         b = tf.get_variable(
-            name='bias',
+            name='bias_final',
             initializer=tf.truncated_normal([1,1,1,1]))
 
     # Currently performs single dot product over every channel
+    X = conv2d(X,w0)+b0
     conv = conv2d(X, w) + b
 
     # Flatten conv output
