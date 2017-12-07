@@ -4,12 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 def simple_model(X, S1, S2, config):
-    """ Creates Conv-Net to run on 3-channel Grid Input
-    Consists of 2 parts:
-    1) Encoder to represent input as latent vector
-    2) Simple regression model to map latent vector to q-values"""
-
-    X, S1, S2 = simple_model_preprocess(X1, S1, S2, config)
+    """ Creates Conv-Net to run on 2-channel Grid Input (walls, rewards)"""
 
     # HYPERPARAMATERS
     # ---------------------------
@@ -26,70 +21,30 @@ def simple_model(X, S1, S2, config):
     with tf.variable_scope('CNN_ENCODER', dtype=tf.float32):
         w0 = tf.get_variable(
             name='conv_weight_0',
-            initializer=tf.truncated_normal([3,3,ch_i,ch_i*4]))
+            initializer=tf.truncated_normal([3,3,ch_i,ch_i]))
         b0 = tf.get_variable(
             name='conv_bias_0',
             initializer=tf.truncated_normal([1,1,1,ch_i]))
-        w1 = tf.get_variable(
-            name='conv_weight_1',
-            initializer=tf.truncated_normal([3,3,ch_i*4,ch_i-1]))
-        b1 = tf.get_variable(
-            name='conv_bias_1',
-            initializer=tf.truncated_normal([1,1,1,ch_i-1]))
+        # w1 = tf.get_variable(
+        #     name='conv_weight_1',
+        #     initializer=tf.truncated_normal([3,3,ch_i*4,ch_i-1]))
+        # b1 = tf.get_variable(
+        #     name='conv_bias_1',
+        #     initializer=tf.truncated_normal([1,1,1,ch_i-1]))
         w = tf.get_variable(
             name='conv_weight_final',
-            initializer=tf.truncated_normal([1,1,ch_i-1,1]))
+            initializer=tf.truncated_normal([1,1,ch_i,ch_q]))
         b = tf.get_variable(
             name='bias_final',
-            initializer=tf.truncated_normal([1,1,1,1]))
+            initializer=tf.truncated_normal([1,1,1,ch_q]))
 
     # Currently performs single dot product over every channel
     X = conv2d(X,w0)+b0
-    conv = conv2d(X, w) + b
+    X = conv2d(X, w)+b
 
-    # Flatten conv output
-    latent_space = tf.reshape(conv, [-1, imsize**2])
-
-    # PLANNER
+    # END ENCODING
     # ---------------------------
-    with tf.variable_scope('PLANNER', dtype=tf.float32):
-        w = tf.get_variable(
-            name='fc_weight',
-            initializer=tf.truncated_normal([imsize**2,ch_q]))
-        b = tf.get_variable(
-            name='fc_bias',
-            initializer=tf.truncated_normal([1]))
-
-    q_out = tf.matmul(latent_space, w) + b # logits
-    return q_out, tf.softmax(q_out, name='output')
-
-def simple_model_preprocess(X, S1, S2, config):
-    """Turns X, S1, S2 format into image with three channels:
-    X is actually already stacked. X[0] is walls, X[1] is rewards
-
-    Final tensor shape - [batchsize, statebatchsize, imsize, imsize, 3]
-
-    Returns an X where last index is position image
-    """
-
-    # Create an image array for every element of S1,S2
-    shapearr = S1.get_shape()
-    place_tensor = tf.zeros(
-        shape=[config.batchsize, config.imsize, config.imsize],
-        name='simple_preprocess_position')
-
-    for i in range(shapearr[0]):
-        place_tensor[S1[i],S2[i]]=1.0
-
-    """Here's what's bugging me- 
-    I know S1 S2 are really [batch, statebatch, 1, 1]
-
-    But I don't know output shape
-    Yes I do: [batchsize, ch_q]"""
-
-    X = tf.stack([X[0],X[1],place_tensor],name='simple_preprocess_stack')
-    return X, S1, S2
-
+    return X, tf.nn.softmax(X, name='output')
 
 def conv2d(x, k, name=None, pad='SAME'):
     return tf.nn.conv2d(x, k, name=name, strides=(1, 1, 1, 1), padding=pad)
