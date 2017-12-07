@@ -18,25 +18,11 @@ def simple_model(X, S1, S2, config):
 
     # ENCODER
     # ---------------------------
-    with tf.variable_scope('CNN_ENCODER', dtype=tf.float32):
-        w0 = tf.get_variable(
-            name='conv_weight_0',
-            initializer=tf.truncated_normal([3,3,ch_i,ch_i]))
-        b0 = tf.get_variable(
-            name='conv_bias_0',
-            initializer=tf.truncated_normal([1,1,1,ch_i]))
-        # w1 = tf.get_variable(
-        #     name='conv_weight_1',
-        #     initializer=tf.truncated_normal([3,3,ch_i*4,ch_i-1]))
-        # b1 = tf.get_variable(
-        #     name='conv_bias_1',
-        #     initializer=tf.truncated_normal([1,1,1,ch_i-1]))
-        w = tf.get_variable(
-            name='conv_weight_final',
-            initializer=tf.truncated_normal([1,1,ch_i,ch_q]))
-        b = tf.get_variable(
-            name='bias_final',
-            initializer=tf.truncated_normal([1,1,1,ch_q]))
+    # First conv down
+    first = conv_layer(X,[1,1,ch_i,ch_q],'conv_0',pad='SAME')
+    
+    conv = conv_layer(X,[3,3,ch_i,ch_i],'conv1',pad='VALID')
+    
 
     # Currently performs single dot product over every channel
     X = conv2d(X,w0)+b0
@@ -46,8 +32,14 @@ def simple_model(X, S1, S2, config):
     # ---------------------------
     return X, tf.nn.softmax(X, name='output')
 
-def conv2d(x, k, name=None, pad='SAME'):
-    return tf.nn.conv2d(x, k, name=name, strides=(1, 1, 1, 1), padding=pad)
+def conv_layer(x,filter_shape,name,pad,strides,activation=tf.nn.relu):
+    with tf.variable_scope('name',dtype=tf.float32):
+        w = tf.get_variable(name='filter',initializer=tf.truncated_normal(filter_shape)) 
+        b = tf.get_variable(name='bias',initializer=tf.truncated_normal([1,1,1,filter_shape[-1]]))
+    return activation(conv2d(X,w,strides=strides,name='conv',pad=pad)+b,name='out')
+
+def conv2d(x, k, name=None, strides=(1,1,1,1),pad='SAME'):
+    return tf.nn.conv2d(x, k, name=name, strides=strides, padding=pad)
 
 def VI_Block(X, S1, S2, config):
     k    = config.k    # Number of value iterations performed
