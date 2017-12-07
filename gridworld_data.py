@@ -174,7 +174,7 @@ def save_dataset(config, filename):
 def load_dataset(filename):
     """ Load dataset unpacks the numpy array with all the gridworld files"""
     data = np.load(filename)
-    return [data['arr_{}'.format(i)] for i in range(15)]
+    return [data['arr_{}'.format(i)] for i in range(9)]
 
 if __name__ == '__main__':
     # creates a dataset for given configuration and saves it to fname
