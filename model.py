@@ -21,7 +21,7 @@ def simple_model(X, config):
 
     conv = conv_layer(X,[3,3,ch_i,ch_i],'conv1',strides=[1,3,3,1],pad='VALID')
     output_shape = [config.batchsize, imsize, imsize, ch_q]
-    second = convt_layer(X,[3,3,ch_q,ch_i],'convt1',output_shape,strides=[1,3,3,1],pad='VALID')
+    second = convt_layer(conv,[3,3,ch_q,ch_i],'convt1',output_shape,strides=[1,3,3,1],pad='VALID')
 
     assert first.get_shape()==second.get_shape(), ...
     "first has shape:{} while second has shape: {}".format(first.get_shape(),second.get_shape())
@@ -38,7 +38,7 @@ def conv_layer(x,filter_shape,name,pad,strides=(1,1,1,1),activation=tf.nn.relu):
 
 def convt_layer(x,filter_shape,name,output_shape,pad,strides,activation=tf.nn.relu):
     w, b = weight_and_bias(filter_shape,name)
-    return activation(tf.nn.conv2d_transpose(x,w,output_shape,strides,name='convt')+b,name='out')
+    return activation(tf.nn.conv2d_transpose(x,w,output_shape,strides,name='convt',padding=pad)+b,name='out')
 
 def weight_and_bias(filter_shape,name):
     with tf.variable_scope(name):
