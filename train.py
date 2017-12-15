@@ -26,7 +26,7 @@ def model_declaration(config):
     # a result, we must set the batch size to a constant which cannot be changed
     # during a particular run. (We need to use a Variable for the reward so that the
     # reward can be trained in step 2.)
-    batch_size, state_batch_size = config.batchsize, config.statebatchsize
+    batch_size = config.batchsize
     imsize = config.imsize
     num_actions = config.num_actions
 
@@ -40,10 +40,13 @@ def model_declaration(config):
 
     if config.model == 'VIN':
         # Construct model (Value Iteration Network)
+        print("vin")
         logits, nn = VI_Block(X, config)
     elif config.model == "SIMPLE":
         # Construct model (Simple Model)
+        print("simple model")
         logits, nn = simple_model(X, config)
+        print("simple shape:",logits.get_shape())
 
     logits = tf.reshape(logits, [-1, num_actions])
     y = tf.reshape(y, [-1, num_actions])
@@ -55,7 +58,8 @@ def model_declaration(config):
     tf.add_to_collection('losses', cross_entropy_mean)
 
     logits_cost = tf.add_n(tf.get_collection('losses'), name='logits_loss')
-    if config.vin_regularizer_C > 0:
+    
+    if config.model == 'VIN' and config.vin_regularizer_C > 0:
         vin_regularizer_cost = tf.add_n(
             tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='vin_loss')
         step1_cost = logits_cost + vin_regularizer_cost

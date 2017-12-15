@@ -3,17 +3,15 @@
 import numpy as np
 import tensorflow as tf
 
-def simple_model(X, S1, S2, config):
+def simple_model(X, config):
     """ Creates Conv-Net to run on 2-channel Grid Input (walls, rewards)"""
 
     # HYPERPARAMATERS
     # ---------------------------
-    ch_i = 3
-    ch_h = config.ch_h  # Number of convolutions to perform
+    ch_i = 2            # Number of channels in input layer (image, reward)
     ch_q = config.ch_q  # Channels in q layer (~actions) 
     imsize = config.imsize
     num_actions = config.num_actions
-    state_batch_size = config.statebatchsize
     # regularizer = tf.contrib.l2_regularizer(scale=0.001)
 
     # ENCODER
@@ -21,22 +19,32 @@ def simple_model(X, S1, S2, config):
     # First conv down
     first = conv_layer(X,[1,1,ch_i,ch_q],'conv_0',pad='SAME')
 
-    conv = conv_layer(X,[3,3,ch_i,ch_i],'conv1',pad='VALID')
-    # second = tf.nn.
+    conv = conv_layer(X,[3,3,ch_i,ch_i],'conv1',strides=[1,3,3,1],pad='VALID')
+    output_shape = [config.batchsize, imsize, imsize, ch_q]
+    second = convt_layer(X,[3,3,ch_q,ch_i],'convt1',output_shape,strides=[1,3,3,1],pad='VALID')
 
-    # Currently performs single dot product over every channel
-    X = conv2d(X,w0)+b0
-    X = conv2d(X, w)+b
+    assert first.get_shape()==second.get_shape(), ...
+    "first has shape:{} while second has shape: {}".format(first.get_shape(),second.get_shape())
 
-    # END ENCODING
-    # ---------------------------
+    # Take average of the output
+    X = (first+second)/2
+    X = tf.reshape(X, [-1, ch_q])
+    print("X shape is ", X.get_shape())
     return X, tf.nn.softmax(X, name='output')
 
-def conv_layer(x,filter_shape,name,pad,strides,activation=tf.nn.relu):
-    with tf.variable_scope('name',dtype=tf.float32):
+def conv_layer(x,filter_shape,name,pad,strides=(1,1,1,1),activation=tf.nn.relu):
+    w, b = weight_and_bias(filter_shape,name)
+    return activation(tf.nn.conv2d(x,w,strides=strides,name='conv',padding=pad)+b,name='out')
+
+def convt_layer(x,filter_shape,name,output_shape,pad,strides,activation=tf.nn.relu):
+    w, b = weight_and_bias(filter_shape,name)
+    return activation(tf.nn.conv2d_transpose(x,w,output_shape,strides,name='convt')+b,name='out')
+
+def weight_and_bias(filter_shape,name):
+    with tf.variable_scope(name):
         w = tf.get_variable(name='filter',initializer=tf.truncated_normal(filter_shape)) 
-        b = tf.get_variable(name='bias',initializer=tf.truncated_normal([1,1,1,filter_shape[-1]]))
-    return activation(conv2d(X,w,strides=strides,name='conv',pad=pad)+b,name='out')
+        b = tf.get_variable(name='bias',initializer=tf.truncated_normal([1,1,1,1]))
+    return w,b
 
 def conv2d(x, k, name=None, strides=(1,1,1,1),pad='SAME'):
     return tf.nn.conv2d(x, k, name=name, strides=strides, padding=pad)
