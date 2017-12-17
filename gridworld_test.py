@@ -34,7 +34,7 @@ class TestGridworld(unittest.TestCase):
                       'XXXXXXXXX']
         self.grid3 = [['X', 'X', 'X', 'X', 'X'],
                       ['X', 3.5, 'X', -10, 'X'],
-                      ['X', ' ', '0', ' ', 'X'],
+                      ['X', ' ', '1', ' ', 'X'],
                       ['X', ' ', ' ', 'A', 'X'],
                       ['X', 'X', 'X', 'X', 'X']]
 
@@ -49,7 +49,7 @@ class TestGridworld(unittest.TestCase):
         self.assertEqual(str(self.mdp2), expected)
         expected = '\n'.join(['XXXXX',
                               'XRXNX',
-                              'X 0 X',
+                              'X 1 X',
                               'X  AX',
                               'XXXXX'])
         self.assertEqual(str(self.mdp3), expected)
@@ -110,7 +110,7 @@ class TestGridworld(unittest.TestCase):
         })
         self.assertEqual(self.mdp3.rewards, {
             (1, 1): 3.5,
-            (2, 2): 0,
+            (2, 2): 1,
             (3, 1): -10
         })
 
@@ -138,7 +138,7 @@ class TestGridworld(unittest.TestCase):
         }
         grid3_reward_table = {
             ((1, 1), Direction.EXIT): 3.5,
-            ((2, 2), Direction.EXIT): 0,
+            ((2, 2), Direction.EXIT): 1,
             ((3, 1), Direction.EXIT): -10
         }
         self.check_all_rewards(self.mdp1, grid1_reward_table, 0)
@@ -239,11 +239,24 @@ class TestGridworld(unittest.TestCase):
         self.assertFalse(env.is_done())
         next_state, reward = env.perform_action(Direction.EXIT)
         self.assertEqual(next_state, self.mdp3.terminal_state)
-        self.assertEqual(reward, 0)
+        self.assertEqual(reward, 1)
         self.assertEqual(env.get_current_state(), next_state)
         self.assertTrue(env.is_done())
         env.reset()
         self.assertFalse(env.is_done())
+
+    def test_numpy_conversion(self):
+        def check_mdp(mdp):
+            new_mdp = GridworldMdp.from_numpy_input(*mdp.convert_to_numpy_input())
+            self.assertEqual(new_mdp.height, mdp.height)
+            self.assertEqual(new_mdp.width, mdp.width)
+            self.assertEqual(new_mdp.walls, mdp.walls)
+            self.assertEqual(new_mdp.rewards, mdp.rewards)
+            self.assertEqual(new_mdp.start_state, mdp.start_state)
+
+        check_mdp(self.mdp1)
+        check_mdp(self.mdp2)
+        check_mdp(self.mdp3)
 
     def test_random_gridworld_generation(self):
         random.seed(314159)

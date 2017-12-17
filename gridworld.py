@@ -128,6 +128,48 @@ class GridworldMdp(object):
             rewards[y, x] = self.rewards[(x, y)]
         return walls, rewards, start_state
 
+    @staticmethod
+    def from_numpy_input(walls, reward, start_state=None):
+        """Creates the MDP from the format output by convert_to_numpy_input.
+
+        See convert_to_numpy_input for the types of the parameters. If
+        start_state is not provided, some arbitrary blank space is set as the
+        start state. Assumes that the parameters were returned by
+        convert_to_numpy_input, and in particular it does not check that they
+        are valid (for example, it assumes that no space is both a wall and a
+        reward).
+
+        It is *not* the case that calling from_numpy_input on the result of
+        convert_to_numpy_input will give exactly the same gridworld. In
+        particular, the living reward and noise will be reset to their default
+        values.
+        """
+        def convert(wall_elem, reward_elem):
+            if wall_elem == 1:
+                return 'X'
+            elif reward_elem == 0:
+                return ' '
+            else:
+                return reward_elem
+
+        height, width = walls.shape
+        grid = [[convert(walls[y][x], reward[y][x]) for x in range(width)] for y in range(height)]
+        if start_state is None:
+            start_state = GridworldMdp.get_random_state(grid, [' '])
+
+        x, y = start_state
+        grid[y][x] = 'A'
+        return GridworldMdp(grid)
+
+    @staticmethod
+    def get_random_state(grid, accepted_tokens):
+        height, width = len(grid), len(grid[0])
+        current_val = None
+        while current_val not in accepted_tokens:
+            y = random.randint(1, height - 2)
+            x = random.randint(1, width - 2)
+            current_val = grid[y][x]
+        return x, y
 
     @staticmethod
     def generate_random(height, width, pr_wall, pr_reward):
@@ -148,11 +190,7 @@ class GridworldMdp(object):
                     grid[y][x] = ' '
 
         def set_random_position_to(token):
-            current_val = None
-            while current_val not in ['X', ' ']:
-                y = random.randint(1, height - 2)
-                x = random.randint(1, width - 2)
-                current_val = grid[y][x]
+            x, y = GridworldMdp.get_random_state(grid, ['X', ' '])
             grid[y][x] = token
 
         set_random_position_to(3)
