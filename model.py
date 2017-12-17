@@ -23,6 +23,9 @@ def simple_model(X, config):
     output_shape = [config.batchsize, imsize, imsize, ch_q]
     second = convt_layer(X,[3,3,ch_q,ch_i],'convt1',output_shape,strides=[1,3,3,1],pad='VALID')
 
+    print("first:",first.get_shape())
+    print("conv:",conv.get_shape())
+    print("second:",second.get_shape())
     assert first.get_shape()==second.get_shape(), ...
     "first has shape:{} while second has shape: {}".format(first.get_shape(),second.get_shape())
 
