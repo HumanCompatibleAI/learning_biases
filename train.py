@@ -4,15 +4,11 @@ import time
 import numpy as np
 import random
 import tensorflow as tf
-import matplotlib
-matplotlib.use("tkagg")
-import matplotlib.pyplot as plt
-
 
 import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
 from model import VI_Block, simple_model
-from utils import fmt_row, init_flags
+from utils import fmt_row, init_flags, plot_reward
 
 import sys
 
@@ -97,32 +93,6 @@ def model_declaration(config):
 
     return (builder, init, saver), (err, step1_cost, step2_cost), \
             (planner_optimize_op, reward_optimize_op), reward
-
-def plot_reward(label, inferred_reward, filename='reward_comparison.png'):
-    """Plots rewards (true and predicted) and saves them to a file.
-
-    Inferred_reward should be normalized before.
-    """
-    # set up plot
-    fig, axes = plt.subplots(1,2)
-
-    # truth plot
-    true = axes[0].imshow(label,cmap='hot',interpolation='nearest')
-    axes[0].set_title("Truth")
-    cbaxes = fig.add_axes([0.02, 0.1, 0.02, 0.8])
-    cb = plt.colorbar(true, cax=cbaxes)
-
-    # inferred plot
-    tensor = axes[1].imshow(normalized_inferred_reward, cmap='hot', interpolation='nearest')
-    axes[1].set_title("Predicted")
-    cbaxes2 = fig.add_axes([0.925, 0.1, 0.02, 0.8])
-    plt.colorbar(tensor, cax=cbaxes2)
-
-    # titleing
-    fig.suptitle("Comparison of Reward Functions")
-
-    # saving to file
-    fig.savefig(filename)
 
 if __name__=='__main__':
     # get flags || Data

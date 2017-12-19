@@ -33,6 +33,9 @@ class ValueIterationLikeAgent(Agent):
         super(ValueIterationLikeAgent, self).set_mdp(mdp)
         self.compute_values()
 
+    # TODO(rohinmshah): Optimize this for the case where the state is a tuple of
+    # integers by keeping the values in a multidimensional array instead of a
+    # dictionary.
     def compute_values(self):
         """Computes the values for self.mdp using value iteration.
 

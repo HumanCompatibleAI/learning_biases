@@ -1,8 +1,11 @@
-# Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 import tensorflow as tf
 import numpy as np
 import re
+import matplotlib
+matplotlib.use("tkagg")
+import matplotlib.pyplot as plt
 
+# Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 # helper methods to print nice table (taken from CGT code)
 def fmt_item(x, l):
     if isinstance(x, np.ndarray):
@@ -15,6 +18,32 @@ def fmt_item(x, l):
 def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
+
+def plot_reward(label, inferred_reward, filename='reward_comparison.png'):
+    """Plots rewards (true and predicted) and saves them to a file.
+
+    Inferred_reward should be normalized before.
+    """
+    # set up plot
+    fig, axes = plt.subplots(1,2)
+
+    # truth plot
+    true = axes[0].imshow(label,cmap='hot',interpolation='nearest')
+    axes[0].set_title("Truth")
+    cbaxes = fig.add_axes([0.02, 0.1, 0.02, 0.8])
+    cb = plt.colorbar(true, cax=cbaxes)
+
+    # inferred plot
+    tensor = axes[1].imshow(inferred_reward, cmap='hot', interpolation='nearest')
+    axes[1].set_title("Predicted")
+    cbaxes2 = fig.add_axes([0.925, 0.1, 0.02, 0.8])
+    plt.colorbar(tensor, cax=cbaxes2)
+
+    # titleing
+    fig.suptitle("Comparison of Reward Functions")
+
+    # saving to file
+    fig.savefig(filename)
 
 def init_flags():
     # Data flags
@@ -184,5 +213,3 @@ class Distribution(object):
 
     def __repr__(self):
         return 'Distribution(%s)' % repr(self.dist)
-
-
