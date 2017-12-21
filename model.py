@@ -1,10 +1,13 @@
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
-
+import keras 
+from keras.layers import Conv2D, Conv2DTranspose, Input
+from keras.models import Model
 import numpy as np
 import tensorflow as tf
 
 def simple_model(X, config):
-    """ Creates Conv-Net to run on 2-channel Grid Input (walls, rewards)"""
+    """ Creates Conv-Net to run on 2-channel Grid Input (walls, rewards)
+    However, to ensure that the entire grid is convolved over, each architecture has to be individually constructed"""
 
     # HYPERPARAMATERS
     # ---------------------------
@@ -14,34 +17,59 @@ def simple_model(X, config):
     num_actions = config.num_actions
     # regularizer = tf.contrib.l2_regularizer(scale=0.001)
 
-    # ENCODER
-    # ---------------------------
-    # First conv down
-    first = conv_layer(X,[1,1,ch_i,ch_q],'conv_0',pad='SAME')
+    final_shape = [config.batchsize, imsize, imsize, ch_q]
+    if imsize == 8:
+        first = conv_layer(X,[1,1,ch_i,ch_q],'conv_0',pad='SAME')
 
-    conv = conv_layer(X,[3,3,ch_i,ch_i],'conv1',strides=[1,3,3,1],pad='VALID')
-    output_shape = [config.batchsize, imsize, imsize, ch_q]
-    second = convt_layer(conv,[3,3,ch_q,ch_i],'convt1',output_shape,strides=[1,3,3,1],pad='VALID')
+        # Second conv (3x3)
+        conv = conv_layer(X,[3,3,ch_i,ch_i],'conv1',strides=[1,3,3,1],pad='VALID')
+        second = convt_layer(conv,[3,3,ch_q,ch_i],'convt1',
+            final_shape,strides=[1,3,3,1],pad='VALID',activation=None)
 
-    print("first:",first.get_shape())
-    print("conv:",conv.get_shape())
-    print("second:",second.get_shape())
+        # Third conv (3x3)
+        print('conv1:',conv.get_shape())
+        conv = conv_layer(conv, [2,2,ch_i,ch_i], 'conv2',strides=[1,1,1,1],pad='SAME')
+        twopta = convt_layer(conv, [2,2,ch_q,ch_i], 'convt2a',
+            [config.batchsize,imsize//2,imsize//2,ch_q],strides=(1,2,2,1),pad='VALID',activation=None)
+        third = convt_layer(twopta, [2,2,ch_q,ch_q], 'convt2b',
+            final_shape,strides=(1,2,2,1),pad='VALID',activation=None)
+    elif imsize == 14:
+        first = conv_layer(X, [1,1,ch_i,ch_q], 'conv_0',pad='SAME')
+
+        # 14x14x2 --> 6x6x2
+        conv = conv_layer(X, [3,3,ch_i,ch_i], 'conv1', strides=[1,2,2,1],pad='VALID')
+        #   6x6x2 --> 14x14x2
+        second = convt_layer(conv, [3,3,ch_q,ch_i],'convt1a',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+
+        # 6x6x2 --> 2x2x2
+        conv = conv_layer(conv, [3,3,ch_i,ch_i], 'conv2', strides=[1,2,2,1],pad='VALID')
+        #   2x2x2 --> 7x7x2
+        intermed = convt_layer(conv, [4,4,ch_i,ch_i],'convt2a',
+            [config.batchsize,6,6,ch_i],strides=[1,3,3,1],pad='VALID',activation=None)
+        #   7x7x2 --> 14x14x2
+        third = convt_layer(conv, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+
+        # 2x2x2 --> 2x2x2
+        # conv = conv_layer(conv, [2,2,ch_i,ch_i], 'conv3', strides=[1,1,1,1], pad='SAME')
+
     assert first.get_shape()==second.get_shape(), ...
     "first has shape:{} while second has shape: {}".format(first.get_shape(),second.get_shape())
 
     # Take average of the output
-    X = (first+second)/2
+    X = (first+second+third)/3
     X = tf.reshape(X, [-1, ch_q])
-    print("X shape is ", X.get_shape())
-    return X, tf.nn.softmax(X, name='output')
+    # return X, tf.nn.softmax(X, name='output')
+    return X, X
 
 def conv_layer(x,filter_shape,name,pad,strides=(1,1,1,1),activation=tf.nn.relu):
     w, b = weight_and_bias(filter_shape,name)
-    return activation(tf.nn.conv2d(x,w,strides=strides,name='conv',padding=pad)+b,name='out')
+    logit = tf.nn.conv2d(x,w,strides=strides,name='conv',padding=pad)+b
+    return activation(logit, name='out') if activation else logit
 
-def convt_layer(x,filter_shape,name,output_shape,pad,strides,activation=tf.nn.relu):
+def convt_layer(x,filter_shape,name,output_shape,pad,strides=(1,1,1,1),activation=tf.nn.relu):
     w, b = weight_and_bias(filter_shape,name)
-    return activation(tf.nn.conv2d_transpose(x,w,output_shape,strides,name='convt',padding=pad)+b,name='out')
+    logit = tf.nn.conv2d_transpose(x,w,strides=strides,name='conv',output_shape=output_shape,padding=pad)+b
+    return activation(logit, name='out') if activation else logit
 
 def weight_and_bias(filter_shape,name):
     with tf.variable_scope(name):
