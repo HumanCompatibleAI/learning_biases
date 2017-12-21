@@ -137,7 +137,7 @@ if __name__=='__main__':
         # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
         builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING])
 
-        def run_epoch(data, ops_to_run, ops_to_average):
+        def run_epoch(data, ops_to_run, ops_to_average, distributions=[]):
             tstart = time.time()
             image_data, reward_data, y_data = data
             averages = [0.0] * len(ops_to_average)
@@ -152,7 +152,10 @@ if __name__=='__main__':
                 }
                 results = sess.run(ops_to_run + ops_to_average, feed_dict=fd)
                 num_ops_to_run = len(ops_to_run)
-                op_results, average_op_results = results[:num_ops_to_run], results[num_ops_to_run:]
+                num_ops_to_avg = len(ops_to_average)
+                op_results = results[:num_ops_to_run]
+                average_op_results = results[num_ops_to_run:num_ops_to_run+num_ops_to_avg]
+                dists = results[num_ops_to_run+num_ops_to_avg:]
                 averages = [x + y for x, y in zip(averages, average_op_results)]
             
             averages = [x / num_batches for x in averages]
@@ -177,16 +180,16 @@ if __name__=='__main__':
                     summary.value.add(tag='Average error', simple_value=float(avg_err))
                     summary.value.add(tag='Average cost', simple_value=float(avg_cost))
                     summary_writer.add_summary(summary, epoch)
-                    # saver.save(sess, config.logdir)
+
         except KeyboardInterrupt:
             print("Step 1 skipped")
             pass
       
         print("Finished training!")
         _, (test1_err,), _ = run_epoch(test1_data, [], [err])
-        # saving SavedModel instance
+        # Saving SavedModel instance
         savepath = builder.save()
-        print("model saved 2: {}".format(savepath))
+        print("Model saved to: {}".format(savepath))
         print('Final Accuracy: ' + str(100 * (1 - test1_err)))
 
         print('Beginning IRL inference')
