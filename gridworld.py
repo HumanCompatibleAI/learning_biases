@@ -3,12 +3,114 @@ from disjoint_sets import DisjointSets
 import numpy as np
 import random
 
-class GridworldMdp(object):
+
+class GridworldMdpNoR(object):
     """A grid world where the objective is to navigate to one of many rewards.
 
     Specifies all of the static information that an agent has access to when
     playing in the given grid world, including the state space, action space,
-    transition probabilities, rewards, start space, etc.
+    transition probabilities, start state, etc. The reward is by default *not
+    present*, though subclasses may add in funcitonality for the reward.
+
+    Once an agent arrives at a state with a reward, the agent must take the EXIT
+    action which will give it the reward. In any other state, the agent can take
+    any of the four cardinal directions as an action, getting a living reward
+    (typically negative in order to incentivize shorter paths).
+    """
+    def __init__(self, walls, start_state, noise=0):
+        self.height = len(walls)
+        self.width = len(walls[0])
+        self.walls = walls
+        self.start_state = start_state
+        self.noise = noise
+        self.terminal_state = 'Terminal State'
+
+    def get_start_state(self):
+        """Returns the start state."""
+        return self.start_state
+
+    def get_states(self):
+        """Returns a list of all possible states the agent can be in.
+
+        Note it is not guaranteed that the agent can reach all of these states.
+        """
+        coords = [(x, y) for x in range(self.width) for y in range(self.height)]
+        all_states = [(x, y) for x, y in coords if not self.walls[y][x]]
+        all_states.append(self.terminal_state)
+        return all_states
+
+    def get_actions(self, state):
+        """Returns the list of valid actions for 'state'.
+
+        Note that you can request moves into walls. The order in which actions
+        are returned is guaranteed to be deterministic, in order to allow agents
+        to implement deterministic behavior. Since we don't know which states
+        are reward states, both EXIT and normal directions are allowed from all
+        non-wall states.
+        """
+        if self.is_terminal(state):
+            return []
+        x, y = state
+        if self.walls[y][x]:
+            return [Direction.SELF_LOOP]
+        return [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.EXIT]
+
+    def get_reward(self, state, action):
+        """Get reward for state, action transition."""
+        raise NotImplemented("Cannot call get_reward for GridworldMdpNoR")
+
+    def is_terminal(self, state):
+        """Returns True if the current state is terminal, False otherwise.
+
+        A state is terminal if there are no actions available from it (which
+        means that the episode is over).
+        """
+        return state == self.terminal_state
+
+    def get_transition_states_and_probs(self, state, action):
+        """Gets information about possible transitions for the action.
+
+        Returns list of (next_state, prob) pairs representing the states
+        reachable from 'state' by taking 'action' along with their transition
+        probabilities.
+        """
+        if action not in self.get_actions(state):
+            raise ValueError("Illegal action %s in state %s" % (action, state))
+
+        if action == Direction.EXIT:
+            return [(self.terminal_state, 1.0)]
+
+        if action == Direction.SELF_LOOP:
+            return [(state, 1.0)]
+
+        next_state = self.attempt_to_move_in_direction(state, action)
+        if self.noise == 0.0:
+            return [(next_state, 1.0)]
+
+        successors = defaultdict(float)
+        successors[next_state] += 1.0 - self.noise
+        for direction in Direction.get_adjacent_directions(action):
+            next_state = self.attempt_to_move_in_direction(state, direction)
+            successors[next_state] += (self.noise / 2.0)
+
+        return successors.items()
+
+    def attempt_to_move_in_direction(self, state, action):
+        """Return the new state an agent would be in if it took the action.
+
+        Requires: action is in self.get_actions(state).
+        """
+        x, y = state
+        newx, newy = Direction.move_in_direction(state, action)
+        return state if self.walls[newy][newx] else (newx, newy)
+
+
+class GridworldMdp(GridworldMdpNoR):
+    """A grid world where the objective is to navigate to one of many rewards.
+
+    Specifies all of the static information that an agent has access to when
+    playing in the given grid world, including the state space, action space,
+    transition probabilities, rewards, start state, etc.
 
     Once an agent arrives at a state with a reward, the agent must take the EXIT
     action which will give it the reward. In any other state, the agent can take
@@ -30,14 +132,12 @@ class GridworldMdp(object):
         Raises: AssertionError if the grid is invalid.
         """
         self.assert_valid_grid(grid)
-        self.height = len(grid)
-        self.width = len(grid[0])
-        self.living_reward = living_reward
-        self.noise = noise
-        self.terminal_state = 'Terminal State'
 
-        self.walls = [[space == 'X' for space in row] for row in grid]
-        self.populate_rewards_and_start_state(grid)
+        walls = [[space == 'X' for space in row] for row in grid]
+        rewards, start_state = self.get_rewards_and_start_state(grid)
+        GridworldMdpNoR.__init__(self, walls, start_state, noise)
+        self.rewards = rewards
+        self.living_reward = living_reward
 
     def assert_valid_grid(self, grid):
         """Raises an AssertionError if the grid is invalid.
@@ -82,23 +182,34 @@ class GridworldMdp(object):
         floats = [element for element in all_elements if is_float(element)]
         assert len(floats) >= 1, 'There must at least one reward square'
 
-    def populate_rewards_and_start_state(self, grid):
-        """Sets self.rewards and self.start_state based on grid.
+    def get_rewards_and_start_state(self, grid):
+        """Extracts the rewards and start state from grid.
 
         Assumes that grid is a valid grid.
 
         grid: A sequence of sequences of spaces, representing a grid of a
         certain height and width. See assert_valid_grid for details on the grid
         format.
+        living_reward: The reward obtained each time step (typically negative).
+
+        Returns two things -- a dictionary mapping states to rewards, and a
+        start state.
         """
-        self.rewards = {}
-        self.start_state = None
+        rewards = {}
+        start_state = None
         for y in range(len(grid)):
             for x in range(len(grid[0])):
                 if grid[y][x] not in ['X', ' ', 'A']:
-                    self.rewards[(x, y)] = float(grid[y][x])
+                    rewards[(x, y)] = float(grid[y][x])
                 elif grid[y][x] == 'A':
-                    self.start_state = (x, y)
+                    start_state = (x, y)
+        return rewards, start_state
+
+    def get_reward(self, state, action):
+        """Get reward for state, action transition."""
+        if state in self.rewards and action == Direction.EXIT:
+            return self.rewards[state]
+        return self.living_reward
 
     def get_random_start_state(self):
         """Returns a state that would be a legal start state for an agent.
@@ -170,6 +281,9 @@ class GridworldMdp(object):
             x = random.randint(1, width - 2)
             current_val = grid[y][x]
         return x, y
+
+    def without_reward(self):
+        return GridworldMdpNoR(self.walls, self.start_state, self.noise)
 
     @staticmethod
     def generate_random(height, width, pr_wall, pr_reward):
@@ -254,20 +368,6 @@ class GridworldMdp(object):
 
         return GridworldMdp(grid)
 
-    def get_start_state(self):
-        """Returns the start state."""
-        return self.start_state
-
-    def get_states(self):
-        """Returns a list of all possible states the agent can be in.
-
-        Note it is not guaranteed that the agent can reach all of these states.
-        """
-        coords = [(x, y) for x in range(self.width) for y in range(self.height)]
-        all_states = [(x, y) for x, y in coords if not self.walls[y][x]]
-        all_states.append(self.terminal_state)
-        return all_states
-
     def get_actions(self, state):
         """Returns the list of valid actions for 'state'.
 
@@ -284,61 +384,6 @@ class GridworldMdp(object):
             return [Direction.EXIT]
         act = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
         return act
-
-    def get_reward(self, state, action):
-        """Get reward for state, action transition.
-
-        This is the living reward, except when we take EXIT, in which case we
-        return the reward for the current state.
-        """
-        if state in self.rewards and action == Direction.EXIT:
-            return self.rewards[state]
-        return self.living_reward
-
-    def is_terminal(self, state):
-        """Returns True if the current state is terminal, False otherwise.
-
-        A state is terminal if there are no actions available from it (which
-        means that the episode is over).
-        """
-        return state == self.terminal_state
-
-    def get_transition_states_and_probs(self, state, action):
-        """Gets information about possible transitions for the action.
-
-        Returns list of (next_state, prob) pairs representing the states
-        reachable from 'state' by taking 'action' along with their transition
-        probabilities.
-        """
-        if action not in self.get_actions(state):
-            raise ValueError("Illegal action %s in state %s" % (action, state))
-
-        if action == Direction.EXIT:
-            return [(self.terminal_state, 1.0)]
-
-        if action == Direction.SELF_LOOP:
-            return [(state, 1.0)]
-
-        next_state = self.attempt_to_move_in_direction(state, action)
-        if self.noise == 0.0:
-            return [(next_state, 1.0)]
-
-        successors = defaultdict(float)
-        successors[next_state] += 1.0 - self.noise
-        for direction in Direction.get_adjacent_directions(action):
-            next_state = self.attempt_to_move_in_direction(state, direction)
-            successors[next_state] += (self.noise / 2.0)
-
-        return successors.items()
-
-    def attempt_to_move_in_direction(self, state, action):
-        """Return the new state an agent would be in if it took the action.
-
-        Requires: action is in self.get_actions(state).
-        """
-        x, y = state
-        newx, newy = Direction.move_in_direction(state, action)
-        return state if self.walls[newy][newx] else (newx, newy)
 
     def __str__(self):
         """Returns a string representation of this grid world.
@@ -369,6 +414,7 @@ class GridworldMdp(object):
             return ''.join([get_char(x, y) for x in range(self.width)])
 
         return '\n'.join([get_row_str(y) for y in range(self.height)])
+
 
 # TODO(rohinmshah): This is a generic MDP environment, it isn't specific to
 # Gridworlds. Put it in its own file and rename the gridworld field to mdp.
@@ -417,6 +463,7 @@ class GridworldEnvironment(object):
     def is_done(self):
         """Returns True if the episode is over and the agent cannot act."""
         return self.gridworld.is_terminal(self.get_current_state())
+
 
 class Direction(object):
     """A class that contains the five actions available in Gridworlds.
