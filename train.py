@@ -141,8 +141,8 @@ if __name__=='__main__':
         imagetest1, rewardtest1, ytest1, \
         imagetest2, rewardtest2, ytest2 = load_dataset(config.datafile)
     else:
-        imagetrain, rewardtrain, ttrain, \
-        imagetest1, rewardtest1, ttest1, \
+        imagetrain, rewardtrain, ytrain, \
+        imagetest1, rewardtest1, ytest1, \
         imagetest2, rewardtest2, ytest2 = generate_gridworld_irl(config)
 
     batch_size = config.batchsize
