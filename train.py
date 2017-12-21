@@ -97,7 +97,7 @@ def model_declaration(config):
     builder = tf.saved_model.builder.SavedModelBuilder(config.logdir+'model/')
 
     return (builder, init, saver), (err, step1_cost, step2_cost), \
-            (planner_optimize_op, reward_optimize_op), reward
+            (planner_optimize_op, reward_optimize_op), reward, [pred_dist, y_dist]
 
 if __name__=='__main__':
     # get flags || Data
@@ -106,7 +106,7 @@ if __name__=='__main__':
     np.random.seed(config.seed)
     random.seed(config.seed)
     # use flags to create model and retrieve relevant operations
-    saver_ops, cost_and_err, optimizers, reward = model_declaration(config)
+    saver_ops, cost_and_err, optimizers, reward, dists = model_declaration(config)
     builder, init, saver = saver_ops
     err, step1_cost, step2_cost = cost_and_err
     planner_optimize_op, reward_optimize_op = optimizers

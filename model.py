@@ -27,7 +27,6 @@ def simple_model(X, config):
             final_shape,strides=[1,3,3,1],pad='VALID',activation=None)
 
         # Third conv (3x3)
-        print('conv1:',conv.get_shape())
         conv = conv_layer(conv, [2,2,ch_i,ch_i], 'conv2',strides=[1,1,1,1],pad='SAME')
         twopta = convt_layer(conv, [2,2,ch_q,ch_i], 'convt2a',
             [config.batchsize,imsize//2,imsize//2,ch_q],strides=(1,2,2,1),pad='VALID',activation=None)
@@ -47,20 +46,18 @@ def simple_model(X, config):
         #   2x2x2 --> 7x7x2
         intermed = convt_layer(conv, [4,4,ch_i,ch_i],'convt2a',
             [config.batchsize,7,7,ch_i],strides=[1,3,3,1],pad='VALID',activation=None)
-        #   7x7x2 --> 14x14x2
+        #   7x7x2 --> 14x14x6
         third = convt_layer(intermed, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+    else:
+        raise Error("imsize must be in {8, 14}. Other architectures not yet specified")
 
         # 2x2x2 --> 2x2x2
         # conv = conv_layer(conv, [2,2,ch_i,ch_i], 'conv3', strides=[1,1,1,1], pad='SAME')
 
-    assert first.get_shape()==second.get_shape(), ...
-    "first has shape:{} while second has shape: {}".format(first.get_shape(),second.get_shape())
-
     # Take average of the output
     X = (first+second+third)/3
     X = tf.reshape(X, [-1, ch_q])
-    # return X, tf.nn.softmax(X, name='output')
-    return X, X
+    return X, tf.nn.softmax(X, name='output')
 
 def conv_layer(x,filter_shape,name,pad,strides=(1,1,1,1),activation=tf.nn.relu):
     w, b = weight_and_bias(filter_shape,name)
@@ -143,13 +140,17 @@ def add_distribution(nn, bsize, ch_q, name=None):
             for a given batch"""
 
     # nn is of shape [bsize, imsize, imsize, ch_q]
-    predictions = tf.argmax(nn, axis=-1,name='predict_table',dtype=tf.int32)
-    
-    if not name:
-        name = 'action_distributions'
-    distributions = tf.zeros((bszie, ch_q), name=name)
+    predictions = tf.argmax(nn, axis=-1,name='predict_table',output_type=tf.int32)
+    predictions = tf.reshape(predictions, [bsize, -1])
+    distributions = []
 
     for i in range(ch_q):
         index = tf.constant(i,dtype=tf.int32)
-        distributions[:, i] = tf.reduce_sum(tf.equal(predictions,index),name='indexdist_{}'.format(i))
+        # [bsize, ch_q] --> [bsize]
+        tensor2sum = tf.cast(tf.equal(predictions,index),dtype=tf.int32)
+        distributions.append(tf.reduce_sum(tensor2sum,name='indexdist_{}'.format(i)))
+
+    if not name:
+        name = 'action_distributions'
+    distributions = tf.stack([distributions], axis=-1, name=name)
     return distributions
