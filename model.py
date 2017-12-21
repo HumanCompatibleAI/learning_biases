@@ -34,6 +34,7 @@ def simple_model(X, config):
         third = convt_layer(twopta, [2,2,ch_q,ch_q], 'convt2b',
             final_shape,strides=(1,2,2,1),pad='VALID',activation=None)
     elif imsize == 14:
+        # in_layer = 
         first = conv_layer(X, [1,1,ch_i,ch_q], 'conv_0',pad='SAME')
 
         # 14x14x2 --> 6x6x2
@@ -45,9 +46,9 @@ def simple_model(X, config):
         conv = conv_layer(conv, [3,3,ch_i,ch_i], 'conv2', strides=[1,2,2,1],pad='VALID')
         #   2x2x2 --> 7x7x2
         intermed = convt_layer(conv, [4,4,ch_i,ch_i],'convt2a',
-            [config.batchsize,6,6,ch_i],strides=[1,3,3,1],pad='VALID',activation=None)
+            [config.batchsize,7,7,ch_i],strides=[1,3,3,1],pad='VALID',activation=None)
         #   7x7x2 --> 14x14x2
-        third = convt_layer(conv, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+        third = convt_layer(intermed, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
 
         # 2x2x2 --> 2x2x2
         # conv = conv_layer(conv, [2,2,ch_i,ch_i], 'conv3', strides=[1,1,1,1], pad='SAME')
@@ -134,3 +135,21 @@ def VI_Block(X, config):
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")
     return logits, output
+
+def add_distribution(nn, bsize, ch_q, name=None):
+    """Adds TF code to calculate the % distributions of actions predicted
+    nn: any tensor that represents the q-values for the grid
+    returns: tensor of [bsize, ch_q] where each column is % of that action predicted
+            for a given batch"""
+
+    # nn is of shape [bsize, imsize, imsize, ch_q]
+    predictions = tf.argmax(nn, axis=-1,name='predict_table',dtype=tf.int32)
+    
+    if not name:
+        name = 'action_distributions'
+    distributions = tf.zeros((bszie, ch_q), name=name)
+
+    for i in range(ch_q):
+        index = tf.constant(i,dtype=tf.int32)
+        distributions[:, i] = tf.reduce_sum(tf.equal(predictions,index),name='indexdist_{}'.format(i))
+    return distributions

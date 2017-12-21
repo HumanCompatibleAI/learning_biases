@@ -7,7 +7,7 @@ import tensorflow as tf
 
 import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
-from model import VI_Block, simple_model
+from model import VI_Block, simple_model, add_distribution
 from utils import fmt_row, init_flags, plot_reward
 
 import sys
@@ -44,6 +44,11 @@ def model_declaration(config):
         logits, nn = simple_model(X, config)
         print("simple shape:",logits.get_shape())
 
+    # Add tensors to calculate action distributions
+    pred_dist = add_distribution(logits, config.batchsize, config.ch_q,name='pred_action_dist')
+    y_dist = add_distribution(y, config.batchsize, config.ch_q,name='true_action_dist')
+
+    # Reshape for losses
     logits = tf.reshape(logits, [-1, num_actions])
     y = tf.reshape(y, [-1, num_actions])
 
@@ -211,4 +216,5 @@ if __name__=='__main__':
         print(normalized_inferred_reward)
 
         plot_reward(rewardtest2[0], normalized_inferred_reward)
+
 

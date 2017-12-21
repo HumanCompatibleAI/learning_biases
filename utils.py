@@ -70,7 +70,7 @@ def init_flags():
 
     # Hyperparameters
     tf.app.flags.DEFINE_string(
-        'model','VIN','VIN or SIMPLE')
+        'model','SIMPLE','VIN or SIMPLE')
     tf.app.flags.DEFINE_float(
         'vin_regularizer_C', 0.0001, 'Regularization constant for the VIN')
     tf.app.flags.DEFINE_float(
