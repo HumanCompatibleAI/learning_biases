@@ -31,8 +31,8 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     label = label - np.min(label)
     label = label / np.linalg.norm(label)
 
-    inf_rew = inf_rew - np.min(inf_rew)
-    inf_rew = inf_rew / np.linalg.norm(inf_rew)
+    inferred_reward = inferred_reward - np.min(inferred_reward)
+    inferred_reward = inferred_reward / np.linalg.norm(inferred_reward)
 
     # set up plot
     fig, axes = plt.subplots(1,2)
@@ -221,12 +221,3 @@ class Distribution(object):
 
     def __repr__(self):
         return 'Distribution(%s)' % repr(self.dist)
-
-if __name__ == '__main__':
-    info = np.load('delete.npz')
-    label = info['arr_0']
-    inf_rew = info['arr_1']
-    walls = info['arr_2']
-
-    print(np.max(label), np.min(label), np.max(inf_rew), np.min(inf_rew))
-    plot_reward(label, inf_rew, walls)
