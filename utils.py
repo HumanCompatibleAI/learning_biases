@@ -29,10 +29,10 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     # Clean up the arrays (imshow only takes values in [0, 1])
 
     label = label - np.min(label)
-    label = label / np.linalg.norm(label)
+    label = label / np.max(label)
 
     inferred_reward = inferred_reward - np.min(inferred_reward)
-    inferred_reward = inferred_reward / np.linalg.norm(inferred_reward)
+    inferred_reward = inferred_reward / np.max(inferred_reward)
 
     # set up plot
     fig, axes = plt.subplots(1,2)

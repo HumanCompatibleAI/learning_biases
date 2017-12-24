@@ -42,7 +42,6 @@ def model_declaration(config):
         # Construct model (Simple Model)
         print("simple model")
         logits, nn = simple_model(X, config)
-        print("simple shape:",logits.get_shape())
 
     # Add tensors to calculate action distributions
     pred_dist = add_distribution(logits, config.batchsize, config.ch_q,name='pred_action_dist')
@@ -231,7 +230,9 @@ if __name__=='__main__':
         print('The first reward should be:')
         print(rewardtest2[0])
         inferred_reward = reward.eval()[0]
-        normalized_inferred_reward = inferred_reward / inferred_reward.max()
+        # normalized_inferred_reward = inferred_reward / inferred_reward.max()
         print('The inferred reward is:')
-        print(normalized_inferred_reward)
-        plot_reward(rewardtest2[0], normalized_inferred_reward, imagetest2[0])
+        print(inferred_reward)
+
+        for label, reward, wall, i in zip(rewardtest2, reward.eval(), imagetest2, range(len(rewardtest2))):
+            plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
