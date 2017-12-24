@@ -39,7 +39,7 @@ def simple_model(X, config):
         # 14x14x2 --> 6x6x2
         conv = conv_layer(X, [3,3,ch_i,ch_i], 'conv1', strides=[1,2,2,1],pad='VALID')
         #   6x6x2 --> 14x14x2
-        second = convt_layer(conv, [3,3,ch_q,ch_i],'convt1a',final_shape,strides=[1,2,2,1],pad='VALID',activation=tf.nn.relu)
+        second = convt_layer(conv, [3,3,ch_q,ch_i],'convt1a',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
 
         # 6x6x2 --> 2x2x2
         conv = conv_layer(conv, [3,3,ch_i,ch_i], 'conv2', strides=[1,2,2,1],pad='VALID')
@@ -55,7 +55,7 @@ def simple_model(X, config):
         # conv = conv_layer(conv, [2,2,ch_i,ch_i], 'conv3', strides=[1,1,1,1], pad='SAME')
 
     # Take average of the output
-    X = (first+second+third)/3
+    X = first/3 +2*second/3+third
     X = tf.reshape(X, [-1, ch_q])
     return X, tf.nn.softmax(X, name='output')
 

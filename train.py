@@ -174,7 +174,6 @@ if __name__=='__main__':
         print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
         try:
             final_action_distributions = [np.zeros(config.num_actions), np.zeros(config.num_actions)]
-            pdb.set_trace()
             for epoch in range(int(config.epochs)):
                 _, (avg_cost, avg_err), elapsed, epoch_dist = run_epoch(
                     train_data, [planner_optimize_op], [step1_cost, err], dists)
@@ -235,5 +234,4 @@ if __name__=='__main__':
         normalized_inferred_reward = inferred_reward / inferred_reward.max()
         print('The inferred reward is:')
         print(normalized_inferred_reward)
-
-        plot_reward(rewardtest2[0], normalized_inferred_reward)
+        plot_reward(rewardtest2[0], normalized_inferred_reward, imagetest2[0])

@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import re
+import pdb
 import matplotlib
 matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
@@ -19,25 +20,32 @@ def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
 
-def plot_reward(label, inferred_reward, filename='reward_comparison.png'):
+def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png'):
     """Plots rewards (true and predicted) and saves them to a file.
 
     Inferred_reward should be normalized before.
     """
+
+    # Clean up the arrays (imshow only takes values in [0, 1])
+
+    label = label - np.min(label)
+    label = label / np.linalg.norm(label)
+
+    inf_rew = inf_rew - np.min(inf_rew)
+    inf_rew = inf_rew / np.linalg.norm(inf_rew)
+
     # set up plot
     fig, axes = plt.subplots(1,2)
+    label = np.stack([label, walls, np.zeros(walls.shape)],axis=-1).reshape(list(walls.shape)+[3])
 
     # truth plot
-    true = axes[0].imshow(label,cmap='hot',interpolation='nearest')
+    true = axes[0].imshow(label)
     axes[0].set_title("Truth")
-    cbaxes = fig.add_axes([0.02, 0.1, 0.02, 0.8])
-    cb = plt.colorbar(true, cax=cbaxes)
 
     # inferred plot
-    tensor = axes[1].imshow(inferred_reward, cmap='hot', interpolation='nearest')
+    rew = np.stack([inferred_reward, walls, np.zeros(walls.shape)],axis=-1).reshape(list(walls.shape)+[3])
+    tensor = axes[1].imshow(rew)
     axes[1].set_title("Predicted")
-    cbaxes2 = fig.add_axes([0.925, 0.1, 0.02, 0.8])
-    plt.colorbar(tensor, cax=cbaxes2)
 
     # titleing
     fig.suptitle("Comparison of Reward Functions")
@@ -213,3 +221,12 @@ class Distribution(object):
 
     def __repr__(self):
         return 'Distribution(%s)' % repr(self.dist)
+
+if __name__ == '__main__':
+    info = np.load('delete.npz')
+    label = info['arr_0']
+    inf_rew = info['arr_1']
+    walls = info['arr_2']
+
+    print(np.max(label), np.min(label), np.max(inf_rew), np.min(inf_rew))
+    plot_reward(label, inf_rew, walls)
