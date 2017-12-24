@@ -1,6 +1,6 @@
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 import keras 
-from keras.layers import Conv2D, Conv2DTranspose, Input
+# from keras.layers import Conv2D, Conv2DTranspose, Input
 from keras.models import Model
 import numpy as np
 import tensorflow as tf
@@ -39,7 +39,7 @@ def simple_model(X, config):
         # 14x14x2 --> 6x6x2
         conv = conv_layer(X, [3,3,ch_i,ch_i], 'conv1', strides=[1,2,2,1],pad='VALID')
         #   6x6x2 --> 14x14x2
-        second = convt_layer(conv, [3,3,ch_q,ch_i],'convt1a',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+        second = convt_layer(conv, [3,3,ch_q,ch_i],'convt1a',final_shape,strides=[1,2,2,1],pad='VALID',activation=tf.nn.relu)
 
         # 6x6x2 --> 2x2x2
         conv = conv_layer(conv, [3,3,ch_i,ch_i], 'conv2', strides=[1,2,2,1],pad='VALID')
@@ -47,7 +47,7 @@ def simple_model(X, config):
         intermed = convt_layer(conv, [4,4,ch_i,ch_i],'convt2a',
             [config.batchsize,7,7,ch_i],strides=[1,3,3,1],pad='VALID',activation=None)
         #   7x7x2 --> 14x14x6
-        third = convt_layer(intermed, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+        third = convt_layer(intermed, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=tf.nn.relu)
     else:
         raise Error("imsize must be in {8, 14}. Other architectures not yet specified")
 

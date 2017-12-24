@@ -4,12 +4,12 @@ import time
 import numpy as np
 import random
 import tensorflow as tf
+import pdb
 
 import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
 from model import VI_Block, simple_model, add_distribution
 from utils import fmt_row, init_flags, plot_reward
-
 import sys
 
 def model_declaration(config):
@@ -85,6 +85,7 @@ def model_declaration(config):
 
     # Test model & calculate accuracy
     cp = tf.cast(tf.argmax(nn, 1), tf.int32)
+
     # Use the most probable action even for the gold labels
     most_likely_y = tf.cast(tf.argmax(y, axis=1), tf.int32)
     err = tf.reduce_mean(tf.cast(tf.not_equal(cp, most_likely_y), dtype=tf.float32))
@@ -111,6 +112,7 @@ if __name__=='__main__':
     err, step1_cost, step2_cost = cost_and_err
     planner_optimize_op, reward_optimize_op = optimizers
 
+
     if config.datafile:
         imagetrain, rewardtrain, ytrain, \
         imagetest1, rewardtest1, ytest1, \
@@ -119,7 +121,7 @@ if __name__=='__main__':
         imagetrain, rewardtrain, ytrain, \
         imagetest1, rewardtest1, ytest1, \
         imagetest2, rewardtest2, ytest2 = generate_gridworld_irl(config)
-
+    
     batch_size = config.batchsize
     imsize = config.imsize
     num_actions = config.num_actions
@@ -142,6 +144,8 @@ if __name__=='__main__':
             image_data, reward_data, y_data = data
             averages = [0.0] * len(ops_to_average)
             num_batches = int(image_data.shape[0] / batch_size)
+            avg_dists = [np.zeros(config.num_actions) for dist in distributions]
+
             # Loop over all batches
             for i in range(num_batches):
                 start, end = i * batch_size, (i + 1) * batch_size
@@ -150,29 +154,34 @@ if __name__=='__main__':
                     "reward:0": reward_data[start:end],
                     "y:0": y_data[start:end]
                 }
-                results = sess.run(ops_to_run + ops_to_average, feed_dict=fd)
+                results = sess.run(ops_to_run + ops_to_average+distributions, feed_dict=fd)
                 num_ops_to_run = len(ops_to_run)
                 num_ops_to_avg = len(ops_to_average)
                 op_results = results[:num_ops_to_run]
                 average_op_results = results[num_ops_to_run:num_ops_to_run+num_ops_to_avg]
-                dists = results[num_ops_to_run+num_ops_to_avg:]
                 averages = [x + y for x, y in zip(averages, average_op_results)]
+
+                dists = results[num_ops_to_run+num_ops_to_avg:]
+                avg_dists = [avg + np.reshape(batch_dist,(-1,)) for avg, batch_dist in zip(avg_dists, dists)]
             
             averages = [x / num_batches for x in averages]
             elapsed = time.time() - tstart
-            return op_results, averages, elapsed
+            return op_results, averages, elapsed, avg_dists
 
         train_data = (imagetrain, rewardtrain, ytrain)
         test1_data = (imagetest1, rewardtest1, ytest1)
 
         print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
         try:
+            final_action_distributions = [np.zeros(config.num_actions), np.zeros(config.num_actions)]
+            pdb.set_trace()
             for epoch in range(int(config.epochs)):
-                _, (avg_cost, avg_err), elapsed = run_epoch(
-                    train_data, [planner_optimize_op], [step1_cost, err])
+                _, (avg_cost, avg_err), elapsed, epoch_dist = run_epoch(
+                    train_data, [planner_optimize_op], [step1_cost, err], dists)
+
                 # Display logs per epoch step
                 if epoch % config.display_step == 0:
-                    _, (test1_err,), _ = run_epoch(test1_data, [], [err])
+                    _, (test1_err,), _, _ = run_epoch(test1_data, [], [err])
                     print(fmt_row(10, [epoch, avg_cost, avg_err, test1_err, elapsed]))
                 if config.log:
                     summary = tf.Summary()
@@ -180,13 +189,22 @@ if __name__=='__main__':
                     summary.value.add(tag='Average error', simple_value=float(avg_err))
                     summary.value.add(tag='Average cost', simple_value=float(avg_cost))
                     summary_writer.add_summary(summary, epoch)
+                final_action_distributions = [d + b_d for d, b_d in zip(final_action_distributions, epoch_dist)]
+
+            final_action_distributions = [d / (np.sum(d)) for d in final_action_distributions]
+            if final_action_distributions:
+                print("Action Distribution Comparison")
+                print("---"*10)
+                
+                print(fmt_row(10, ["Predicted"] + final_action_distributions[0].tolist()))
+                print(fmt_row(10, ["Actual"]+ final_action_distributions[1].tolist()))
 
         except KeyboardInterrupt:
             print("Step 1 skipped")
             pass
-      
+        
         print("Finished training!")
-        _, (test1_err,), _ = run_epoch(test1_data, [], [err])
+        _, (test1_err,), _, _ = run_epoch(test1_data, [], [err])
         # Saving SavedModel instance
         savepath = builder.save()
         print("Model saved to: {}".format(savepath))
@@ -219,5 +237,3 @@ if __name__=='__main__':
         print(normalized_inferred_reward)
 
         plot_reward(rewardtest2[0], normalized_inferred_reward)
-
-
