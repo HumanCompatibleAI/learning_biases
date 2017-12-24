@@ -47,15 +47,29 @@ def simple_model(X, config):
         intermed = convt_layer(conv, [4,4,ch_i,ch_i],'convt2a',
             [config.batchsize,7,7,ch_i],strides=[1,3,3,1],pad='VALID',activation=None)
         #   7x7x2 --> 14x14x6
-        third = convt_layer(intermed, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=tf.nn.relu)
+        third = convt_layer(intermed, [2,2,ch_q,ch_i],'convt2b',final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+        
+        # # 2x2x2 --> 8
+        # flattened = tf.reshape(conv, shape=[-1, 8])
+        # #   8 --> 54 --> 3x3x6
+        # fc_w = tf.Variable(tf.truncated_normal((8,54)),name='fc3_w')
+        # fc_b = tf.Variable(tf.truncated_normal((54,)),name='fc3_b')
+        # fc_middle = tf.nn.relu(tf.matmul(flattened,fc_w) + fc_b, name='fc3')
+        # fc_shaped = tf.reshape(fc_middle,shape=([config.batchsize,3,3,ch_q]))
+        # #   3x3x6 --> 7x7x6
+        # intermed = convt_layer(fc_shaped, [3,3,ch_q,ch_q], 'convt3a',
+        #     [config.batchsize,7,7,ch_q],strides=[1,2,2,1],pad='VALID',activation=None)
+        # #   7x7x6 --> 14x14x6
+        # fourth = convt_layer(intermed, [2,2,ch_q,ch_q], 'convt3b',
+        #     final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
+
     else:
         raise Error("imsize must be in {8, 14}. Other architectures not yet specified")
 
-        # 2x2x2 --> 2x2x2
-        # conv = conv_layer(conv, [2,2,ch_i,ch_i], 'conv3', strides=[1,1,1,1], pad='SAME')
+    comb_wts = tf.Variable(tf.truncated_normal((3,)), dtype=tf.float32, name='combination_wts')
 
     # Take average of the output
-    X = first/3 +2*second/3+third
+    X = comb_wts[0]*first + comb_wts[1]*second + comb_wts[2]*third
     X = tf.reshape(X, [-1, ch_q])
     return X, tf.nn.softmax(X, name='output')
 

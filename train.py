@@ -111,7 +111,6 @@ if __name__=='__main__':
     err, step1_cost, step2_cost = cost_and_err
     planner_optimize_op, reward_optimize_op = optimizers
 
-
     if config.datafile:
         imagetrain, rewardtrain, ytrain, \
         imagetest1, rewardtest1, ytest1, \
