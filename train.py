@@ -10,6 +10,7 @@ import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
 from model import VI_Block, simple_model, add_distribution
 from utils import fmt_row, init_flags, plot_reward
+from agent_runner import run_agent_proxy
 import sys
 
 def model_declaration(config):
@@ -235,3 +236,5 @@ if __name__=='__main__':
 
         for label, reward, wall, i in zip(rewardtest2, reward.eval(), imagetest2, range(len(rewardtest2))):
             plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
+            pdb.set_trace()
+            trajectory, proxy_r, true_r = run_agent_proxy(wall, reward, label)
