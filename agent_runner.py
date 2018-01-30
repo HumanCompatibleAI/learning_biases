@@ -1,5 +1,5 @@
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
-from agents import OptimalAgent
+from agents import OptimalAgent, ProxyOptimalAgent
 import numpy as np
 import pdb
 
@@ -29,13 +29,13 @@ def run_agent(agent, env, episode_length=float("inf")):
         trajectory.append(minibatch)
     return trajectory
 
-def run_agent_proxy(walls, proxy_reward, true_reward, agent="Optimal",episode_length=float("inf")):
+def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_length=float("inf")):
     """Runs agent on a proxy environment for one episode, while collecting true reward from a separate environment
 
     walls: a 2D python list or numpy array of walls, with a starting spot
     proxy_reward: a 2D python list or numpy array of reward values
     true_reward: a 2D python list or numpy array of reward values
-    agent: only optimal is implemented
+    agent: only proxy optimal is implemented
 
     Creates a proxy mdp by overlaying walls onto proxy grid.
     True reward is summed if the reward grid's entry at the given state can be casted to a float
@@ -49,17 +49,19 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Optimal",episode_le
 
     # Create proxy grid which overrites proxy reward with walls
     proxy_grid = create_grid(walls, proxy_reward)
-    pdb.set_trace()
+    true_grid = create_grid(walls, true_reward)
     proxy_mdp = GridworldMdp(proxy_grid)
-    env = GridworldEnvironment(proxy_mdp)
+    true_mdp = GridworldMdp(true_grid)
+    env = GridworldEnvironment(true_mdp)
     env.reset()
 
     # Create agent
-    if agent == "Optimal":
-        agent = OptimalAgent()
+    if agent == "Proxy":
+        agent = ProxyOptimalAgent()
     else:
         raise "Agent Not Implemented: use Optimal instead"
 
+    agent.set_mdp_true(true_mdp)
     agent.set_mdp(proxy_mdp)
     trajectory = []
     reward_sum = 0.0

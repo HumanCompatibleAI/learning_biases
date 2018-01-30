@@ -276,3 +276,38 @@ class MyopicAgent(DelayDependentAgent):
         if d >= self.horizon:
             return 0
         return super(MyopicAgent, self).get_reward(mu, a)
+
+class ProxyOptimalAgent(OptimalAgent):
+    """An agent that has draws mu's from 1 mdp and actions from another.
+    
+    NOTE: true mdp has to be set before proxy mdp, or compute_values will fail
+    """
+
+    def __init__(self, gamma=1.0, beta=None, num_iters=50):
+        super(ProxyOptimalAgent, self).__init__(gamma)
+        self.beta = beta
+        self.num_iters = num_iters
+
+    def set_mdp(self, mdp):
+        """Sets proxy mdp"""
+        self.mdp = mdp
+        self.compute_values()
+    
+    def set_mdp_true(self, mdp):
+        """Sets true mdp"""
+        self.true_mdp = mdp
+
+    def get_mus(self):
+        """Returns all possible generalized states the agent could be in.
+
+        This is the equivalent of self.mdp.get_states() for generalized states.
+        """
+        return self.mdp.get_states()
+
+    def get_actions(self, mu):
+        """Returns all actions the agent could take from generalized state mu.
+
+        This is the equivalent of self.mdp.get_actions() for generalized states.
+        """
+        s = self.extract_state_from_mu(mu)
+        return self.true_mdp.get_actions(s)
