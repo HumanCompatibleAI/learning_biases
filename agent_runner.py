@@ -45,7 +45,7 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     # This casts our reward values to floats, but I want to see if anything breaks..?
     walls = np.array(walls)
     proxy_reward = np.array(proxy_reward)
-    true_reward = np.array(true_reward)
+    true_reward = process_true(np.array(true_reward))
 
     # Create proxy grid which overrites proxy reward with walls
     proxy_grid = create_grid(walls, proxy_reward)
@@ -68,6 +68,7 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     while len(trajectory) < episode_length and not env.is_done():
         curr_state = env.get_current_state()
         action = agent.get_action(curr_state)
+        pdb.set_trace()
         next_state, reward = env.perform_action(action)
         minibatch = (curr_state, action, next_state, reward)
         agent.inform_minibatch(*minibatch)
@@ -115,3 +116,9 @@ def create_grid(walls, reward):
     grid[walls=='A'] = 'A'
 
     return grid
+
+def process_true(reward):
+    """Takes in 2d reward (floats) converts to string"""
+    r = reward.astype(str)
+    r[r == str(0)] = " "
+    return r

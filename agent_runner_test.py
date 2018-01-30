@@ -1,7 +1,9 @@
 import unittest
 from agent_interface import Agent
-from agent_runner import run_agent
+from agent_runner import run_agent, create_grid
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
+import numpy as np
+import pdb
 
 class DirectionalAgent(Agent):
     """An agent that goes in a specific direction or exits.
@@ -55,6 +57,35 @@ class TestAgentRunner(unittest.TestCase):
         agent3.set_mdp(mdp3)
         trajectory = [((1, 3), south, (1, 3), -0.1)] * 10
         self.assertEqual(run_agent(agent3, env3, episode_length=10), trajectory)
+
+
+        # Test make grid
+
+        walls =              [['X', 'X', 'X', 'X', 'X'],
+                              ['X', ' ', ' ', ' ', 'X'],
+                              ['X', ' ', 'X', ' ', 'X'],
+                              ['X', ' ', ' ', ' ', 'X'],
+                              ['X', 'X', 'X', 'X', 'X']]
+        
+        reward =              [[0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 0],
+                              [0, 3, 0, 0, 0],
+                              [0, 0, 0, 1, 0],
+                              [0, 0, 0, 0, 0]]
+        
+        proxy =              [[0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 0],
+                              [0, 1, 0, 0, 0],
+                              [0, 0, 0, 3, 0],
+                              [0, 0, 0, 0, 0]]
+        walls = np.array(walls)
+        reward = np.array(reward)
+        proxy = np.array(proxy)
+        proxy_grid = create_grid(walls, proxy)
+        true_grid = create_grid(walls, reward)
+        wall_check = ((proxy_grid == 'X') | (proxy_grid=='A')) == ((true_grid=='X') | (true_grid=='A'))
+        pdb.set_trace()
+        self.assertEqual(True, (wall_check).all())
 
 if __name__ == '__main__':
     unittest.main()
