@@ -3,6 +3,7 @@ from collections import defaultdict
 from utils import Distribution
 import numpy as np
 import random
+import pdb
 
 class ValueIterationLikeAgent(Agent):
     """An agent that chooses actions using something similar to value iteration.
@@ -50,6 +51,7 @@ class ValueIterationLikeAgent(Agent):
                 if not actions:
                     continue
                 new_mu = self.get_mu_for_planning(mu)  # Typically new_mu == mu
+                pdb.set_trace()
                 qvalues = [(self.qvalue(new_mu, a, values), a) for a in actions]
                 _, chosen_action = max(qvalues)
                 new_values[mu] = self.qvalue(mu, chosen_action, values)

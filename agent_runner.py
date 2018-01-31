@@ -44,12 +44,13 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     """
     # This casts our reward values to floats, but I want to see if anything breaks..?
     walls = np.array(walls)
-    proxy_reward = np.array(proxy_reward)
-    true_reward = process_true(np.array(true_reward))
+    proxy_reward = remove_zeros(np.array(proxy_reward))
+    true_reward = remove_zeros(np.array(true_reward))
 
     # Create proxy grid which overrites proxy reward with walls
     proxy_grid = create_grid(walls, proxy_reward)
     true_grid = create_grid(walls, true_reward)
+    pdb.set_trace()
     proxy_mdp = GridworldMdp(proxy_grid)
     true_mdp = GridworldMdp(true_grid)
     env = GridworldEnvironment(true_mdp)
@@ -65,6 +66,7 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     agent.set_mdp(proxy_mdp)
     trajectory = []
     reward_sum = 0.0
+    pdb.set_trace()
     while len(trajectory) < episode_length and not env.is_done():
         curr_state = env.get_current_state()
         action = agent.get_action(curr_state)
@@ -97,8 +99,8 @@ def create_grid(walls, reward):
     """
     # Looks for start
     start_count = 0
-    for row in walls[1:-1]: # Exclude walls
-        for item in row[1:-1]: # Exclude walls
+    for row in walls: # Exclude walls
+        for item in row: # Exclude walls
             if item == 'A':
                 start_count += 1
 
@@ -117,7 +119,7 @@ def create_grid(walls, reward):
 
     return grid
 
-def process_true(reward):
+def remove_zeros(reward):
     """Takes in 2d reward (floats) converts to string"""
     r = reward.astype(str)
     r[r == str(0)] = " "

@@ -11,6 +11,29 @@ import agents
 import tensorflow as tf
 from agent_runner import run_agent_proxy
 
+walls =              [['X', 'X', 'X', 'X', 'X'],
+                      ['X', ' ', ' ', 'A', 'X'],
+                      ['X', ' ', 'X', ' ', 'X'],
+                      ['X', ' ', ' ', ' ', 'X'],
+                      ['X', 'X', 'X', 'X', 'X']]
+
+reward =              [[0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0],
+                      [0, 3, 0, 0, 0],
+                      [0, 0, 0, 1, 0],
+                      [0, 0, 0, 0, 0]]
+
+proxy =              [[0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0],
+                      [0, 1, 0, 0, 0],
+                      [0, 0, 0, 3, 0],
+                      [0, 0, 0, 0, 0]]
+trajectory, proxy_reward, true_reward = run_agent_proxy(walls, proxy, reward)
+print(trajectory)
+print("proxy:", proxy_reward, "true reward:", true_reward)
+
+"""
+
 grid = 	    [ 'XXXXXXXXX',
               'X9XAX   X',
               'X X X   X',
@@ -33,24 +56,4 @@ preference_grid = [
  'XXXXXAXXXXXXXX',
  'XXXXXXXXXXXXXX'
  ]
-
-walls =              [['X', 'X', 'X', 'X', 'X'],
-                      ['X', ' ', ' ', 'A', 'X'],
-                      ['X', ' ', 'X', ' ', 'X'],
-                      ['X', ' ', ' ', ' ', 'X'],
-                      ['X', 'X', 'X', 'X', 'X']]
-
-reward =              [[0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0],
-                      [0, 3, 0, 0, 0],
-                      [0, 0, 0, 1, 0],
-                      [0, 0, 0, 0, 0]]
-
-proxy =              [[0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0],
-                      [0, 1, 0, 0, 0],
-                      [0, 0, 0, 3, 0],
-                      [0, 0, 0, 0, 0]]
-trajectory, proxy_reward, true_reward = run_agent_proxy(walls, proxy, reward)
-print(trajectory)
-print("proxy:", proxy_reward, "true reward:", true_reward)
+"""
