@@ -294,21 +294,11 @@ class ProxyOptimalAgent(OptimalAgent):
         self.mdp = mdp
         self.compute_values()
     
-    def set_mdp_true(self, mdp):
+    def set_mdp_proxy(self, mdp):
         """Sets true mdp"""
-        self.true_mdp = mdp
+        self.proxy_mdp = mdp
 
-    def get_mus(self):
-        """Returns all possible generalized states the agent could be in.
-
-        This is the equivalent of self.mdp.get_states() for generalized states.
-        """
-        return self.mdp.get_states()
-
-    def get_actions(self, mu):
-        """Returns all actions the agent could take from generalized state mu.
-
-        This is the equivalent of self.mdp.get_actions() for generalized states.
-        """
+    def get_reward(self, mu, a):
+        """Returns reward"""
         s = self.extract_state_from_mu(mu)
-        return self.true_mdp.get_actions(s)
+        return self.proxy_mdp.get_reward(s, a)
