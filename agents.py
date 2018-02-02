@@ -51,7 +51,6 @@ class ValueIterationLikeAgent(Agent):
                 if not actions:
                     continue
                 new_mu = self.get_mu_for_planning(mu)  # Typically new_mu == mu
-                pdb.set_trace()
                 qvalues = [(self.qvalue(new_mu, a, values), a) for a in actions]
                 _, chosen_action = max(qvalues)
                 new_values[mu] = self.qvalue(mu, chosen_action, values)

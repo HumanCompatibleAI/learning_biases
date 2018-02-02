@@ -25,7 +25,7 @@ reward =              [[0, 0, 0, 0, 0],
 
 proxy =              [[0, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0],
-                      [0, 1, 0, 0, 0],
+                      [0, 1, 0, 0.1, 0],
                       [0, 0, 0, 3, 0],
                       [0, 0, 0, 0, 0]]
 trajectory, proxy_reward, true_reward = run_agent_proxy(walls, proxy, reward)

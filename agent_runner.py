@@ -65,23 +65,21 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     agent.set_mdp_true(true_mdp)
     agent.set_mdp(proxy_mdp)
     trajectory = []
-    reward_sum = 0.0
-    pdb.set_trace()
+    proxy_sum = 0.0
     while len(trajectory) < episode_length and not env.is_done():
         curr_state = env.get_current_state()
         action = agent.get_action(curr_state)
-        pdb.set_trace()
         next_state, reward = env.perform_action(action)
         minibatch = (curr_state, action, next_state, reward)
         agent.inform_minibatch(*minibatch)
         trajectory.append(minibatch)
         
         try:
-            rew = float(true_reward[curr_state])
-            reward_sum += rew
+            rew = float(proxy_reward[curr_state])
+            proxy_sum += rew
         except Exception:
             pass
-    proxy_sum = sum([reward for _, _, _, reward in trajectory])
+    reward_sum = sum([reward for _, _, _, reward in trajectory])
     return trajectory, proxy_sum, reward_sum   
 
 def create_grid(walls, reward):
@@ -106,12 +104,7 @@ def create_grid(walls, reward):
 
     # Adds start to earliest point in grid and breaks out
     if start_count == 0:
-        for wall_row, reward_row in zip(walls[1:-1], reward[1:-1]):
-            for i in range(1,len(wall_row)-1):
-                if reward_row[i] == 0:
-                    wall_row[i] = 'A'
-                    break
-
+        addStart(walls, reward)
     # Create new reward array and overlay walls on top
     grid = np.copy(reward).astype(str)
     grid[(walls=='X') | (walls==1)] = 'X'
@@ -124,3 +117,10 @@ def remove_zeros(reward):
     r = reward.astype(str)
     r[r == str(0)] = " "
     return r
+
+def addStart(walls, reward):
+    for wall_row, reward_row in zip(walls[1:-1], reward[1:-1]):
+         for i in range(1,len(wall_row)-1):
+             if reward_row[i] == 0:
+                 wall_row[i] = 'A'
+                 return
