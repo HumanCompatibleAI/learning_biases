@@ -50,7 +50,6 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     # Create proxy grid which overrites proxy reward with walls
     proxy_grid = create_grid(walls, proxy_reward)
     true_grid = create_grid(walls, true_reward)
-    pdb.set_trace()
     proxy_mdp = GridworldMdp(proxy_grid)
     true_mdp = GridworldMdp(true_grid)
     env = GridworldEnvironment(true_mdp)
