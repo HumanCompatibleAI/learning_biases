@@ -61,8 +61,7 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     else:
         raise "Agent Not Implemented: use Optimal instead"
 
-    agent.set_mdp_proxy(proxy_mdp)
-    agent.set_mdp(true_mdp)
+    agent.set_mdp(true_mdp, proxy_mdp)
     trajectory = []
     proxy_sum = 0.0
     while len(trajectory) < episode_length and not env.is_done():

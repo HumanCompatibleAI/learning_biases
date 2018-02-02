@@ -289,14 +289,11 @@ class ProxyOptimalAgent(OptimalAgent):
         self.beta = beta
         self.num_iters = num_iters
 
-    def set_mdp(self, mdp):
-        """Sets proxy mdp"""
-        self.mdp = mdp
+    def set_mdp(self, true_mdp, proxy_mdp):
+        """Overrides set_mdp to make sure that it is provided with two MDPs."""
+        self.mdp = true_mdp
+        self.proxy_mdp = proxy_mdp
         self.compute_values()
-    
-    def set_mdp_proxy(self, mdp):
-        """Sets true mdp"""
-        self.proxy_mdp = mdp
 
     def get_reward(self, mu, a):
         """Returns reward"""
