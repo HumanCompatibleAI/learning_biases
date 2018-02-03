@@ -1,4 +1,4 @@
-# Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
+# Some code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 
 import time
 import numpy as np
@@ -8,7 +8,7 @@ import pdb
 
 import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
-from model import VI_Block, simple_model, add_distribution
+from model import Model, calculate_action_distribution
 from utils import fmt_row, init_flags, plot_reward
 from agent_runner import run_agent_proxy
 import sys
@@ -31,25 +31,20 @@ def model_declaration(config):
         tf.float32, name="image", shape=[batch_size, imsize, imsize])
     reward = tf.Variable(
         tf.zeros([batch_size, imsize, imsize]), name='reward', trainable=False)
-    X  = tf.stack([image, reward], axis=-1)
     y  = tf.placeholder(
         tf.float32, name="y",  shape=[batch_size, imsize, imsize, num_actions])
 
-    if config.model == 'VIN':
-        # Construct model (Value Iteration Network)
-        print("vin")
-        logits, nn = VI_Block(X, config)
-    elif config.model == "SIMPLE":
-        # Construct model (Simple Model)
-        print("simple model")
-        logits, nn = simple_model(X, config)
+    print('Creating model: ' + config.model)
+    model = Model(image, reward, config)
 
     # Add tensors to calculate action distributions
-    pred_dist = add_distribution(logits, config.batchsize, config.ch_q,name='pred_action_dist')
-    y_dist = add_distribution(y, config.batchsize, config.ch_q,name='true_action_dist')
+    pred_dist = calculate_action_distribution(
+        model.logits, config.batchsize, config.ch_q, name='pred_action_dist')
+    y_dist = calculate_action_distribution(
+        y, config.batchsize, config.ch_q, name='true_action_dist')
 
     # Reshape for losses
-    logits = tf.reshape(logits, [-1, num_actions])
+    logits = tf.reshape(model.logits, [-1, num_actions])
     y = tf.reshape(y, [-1, num_actions])
 
     # Define losses
@@ -84,7 +79,7 @@ def model_declaration(config):
     reward_optimize_op = reward_optimizer.minimize(step2_cost, var_list=[reward])
 
     # Test model & calculate accuracy
-    cp = tf.cast(tf.argmax(nn, 1), tf.int32)
+    cp = tf.cast(tf.argmax(model.output_probs, 1), tf.int32)
 
     # Use the most probable action even for the gold labels
     most_likely_y = tf.cast(tf.argmax(y, axis=1), tf.int32)

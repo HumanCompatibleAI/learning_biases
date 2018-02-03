@@ -5,11 +5,27 @@ from keras.models import Model
 import numpy as np
 import tensorflow as tf
 
+class Model(object):
+    """Encapsulates a model that given an MDP predicts an agent's policy.
+
+    Saves references to useful Tensors, such as logits.
+    """
+
+    def __init__(self, image, reward, config):
+        X  = tf.stack([image, reward], axis=-1)
+        if config.model == 'VIN':
+            self.logits, self.output_probs = VI_Block(X, config)
+        elif config.model == "SIMPLE":
+            self.logits, self.output_probs = simple_model(X, config)
+        else:
+            raise ValueError('Unknown model: ' + config.model)
+
+
 def simple_model(X, config):
     """ Creates Conv-Net to run on 2-channel Grid Input (walls, rewards)
     However, to ensure that the entire grid is convolved over, each architecture has to be individually constructed"""
 
-    # HYPERPARAMATERS
+    # HYPERPARAMETERS
     # ---------------------------
     ch_i = 2            # Number of channels in input layer (image, reward)
     ch_q = config.ch_q  # Channels in q layer (~actions) 
@@ -147,7 +163,7 @@ def VI_Block(X, config):
     output = tf.nn.softmax(logits, name="output")
     return logits, output
 
-def add_distribution(nn, bsize, ch_q, name=None):
+def calculate_action_distribution(nn, bsize, ch_q, name=None):
     """Adds TF code to calculate the % distributions of actions predicted
     nn: any tensor that represents the q-values for the grid
     returns: tensor of [bsize, ch_q] where each column is % of that action predicted
