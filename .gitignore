@@ -7,6 +7,7 @@
 # prediction image will always be updating
 predictioneval.png
 reward_comparison.png
+reward_pics/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

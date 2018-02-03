@@ -11,14 +11,19 @@ class Model(object):
     Saves references to useful Tensors, such as logits.
     """
 
-    def __init__(self, image, reward, config):
-        X  = tf.stack([image, reward], axis=-1)
-        if config.model == 'VIN':
-            self.logits, self.output_probs = VI_Block(X, config)
-        elif config.model == "SIMPLE":
-            self.logits, self.output_probs = simple_model(X, config)
-        else:
-            raise ValueError('Unknown model: ' + config.model)
+    def __init__(self, logits, output_probs):
+        self.logits = logits
+        self.output_probs = output_probs
+
+
+def create_model(image, reward, config):
+    X  = tf.stack([image, reward], axis=-1)
+    if config.model == 'VIN':
+        return VI_Block(X, config)
+    elif config.model == "SIMPLE":
+        return simple_model(X, config)
+    else:
+        raise ValueError('Unknown model: ' + config.model)
 
 
 def simple_model(X, config):
@@ -87,7 +92,7 @@ def simple_model(X, config):
     # Take average of the output
     X = comb_wts[0]*first + comb_wts[1]*second + comb_wts[2]*third
     X = tf.reshape(X, [-1, ch_q])
-    return X, tf.nn.softmax(X, name='output')
+    return Model(X, tf.nn.softmax(X, name='output'))
 
 def conv_layer(x,filter_shape,name,pad,strides=(1,1,1,1),activation=tf.nn.relu):
     w, b = weight_and_bias(filter_shape,name)
@@ -161,7 +166,7 @@ def VI_Block(X, config):
     
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")
-    return logits, output
+    return Model(logits, output)
 
 def calculate_action_distribution(nn, bsize, ch_q, name=None):
     """Adds TF code to calculate the % distributions of actions predicted
