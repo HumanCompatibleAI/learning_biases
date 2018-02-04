@@ -9,7 +9,7 @@ import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
 from model import create_model, calculate_action_distribution
 from utils import fmt_row, init_flags, plot_reward
-from agent_runner import run_agent_proxy
+from agent_runner import evaluate_proxy
 import sys
 
 class PlannerArchitecture(object):
@@ -268,10 +268,16 @@ def go():
         print('The inferred reward is:')
         print(inferred_rewards[0])
 
+        reward_percents = []
         for label, reward, wall, start_state, i in zip(reward_test2, inferred_rewards, image_test2, start_states_test2, range(len(reward_test2))):
             plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
-            trajectory, proxy_r, true_r = run_agent_proxy(wall, start_state, reward, label)
+            reward_percents.append(evaluate_proxy(wall, start_state, reward, label))
 
+        average_percent_reward = float(sum(reward_percents)) / len(reward_percents)
+        print(reward_percents)
+        print('On average planning with the inferred rewards is '
+              + str(100 * average_percent_reward)
+              + '% as good as planning with the true rewards')
 
 if __name__=='__main__':
     go()
