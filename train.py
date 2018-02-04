@@ -4,7 +4,6 @@ import time
 import numpy as np
 import random
 import tensorflow as tf
-import pdb
 
 import agents
 from gridworld_data import generate_gridworld_irl, load_dataset
@@ -232,13 +231,13 @@ def go():
     architecture = PlannerArchitecture(config)
 
     if config.datafile:
-        imagetrain, rewardtrain, ytrain, \
-        imagetest1, rewardtest1, ytest1, \
-        imagetest2, rewardtest2, ytest2 = load_dataset(config.datafile)
+        image_train, reward_train, start_states_train, y_train, \
+        image_test1, reward_test1, start_states_test1, y_test1, \
+        image_test2, reward_test2, start_states_test2, y_test2 = load_dataset(config.datafile)
     else:
-        imagetrain, rewardtrain, ytrain, \
-        imagetest1, rewardtest1, ytest1, \
-        imagetest2, rewardtest2, ytest2 = generate_gridworld_irl(config)
+        image_train, reward_train, start_states_train, y_train, \
+        image_test1, reward_test1, start_states_test1, y_test1, \
+        image_test2, reward_test2, start_states_test2, y_test2 = generate_gridworld_irl(config)
 
     # Launch the graph
     with tf.Session() as sess:
@@ -249,8 +248,8 @@ def go():
             summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
 
         architecture.register_new_session(sess)
-        train_data = (imagetrain, rewardtrain, ytrain)
-        test1_data = (imagetest1, rewardtest1, ytest1)
+        train_data = (image_train, reward_train, y_train)
+        test1_data = (image_test1, reward_test1, y_test1)
 
         run_interruptibly(
             lambda: architecture.train_planner(
@@ -259,22 +258,19 @@ def go():
 
         run_interruptibly(
             lambda: architecture.train_reward(
-                sess, imagetest2, ytest2, config.reward_epochs),
+                sess, image_test2, y_test2, config.reward_epochs),
             'reward training')
 
-        print('The first set of walls is:')
-        print(imagetest2[0])
         print('The first reward should be:')
-        print(rewardtest2[0])
-        inferred_reward = architecture.reward.eval()[0]
+        print(reward_test2[0])
+        inferred_rewards = architecture.reward.eval()
         # normalized_inferred_reward = inferred_reward / inferred_reward.max()
         print('The inferred reward is:')
-        print(inferred_reward)
+        print(inferred_rewards[0])
 
-        for label, reward, wall, i in zip(rewardtest2, architecture.reward.eval(), imagetest2, range(len(rewardtest2))):
+        for label, reward, wall, start_state, i in zip(reward_test2, inferred_rewards, image_test2, start_states_test2, range(len(reward_test2))):
             plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
-            pdb.set_trace()
-            trajectory, proxy_r, true_r = run_agent_proxy(wall, reward, label)
+            trajectory, proxy_r, true_r = run_agent_proxy(wall, start_state, reward, label)
 
 
 if __name__=='__main__':

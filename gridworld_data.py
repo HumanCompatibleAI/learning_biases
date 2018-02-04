@@ -88,8 +88,8 @@ def generate_example(agent, config, other_agents=[]):
         return sum([sum([(1 if differs((x, y)) else 0) for x in range(imsize)]) for y in range(imsize)])
 
     num_different = np.array([calculate_different(o) for o in other_agents])
-    walls, rewards, _ = mdp.convert_to_numpy_input()
-    return walls, rewards, action_dists, num_different
+    walls, rewards, start_state = mdp.convert_to_numpy_input()
+    return walls, rewards, start_state, action_dists, num_different
 
 def generate_n_examples(n, agent, config, other_agents=[]):
     """Calls generate_example n times to create a dataset of examples of size n.
@@ -100,25 +100,25 @@ def generate_n_examples(n, agent, config, other_agents=[]):
     """
     imsize = config.imsize
     data = [generate_example(agent, config, other_agents) for _ in range(n)]
-    walls, rewards, labels, num_different = map(np.array, zip(*data))
+    walls, rewards, start_states, labels, num_different = map(np.array, zip(*data))
     num_different = np.array(num_different)
     fraction_different = np.sum(num_different, axis=0) * 1.0 / (n * imsize * imsize)
     print('Fraction of states where agents choose different actions:')
     print(fraction_different)
-    return walls, rewards, labels
+    return walls, rewards, start_states, labels
 
 def generate_gridworld_data(agent, config, other_agents=[]):
     """Generates training and test data for Gridworld data."""
     print('Generating %d training examples' % config.num_train)
-    imagetrain, rewardtrain, ytrain = generate_n_examples(config.num_train, agent, config, other_agents)
+    image_train, reward_train, start_states_train, y_train = generate_n_examples(config.num_train, agent, config, other_agents)
     print('Generating %d test examples' % config.num_test)
-    imagetest, rewardtest, ytest = generate_n_examples(config.num_test, agent, config, other_agents)
-    return imagetrain, rewardtrain, ytrain, imagetest, rewardtest, ytest
+    image_test, reward_test, start_states_test, y_test = generate_n_examples(config.num_test, agent, config, other_agents)
+    return image_train, reward_train, start_states_train, y_train, image_test, reward_test, start_states_test, y_test
 
 def generate_gridworld_irl(config):
     """Generates an IRL problem for Gridworlds.
 
-    Returns 9 Numpy arrays, from 3 calls to generate_n_examples, corresponding
+    Returns 12 Numpy arrays, from 3 calls to generate_n_examples, corresponding
     to train data, test data for step 1, and test data for step 2.
     """
     agent = create_agent(

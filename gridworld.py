@@ -233,14 +233,13 @@ class GridworldMdp(GridworldMdpNoR):
         the start state (a tuple in the format x, y).
         """
         walls = np.array(self.walls, dtype=int)
-        start_state = self.start_state
         rewards = np.zeros([self.height, self.width], dtype=float)
         for x, y in self.rewards:
             rewards[y, x] = self.rewards[(x, y)]
-        return walls, rewards, start_state
+        return walls, rewards, self.start_state
 
     @staticmethod
-    def from_numpy_input(walls, reward, start_state=None):
+    def from_numpy_input(walls, reward, start_state):
         """Creates the MDP from the format output by convert_to_numpy_input.
 
         See convert_to_numpy_input for the types of the parameters. If
@@ -255,7 +254,8 @@ class GridworldMdp(GridworldMdpNoR):
         particular, the living reward and noise will be reset to their default
         values.
         """
-        def convert(wall_elem, reward_elem):
+        def get_elem(x, y):
+            wall_elem, reward_elem = walls[y][x], reward[y][x]
             if wall_elem == 1:
                 return 'X'
             elif reward_elem == 0:
@@ -264,10 +264,7 @@ class GridworldMdp(GridworldMdpNoR):
                 return reward_elem
 
         height, width = walls.shape
-        grid = [[convert(walls[y][x], reward[y][x]) for x in range(width)] for y in range(height)]
-        if start_state is None:
-            start_state = GridworldMdp.get_random_state(grid, [' '])
-
+        grid = [[get_elem(x, y) for x in range(width)] for y in range(height)]
         x, y = start_state
         grid[y][x] = 'A'
         return GridworldMdp(grid)

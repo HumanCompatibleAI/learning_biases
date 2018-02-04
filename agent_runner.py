@@ -1,7 +1,6 @@
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
 from agents import OptimalAgent, ProxyOptimalAgent
 import numpy as np
-import pdb
 
 def run_agent(agent, env, episode_length=float("inf")):
     """Runs the agent on the environment for one episode.
@@ -29,10 +28,11 @@ def run_agent(agent, env, episode_length=float("inf")):
         trajectory.append(minibatch)
     return trajectory
 
-def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_length=float("inf")):
+def run_agent_proxy(walls, start_state, proxy_reward, true_reward, agent="Proxy",episode_length=float("inf")):
     """Runs agent on a proxy environment for one episode, while collecting true reward from a separate environment
 
-    walls: a 2D python list or numpy array of walls, with a starting spot
+    walls: a 2D python list or numpy array of walls
+    start_state: Starting state for the agent
     proxy_reward: a 2D python list or numpy array of reward values
     true_reward: a 2D python list or numpy array of reward values
     agent: only proxy optimal is implemented
@@ -44,14 +44,9 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
     """
     # This casts our reward values to floats, but I want to see if anything breaks..?
     walls = np.array(walls)
-    proxy_reward = remove_zeros(np.array(proxy_reward))
-    true_reward = remove_zeros(np.array(true_reward))
 
-    # Create proxy grid which overrites proxy reward with walls
-    proxy_grid = create_grid(walls, proxy_reward)
-    true_grid = create_grid(walls, true_reward)
-    proxy_mdp = GridworldMdp(proxy_grid)
-    true_mdp = GridworldMdp(true_grid)
+    proxy_mdp = GridworldMdp.from_numpy_input(walls, proxy_reward, start_state)
+    true_mdp = GridworldMdp.from_numpy_input(walls, true_reward, start_state)
     env = GridworldEnvironment(true_mdp)
     env.reset()
 
@@ -78,47 +73,4 @@ def run_agent_proxy(walls, proxy_reward, true_reward, agent="Proxy",episode_leng
         except Exception:
             pass
     reward_sum = sum([reward for _, _, _, reward in trajectory])
-    return trajectory, proxy_sum, reward_sum   
-
-def create_grid(walls, reward):
-    """Adds wall+reward array together to form Mdp-recognizable grid.
-    
-    Part 1 - 
-    Add 'A' to a location in wall that is not occupied by a reward
-    Part 2 - 
-    Combine wall + reward
-
-    wall: 2D python list or numpy array
-    reward: 2D python list or numpy array
-
-    Returns: 2D python list of walls
-    """
-    # Looks for start
-    start_count = 0
-    for row in walls: # Exclude walls
-        for item in row: # Exclude walls
-            if item == 'A':
-                start_count += 1
-
-    # Adds start to earliest point in grid and breaks out
-    if start_count == 0:
-        addStart(walls, reward)
-    # Create new reward array and overlay walls on top
-    grid = np.copy(reward).astype(str)
-    grid[(walls=='X') | (walls==1)] = 'X'
-    grid[walls=='A'] = 'A'
-
-    return grid
-
-def remove_zeros(reward):
-    """Takes in 2d reward (floats) converts to string"""
-    r = reward.astype(str)
-    r[r == str(0)] = " "
-    return r
-
-def addStart(walls, reward):
-    for wall_row, reward_row in zip(walls[1:-1], reward[1:-1]):
-         for i in range(1,len(wall_row)-1):
-             if reward_row[i] == 0:
-                 wall_row[i] = 'A'
-                 return
+    return trajectory, proxy_sum, reward_sum
