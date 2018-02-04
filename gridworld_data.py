@@ -7,6 +7,7 @@ import os.path as path
 import agents
 from agent_runner import run_agent
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from utils import Distribution
 
 # Currently unused, but may be useful later
 def print_training_example(mdp, trajectory):
@@ -62,6 +63,12 @@ def generate_example(agent, config, other_agents=[]):
         return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
 
     def action(state):
+        # Walls are invalid states and the MDP will refuse to give an action for
+        # them. However, the VIN's architecture requires it to provide an action
+        # distribution for walls too, so hardcode it to always be STAY.
+        x, y = state
+        if mdp.walls[y][x]:
+            return dist_to_numpy(Distribution({Direction.STAY : 1}))
         return dist_to_numpy(agent.get_action_distribution(state))
 
     agent.set_mdp(mdp)
@@ -191,7 +198,7 @@ if __name__ == '__main__':
 
     # default arguments for agent (not all will be used for any given agent)
     parser.add_argument('--agent', default='optimal')
-    parser.add_argument('--gamma',type=float,default=1.0) # discount rate
+    parser.add_argument('--gamma',type=float,default=0.9) # discount rate
     # noisiness of action choosing
     parser.add_argument('--beta',type=float,default=None)
     # num iters for value iteration to run
@@ -200,7 +207,7 @@ if __name__ == '__main__':
     parser.add_argument('--hyperbolic_constant',type=float,default=1.0)
 
     parser.add_argument('--other_agent', type=str, default=None)
-    parser.add_argument('--other_gamma',type=float,default=1.0) # discount rate
+    parser.add_argument('--other_gamma',type=float,default=0.9) # discount rate
     # noisiness of action choosing
     parser.add_argument('--other_beta',type=float,default=None)
     # num iters for value iteration to run

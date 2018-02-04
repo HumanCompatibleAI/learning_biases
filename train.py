@@ -271,7 +271,8 @@ def go():
         reward_percents = []
         for label, reward, wall, start_state, i in zip(reward_test2, inferred_rewards, image_test2, start_states_test2, range(len(reward_test2))):
             plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
-            reward_percents.append(evaluate_proxy(wall, start_state, reward, label))
+            reward_percents.append(
+                evaluate_proxy(wall, start_state, reward, label, episode_length=20))
 
         average_percent_reward = float(sum(reward_percents)) / len(reward_percents)
         print(reward_percents)

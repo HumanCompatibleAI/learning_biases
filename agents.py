@@ -12,12 +12,18 @@ class ValueIterationLikeAgent(Agent):
     iteration on generalized states (called mus), following the formalism in
     "Learning the Preferences of Bounded Agents" from a NIPS 2015 workshop.
 
+    In the default case, a single MDP provides all of the necessary
+    information. However, to support evaluation of reward learning, you can
+    optionally specify a reward_mdp in the set_mdp method, in which case all
+    reward evaluations will be done by the reward_mdp (while everything else
+    such as transition probabilities will still use the original MDP).
+
     The algorithm in this class is simply standard value iteration, but
     subclasses can easily change the behavior while reusing most of the code by
     overriding hooks into the algorithm.
     """
 
-    def __init__(self, gamma=1.0, beta=None, num_iters=50):
+    def __init__(self, gamma=0.9, beta=None, num_iters=50):
         """Initializes the agent, setting any relevant hyperparameters.
 
         gamma: Discount factor.
@@ -30,8 +36,9 @@ class ValueIterationLikeAgent(Agent):
         self.beta = beta
         self.num_iters = num_iters
 
-    def set_mdp(self, mdp):
+    def set_mdp(self, mdp, reward_mdp=None):
         super(ValueIterationLikeAgent, self).set_mdp(mdp)
+        self.reward_mdp = reward_mdp if reward_mdp is not None else mdp
         self.compute_values()
 
     # TODO(rohinmshah): Optimize this for the case where the state is a tuple of
@@ -134,7 +141,7 @@ class ValueIterationLikeAgent(Agent):
         This is the equivalent of self.mdp.get_reward() for generalized states.
         """
         s = self.extract_state_from_mu(mu)
-        return self.mdp.get_reward(s, a)
+        return self.reward_mdp.get_reward(s, a)
 
     def get_transition_mus_and_probs(self, mu, a):
         """Gets information about possible transitions for the action.
@@ -180,7 +187,7 @@ class DelayDependentAgent(ValueIterationLikeAgent):
     value iteration algorithm in some way.
     """
 
-    def __init__(self, max_delay=None, gamma=1.0, beta=None, num_iters=50):
+    def __init__(self, max_delay=None, gamma=0.9, beta=None, num_iters=50):
         """Initializes the agent, setting any relevant hyperparameters.
 
         max_delay: Integer specifying the maximum value of d to consider during
@@ -222,7 +229,7 @@ class TimeDiscountingAgent(DelayDependentAgent):
     """
 
     def __init__(self, max_delay, discount_constant,
-                 gamma=1.0, beta=None, num_iters=50):
+                 gamma=0.9, beta=None, num_iters=50):
         """Initializes the agent, setting any relevant hyperparameters.
 
         discount_constant: Float. The parameter k in R/(1 + kd) (see above).
@@ -259,7 +266,7 @@ class SophisticatedTimeDiscountingAgent(TimeDiscountingAgent):
 class MyopicAgent(DelayDependentAgent):
     """An agent that only looks forward for a fixed horizon."""
 
-    def __init__(self, horizon, gamma=1.0, beta=None, num_iters=50):
+    def __init__(self, horizon, gamma=0.9, beta=None, num_iters=50):
         """Initializes the agent, setting any relevant hyperparameters.
 
         horizon: Integer, the number of steps forward that the agent looks while
@@ -277,25 +284,3 @@ class MyopicAgent(DelayDependentAgent):
         if d >= self.horizon:
             return 0
         return super(MyopicAgent, self).get_reward(mu, a)
-
-class ProxyOptimalAgent(OptimalAgent):
-    """An agent that has draws mu's from 1 mdp and actions from another.
-    
-    NOTE: true mdp has to be set before proxy mdp, or compute_values will fail
-    """
-
-    def __init__(self, gamma=1.0, beta=None, num_iters=50):
-        super(ProxyOptimalAgent, self).__init__(gamma)
-        self.beta = beta
-        self.num_iters = num_iters
-
-    def set_mdp(self, true_mdp, proxy_mdp):
-        """Overrides set_mdp to make sure that it is provided with two MDPs."""
-        self.mdp = true_mdp
-        self.proxy_mdp = proxy_mdp
-        self.compute_values()
-
-    def get_reward(self, mu, a):
-        """Returns reward"""
-        s = self.extract_state_from_mu(mu)
-        return self.proxy_mdp.get_reward(s, a)

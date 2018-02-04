@@ -93,14 +93,14 @@ def init_flags():
         'reward_epochs', 50, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
-    tf.app.flags.DEFINE_integer('ch_q', 6, 'Channels in q layer')
-    tf.app.flags.DEFINE_integer('num_actions', 6, 'Number of actions')
+    tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
+    tf.app.flags.DEFINE_integer('num_actions', 5, 'Number of actions')
     tf.app.flags.DEFINE_integer('batchsize', 12, 'Batch size')
 
     # Agent
     tf.app.flags.DEFINE_string(
         'agent', 'optimal', 'Agent to generate training data with')
-    tf.app.flags.DEFINE_float('gamma', 1.0, 'Discount factor')
+    tf.app.flags.DEFINE_float('gamma', 0.9, 'Discount factor')
     tf.app.flags.DEFINE_float('beta', None, 'Noise when selecting actions')
     tf.app.flags.DEFINE_integer(
         'num_iters', 50,
@@ -120,7 +120,7 @@ def init_flags():
         'In particular, when generating training data, we print the number of '
         'training examples on which agent and other_agent would choose different '
         'action distributions.')
-    tf.app.flags.DEFINE_float('other_gamma', 1.0, 'Gamma for other agent')
+    tf.app.flags.DEFINE_float('other_gamma', 0.9, 'Gamma for other agent')
     tf.app.flags.DEFINE_float('other_beta', None, 'Beta for other agent')
     tf.app.flags.DEFINE_integer('other_num_iters', 50, 'Num iters for other agent')
     tf.app.flags.DEFINE_integer('other_max_delay', 5, 'Max delay for other agent')

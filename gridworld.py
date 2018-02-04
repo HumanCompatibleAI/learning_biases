@@ -12,10 +12,10 @@ class GridworldMdpNoR(object):
     transition probabilities, start state, etc. The reward is by default *not
     present*, though subclasses may add in funcitonality for the reward.
 
-    Once an agent arrives at a state with a reward, the agent must take the EXIT
-    action which will give it the reward. In any other state, the agent can take
-    any of the four cardinal directions as an action, getting a living reward
-    (typically negative in order to incentivize shorter paths).
+    The agent can take any of the four cardinal directions as an action, or the
+    STAY action, getting a living reward (typically negative in order to
+    incentivize shorter paths). The agent also gets the reward for the state it
+    *started* in (not the one it ended up in).
     """
     def __init__(self, walls, start_state, noise=0):
         self.height = len(walls)
@@ -23,7 +23,6 @@ class GridworldMdpNoR(object):
         self.walls = walls
         self.start_state = start_state
         self.noise = noise
-        self.terminal_state = 'Terminal State'
 
     def get_start_state(self):
         """Returns the start state."""
@@ -36,36 +35,27 @@ class GridworldMdpNoR(object):
         """
         coords = [(x, y) for x in range(self.width) for y in range(self.height)]
         all_states = [(x, y) for x, y in coords if not self.walls[y][x]]
-        all_states.append(self.terminal_state)
         return all_states
 
     def get_actions(self, state):
         """Returns the list of valid actions for 'state'.
 
-        Note that you can request moves into walls. The order in which actions
-        are returned is guaranteed to be deterministic, in order to allow agents
-        to implement deterministic behavior. Since we don't know which states
-        are reward states, both EXIT and normal directions are allowed from all
-        non-wall states.
+        Note that you can request moves into walls, which are
+        equivalent to STAY. The order in which actions are returned is
+        guaranteed to be deterministic, in order to allow agents to
+        implement deterministic behavior.
         """
-        if self.is_terminal(state):
-            return []
         x, y = state
         if self.walls[y][x]:
-            return [Direction.SELF_LOOP]
-        return [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.EXIT]
+            raise ValueError('Cannot be inside a wall!')
+        return [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.STAY]
 
     def get_reward(self, state, action):
         """Get reward for state, action transition."""
         raise NotImplemented("Cannot call get_reward for GridworldMdpNoR")
 
     def is_terminal(self, state):
-        """Returns True if the current state is terminal, False otherwise.
-
-        A state is terminal if there are no actions available from it (which
-        means that the episode is over).
-        """
-        return state == self.terminal_state
+        return False
 
     def get_transition_states_and_probs(self, state, action):
         """Gets information about possible transitions for the action.
@@ -77,10 +67,7 @@ class GridworldMdpNoR(object):
         if action not in self.get_actions(state):
             raise ValueError("Illegal action %s in state %s" % (action, state))
 
-        if action == Direction.EXIT:
-            return [(self.terminal_state, 1.0)]
-
-        if action == Direction.SELF_LOOP:
+        if action == Direction.STAY:
             return [(state, 1.0)]
 
         next_state = self.attempt_to_move_in_direction(state, action)
@@ -112,10 +99,10 @@ class GridworldMdp(GridworldMdpNoR):
     playing in the given grid world, including the state space, action space,
     transition probabilities, rewards, start state, etc.
 
-    Once an agent arrives at a state with a reward, the agent must take the EXIT
-    action which will give it the reward. In any other state, the agent can take
-    any of the four cardinal directions as an action, getting a living reward
-    (typically negative in order to incentivize shorter paths).
+    The agent can take any of the four cardinal directions as an action, getting
+    a living reward (typically negative in order to incentivize shorter
+    paths). It can also take the STAY action, in which case it does not receive
+    the living reward.
     """
 
     def __init__(self, grid, living_reward=-0.01, noise=0):
@@ -124,8 +111,8 @@ class GridworldMdp(GridworldMdpNoR):
         grid: A sequence of sequences of spaces, representing a grid of a
         certain height and width. See assert_valid_grid for details on the grid
         format.
-        living_reward: The reward obtained when taking any action besides EXIT.
-        noise: Probability that when the agent takes a non-EXIT action (that is,
+        living_reward: The reward obtained when taking any action besides STAY.
+        noise: Probability that when the agent takes a non-STAY action (that is,
         a cardinal direction), it instead moves in one of the two adjacent
         cardinal directions.
 
@@ -207,9 +194,12 @@ class GridworldMdp(GridworldMdpNoR):
 
     def get_reward(self, state, action):
         """Get reward for state, action transition."""
-        if state in self.rewards and action == Direction.EXIT:
-            return self.rewards[state]
-        return self.living_reward
+        result = 0
+        if state in self.rewards:
+            result += self.rewards[state]
+        if action != Direction.STAY:
+            result += self.living_reward
+        return result
 
     def get_random_start_state(self):
         """Returns a state that would be a legal start state for an agent.
@@ -365,23 +355,6 @@ class GridworldMdp(GridworldMdpNoR):
 
         return GridworldMdp(grid)
 
-    def get_actions(self, state):
-        """Returns the list of valid actions for 'state'.
-
-        Note that you can request moves into walls. The order in which actions
-        are returned is guaranteed to be deterministic, in order to allow agents
-        to implement deterministic behavior.
-        """
-        if self.is_terminal(state):
-            return []
-        x, y = state
-        if self.walls[y][x]:
-            return [Direction.SELF_LOOP]
-        if state in self.rewards:
-            return [Direction.EXIT]
-        act = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
-        return act
-
     def __str__(self):
         """Returns a string representation of this grid world.
 
@@ -472,11 +445,8 @@ class Direction(object):
     SOUTH = (0, 1)
     EAST  = (1, 0)
     WEST  = (-1, 0)
-    # This is hacky, but we do want to ensure that EXIT is distinct from the
-    # other actions, and so we define it here instead of in an Action class.
-    EXIT = 4
-    SELF_LOOP = 5
-    INDEX_TO_DIRECTION = [NORTH, SOUTH, EAST, WEST, EXIT, SELF_LOOP]
+    STAY = (0, 0)
+    INDEX_TO_DIRECTION = [NORTH, SOUTH, EAST, WEST, STAY]
     DIRECTION_TO_INDEX = { a:i for i, a in enumerate(INDEX_TO_DIRECTION) }
     ALL_DIRECTIONS = INDEX_TO_DIRECTION
 
@@ -485,7 +455,7 @@ class Direction(object):
         """Takes a step in the given direction and returns the new point.
 
         point: Tuple (x, y) representing a point in the x-y plane.
-        direction: One of the Directions, except not Direction.EXIT or
+        direction: One of the Directions, except not Direction.STAY or
                    Direction.SELF_LOOP.
         """
         x, y = point
@@ -496,8 +466,7 @@ class Direction(object):
     def get_adjacent_directions(direction):
         """Returns the directions within 90 degrees of the given direction.
 
-        direction: One of the Directions, except not Direction.EXIT or
-                   Direction.SELF_LOOP.
+        direction: One of the Directions, except not Direction.STAY.
         """
         if direction in [Direction.NORTH, Direction.SOUTH]:
             return [Direction.EAST, Direction.WEST]

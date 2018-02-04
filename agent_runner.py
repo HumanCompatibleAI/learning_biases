@@ -1,5 +1,5 @@
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
-from agents import OptimalAgent, ProxyOptimalAgent
+from agents import OptimalAgent
 import numpy as np
 
 def run_agent(agent, env, episode_length=float("inf")):
@@ -28,10 +28,14 @@ def run_agent(agent, env, episode_length=float("inf")):
         trajectory.append(minibatch)
     return trajectory
 
-def get_reward_from_trajectory(trajectory):
-    return sum([reward for _, _, _, reward in trajectory])
+def get_reward_from_trajectory(trajectory, gamma=0.9):
+    rewards = [reward for _, _, _, reward in trajectory]
+    total_reward = 0.0
+    for reward in rewards[::-1]:
+        total_reward = reward + gamma * total_reward
+    return total_reward
 
-def evaluate_proxy(walls, start_state, proxy_reward, true_reward, episode_length=float("inf")):
+def evaluate_proxy(walls, start_state, proxy_reward, true_reward, gamma=0.9, episode_length=float("inf")):
     """Runs agent on a proxy environment for one episode, while collecting true reward from a separate environment
 
     walls: Numpy array of walls, where each entry is 1 or 0
@@ -48,13 +52,13 @@ def evaluate_proxy(walls, start_state, proxy_reward, true_reward, episode_length
     true_mdp = GridworldMdp.from_numpy_input(walls, true_reward, start_state)
     env = GridworldEnvironment(true_mdp)
 
-    proxy_agent = ProxyOptimalAgent()
+    proxy_agent = OptimalAgent()
     proxy_agent.set_mdp(true_mdp, proxy_mdp)
     proxy_trajectory = run_agent(proxy_agent, env, episode_length)
-    reward_from_proxy_agent = get_reward_from_trajectory(proxy_trajectory)
+    reward_from_proxy_agent = get_reward_from_trajectory(proxy_trajectory, gamma)
 
     true_agent = OptimalAgent()
     true_agent.set_mdp(true_mdp)
     true_trajectory = run_agent(true_agent, env, episode_length)
-    reward_from_true_agent = get_reward_from_trajectory(true_trajectory)
+    reward_from_true_agent = get_reward_from_trajectory(true_trajectory, gamma)
     return float(reward_from_proxy_agent) / reward_from_true_agent
