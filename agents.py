@@ -171,7 +171,9 @@ class ValueIterationLikeAgent(Agent):
 
 class OptimalAgent(ValueIterationLikeAgent):
     """An agent that implements regular value iteration."""
-    pass
+    def __str__(self):
+        pattern = 'Optimal-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
+        return pattern.format(self)
 
 class DelayDependentAgent(ValueIterationLikeAgent):
     """An agent that plans differently as it looks further in the future.
@@ -250,7 +252,9 @@ class NaiveTimeDiscountingAgent(TimeDiscountingAgent):
     See the paper "Learning the Preferences of Ignorant, Inconsistent Agents"
     for more details.
     """
-    pass
+    def __str__(self):
+        pattern = 'Naive-maxdelay-{0.max_delay}-discountconst-{0.discount_constant}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
+        return pattern.format(self)
 
 class SophisticatedTimeDiscountingAgent(TimeDiscountingAgent):
     """The sophisticated time discounting agent.
@@ -262,6 +266,10 @@ class SophisticatedTimeDiscountingAgent(TimeDiscountingAgent):
         """Override to implement sophisticated time-inconsistent behavior."""
         s, d = mu
         return (s, 0)
+
+    def __str__(self):
+        pattern = 'Sophisticated-maxdelay-{0.max_delay}-discountconst-{0.discount_constant}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
+        return pattern.format(self)
 
 class MyopicAgent(DelayDependentAgent):
     """An agent that only looks forward for a fixed horizon."""
@@ -284,3 +292,7 @@ class MyopicAgent(DelayDependentAgent):
         if d >= self.horizon:
             return 0
         return super(MyopicAgent, self).get_reward(mu, a)
+
+    def __str__(self):
+        pattern = 'Myopic-horizon-{0.horizon}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
+        return pattern.format(self)

@@ -212,6 +212,7 @@ class PlannerArchitecture(object):
             if print_output:
                 print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
+
 def run_interruptibly(fn, step_name='this step'):
     """Runs fn in a mode where KeyboardInterrupts will interrupt fn but will
     then continue with the rest of the program execution.
@@ -225,8 +226,8 @@ def go():
     # get flags || Data
     config = init_flags()
     # seed random generators
-    np.random.seed(config.seed)
-    random.seed(config.seed)
+    np.random.seed(config.seeds[0])
+    random.seed(config.seeds[0])
     # use flags to create model and retrieve relevant operations
     architecture = PlannerArchitecture(config)
 

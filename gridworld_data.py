@@ -36,11 +36,12 @@ def generate_example(agent, config, other_agents=[]):
       examples, we report the number of examples (states) on which `agent` and
       the other agent would choose different actions.
 
-    Returns: A tuple of four items:
+    Returns: A tuple of five items:
       image: Numpy array of size imsize x imsize, each element is 1 if there is
              a wall at that location, 0 otherwise.
       rewards: Numpy array of size imsize x imsize, each element is the reward
                obtained at that state. (Most will be zero.)
+      start_state: The starting state for the gridworld (a tuple (x, y)).
       action_dists: Numpy array of size imsize x imsize x num_actions. The
                     probability distributions over actions for each state.
       num_different: Numpy array of size `len(other_agents)`. `num_different[i]`
@@ -98,28 +99,54 @@ def generate_example(agent, config, other_agents=[]):
     walls, rewards, start_state = mdp.convert_to_numpy_input()
     return walls, rewards, start_state, action_dists, num_different
 
-def generate_n_examples(n, agent, config, other_agents=[]):
+def get_filename(n, agent, config, seed):
+    pattern = 'gridworlds-v1-seed-{0}-num-{1}-agent-{2}-imsize-{3.imsize}-wallprob-{3.wall_prob}-rewardprob-{3.reward_prob}-simplemdp-{3.simple_mdp}.npz'
+    return pattern.format(seed, n, agent, config)
+
+def save_dataset(filename, dataset):
+    np.savez(filename, *dataset)
+
+def load_dataset(filename):
+    """ Load dataset unpacks the numpy array with all the gridworld files"""
+    data = np.load(filename)
+    return tuple([data['arr_{}'.format(i)] for i in range(4)])
+
+def generate_n_examples(n, agent, config, seed=0, other_agents=[], path='datasets/'):
     """Calls generate_example n times to create a dataset of examples of size n.
 
-    Returns the same three Numpy arrays as generate_example, except that they
+    Returns the same four Numpy arrays as generate_example, except that they
     now have shape (n, *previous_shape). (The last Numpy array from
     generate_example is analyzed and printed out, and so is not returned.)
     """
-    imsize = config.imsize
+    filename = path + get_filename(n, agent, config, seed)
+    try:
+        dataset = load_dataset(filename)
+        print('Reusing existing dataset')
+        return dataset
+    except FileNotFoundError:
+        print('Could not find ' + filename)
+        pass
+
+    np.random.seed(seed)
+    random.seed(seed)
+    print('Generating {} examples'.format(n))
     data = [generate_example(agent, config, other_agents) for _ in range(n)]
     walls, rewards, start_states, labels, num_different = map(np.array, zip(*data))
-    num_different = np.array(num_different)
-    fraction_different = np.sum(num_different, axis=0) * 1.0 / (n * imsize * imsize)
-    print('Fraction of states where agents choose different actions:')
-    print(fraction_different)
-    return walls, rewards, start_states, labels
+    if other_agents:
+        num_different = np.array(num_different)
+        num_states = (n * config.imsize * config.imsize)
+        fraction_different = float(np.sum(num_different, axis=0)) / num_states
+        print('Fraction of states where agents choose different actions: '
+              + str(fraction_different))
 
-def generate_gridworld_data(agent, config, other_agents=[]):
+    dataset = walls, rewards, start_states, labels
+    save_dataset(filename, dataset)
+    return dataset
+
+def generate_gridworld_data(agent, config, seeds, other_agents=[]):
     """Generates training and test data for Gridworld data."""
-    print('Generating %d training examples' % config.num_train)
-    image_train, reward_train, start_states_train, y_train = generate_n_examples(config.num_train, agent, config, other_agents)
-    print('Generating %d test examples' % config.num_test)
-    image_test, reward_test, start_states_test, y_test = generate_n_examples(config.num_test, agent, config, other_agents)
+    image_train, reward_train, start_states_train, y_train = generate_n_examples(config.num_train, agent, config, seeds.pop(0), other_agents)
+    image_test, reward_test, start_states_test, y_test = generate_n_examples(config.num_test, agent, config, seeds.pop(0), other_agents)
     return image_train, reward_train, start_states_train, y_train, image_test, reward_test, start_states_test, y_test
 
 def generate_gridworld_irl(config):
@@ -140,10 +167,8 @@ def generate_gridworld_irl(config):
             config.other_hyperbolic_constant)
         other_agents.append(other_agent)
 
-    step1_data = generate_gridworld_data(agent, config, other_agents)
-    num_mdps = config.num_mdps
-    print('Generating %d unknown reward examples' % num_mdps)
-    step2_data = generate_n_examples(num_mdps, agent, config, other_agents)
+    step1_data = generate_gridworld_data(agent, config, config.seeds, other_agents)
+    step2_data = generate_n_examples(config.num_mdps, agent, config, config.seeds.pop(0), other_agents)
     return step1_data + step2_data
 
 def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
@@ -174,14 +199,6 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             beta=beta,
             num_iters=num_iters)
     raise ValueError('Invalid agent: ' + agent)
-
-def save_dataset(config, filename):
-    np.savez(filename, *generate_gridworld_irl(config))
-
-def load_dataset(filename):
-    """ Load dataset unpacks the numpy array with all the gridworld files"""
-    data = np.load(filename)
-    return [data['arr_{}'.format(i)] for i in range(9)]
 
 if __name__ == '__main__':
     # creates a dataset for given configuration and saves it to fname
