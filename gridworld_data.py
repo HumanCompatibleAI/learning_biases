@@ -143,18 +143,26 @@ def generate_n_examples(n, agent, config, seed=0, other_agents=[], path='dataset
     save_dataset(filename, dataset)
     return dataset
 
-def generate_gridworld_data(agent, config, seeds, other_agents=[]):
-    """Generates training and test data for Gridworld data."""
-    image_train, reward_train, start_states_train, y_train = generate_n_examples(config.num_train, agent, config, seeds.pop(0), other_agents)
-    image_test, reward_test, start_states_test, y_test = generate_n_examples(config.num_test, agent, config, seeds.pop(0), other_agents)
-    return image_train, reward_train, start_states_train, y_train, image_test, reward_test, start_states_test, y_test
+def generate_data_for_planner(agent, config, other_agents=[]):
+    """Generates training and test data for Gridworld data.
 
-def generate_gridworld_irl(config):
+    Returns a tuple of two elements, each of which is the return value of a call
+    to generate_n_examples)."""
+    train_data = generate_n_examples(
+        config.num_train, agent, config, config.seeds.pop(0), other_agents)
+    test_data = generate_n_examples(
+        config.num_test, agent, config, config.seeds.pop(0), other_agents)
+    return train_data, test_data
+
+def generate_data_for_reward(agent, config, other_agents=[]):
     """Generates an IRL problem for Gridworlds.
 
     Returns 12 Numpy arrays, from 3 calls to generate_n_examples, corresponding
     to train data, test data for step 1, and test data for step 2.
     """
+    return generate_n_examples(config.num_mdps, agent, config, config.seeds.pop(0), other_agents)
+
+def create_agents_from_config(config):
     agent = create_agent(
         config.agent, config.gamma, config.beta,
         config.num_iters, config.max_delay,
@@ -167,9 +175,7 @@ def generate_gridworld_irl(config):
             config.other_hyperbolic_constant)
         other_agents.append(other_agent)
 
-    step1_data = generate_gridworld_data(agent, config, config.seeds, other_agents)
-    step2_data = generate_n_examples(config.num_mdps, agent, config, config.seeds.pop(0), other_agents)
-    return step1_data + step2_data
+    return agent, other_agents
 
 def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
     """Creates the agent specified in config."""

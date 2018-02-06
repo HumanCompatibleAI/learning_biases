@@ -54,9 +54,13 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     fig.savefig(filename)
 
 def init_flags():
+    # Algorithm
+    tf.app.flags.DEFINE_string(
+        'algorithm', 'given_rewards', 'Which algorithm to run')
+    tf.app.flags.DEFINE_integer(
+        'em_iterations', 2, 'Number of iterations for the EM-like algorithm')
+
     # Data flags
-    #   Load data
-    tf.app.flags.DEFINE_string('datafile', None, 'Where to get data from, only used it not None')
     #   Generate data
     tf.app.flags.DEFINE_boolean(
         'simple_mdp', False, 'Whether to use the simple random MDP generator')
@@ -72,9 +76,11 @@ def init_flags():
         'action_distance_threshold', 0.5,
         'Minimum distance between two action distributions to be "different"')
     tf.app.flags.DEFINE_integer(
-        'num_train', 500, 'Number of examples for training the planning module')
+        'num_train', 5000, 'Number of examples for training the planning module')
     tf.app.flags.DEFINE_integer(
-        'num_test', 200, 'Number of examples for testing the planning module')
+        'num_test', 2000, 'Number of examples for testing the planning module')
+    tf.app.flags.DEFINE_integer(
+        'num_mdps', 1000, 'Number of MDPs to infer the reward of')
 
     # Hyperparameters
     tf.app.flags.DEFINE_string(
@@ -95,7 +101,7 @@ def init_flags():
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
     tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
     tf.app.flags.DEFINE_integer('num_actions', 5, 'Number of actions')
-    tf.app.flags.DEFINE_integer('batchsize', 12, 'Batch size')
+    tf.app.flags.DEFINE_integer('batchsize', 20, 'Batch size')
 
     # Agent
     tf.app.flags.DEFINE_string(
@@ -137,10 +143,12 @@ def init_flags():
         'logdir', '/tmp/planner-vin/', 'Directory to store tensorboard summary')
 
     config = tf.app.flags.FLAGS
-    # It is required that the number of unknown reward functions be equal to the
-    # batch size. If we tried to train multiple batches, then they would all be
-    # modifying the same reward function, which would be bad.
-    config.num_mdps = config.batchsize
+    # It is required that the number of unknown reward functions be divisible by
+    # the batch size, due to Tensorflow constraints.
+    if config.num_mdps % config.batchsize != 0:
+        config.num_mdps = config.num_mdps - (config.num_mdps % config.batchsize)
+        print('Reduced number of MDPs to {} to be divisible by the batch size'.format(config.num_mdps))
+
     config.seeds = list(map(int, config.seeds.split(',')))
     return config
 

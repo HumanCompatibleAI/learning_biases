@@ -6,7 +6,7 @@ import random
 import tensorflow as tf
 
 import agents
-from gridworld_data import generate_gridworld_irl, load_dataset
+from gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
 from model import create_model, calculate_action_distribution
 from utils import fmt_row, init_flags, plot_reward
 from agent_runner import evaluate_proxy
@@ -36,10 +36,14 @@ class PlannerArchitecture(object):
 
         self.image = tf.placeholder(
             tf.float32, name="image", shape=[batch_size, imsize, imsize])
-        self.reward = tf.Variable(
-            tf.zeros([batch_size, imsize, imsize]), name='reward', trainable=False)
+        self.reward_input = tf.placeholder(
+            tf.float32, name="reward_input", shape=[batch_size, imsize, imsize])
         self.y  = tf.placeholder(
             tf.float32, name="y",  shape=[batch_size, imsize, imsize, num_actions])
+
+        self.reward = tf.Variable(
+            tf.zeros([batch_size, imsize, imsize]), name='reward', trainable=False)
+        self.assign_reward = self.reward.assign(self.reward_input)
 
         print('Creating model: ' + config.model)
         self.model = create_model(self.image, self.reward, config)
@@ -149,6 +153,8 @@ class PlannerArchitecture(object):
     def train_planner(self, sess, train_data, validation_data, num_epochs, print_output=True):
         """Trains the planner module given MDPs with reward functions and the
         corresponding policies.
+
+        Validation can be turned off by explicitly passing None.
         """
         if print_output:
             print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
@@ -162,7 +168,10 @@ class PlannerArchitecture(object):
 
             # Display logs per epoch step
             if print_output and epoch % self.config.display_step == 0:
-                _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
+                if validation_data is not None:
+                    _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
+                else:
+                    validation_err = 'N/A'
                 print(fmt_row(10, [epoch, avg_cost, avg_err, validation_err, elapsed]))
             if self.config.log:
                 summary = tf.Summary()
@@ -179,38 +188,61 @@ class PlannerArchitecture(object):
             print(fmt_row(10, ["Predicted"] + action_dists[0].tolist()))
             print(fmt_row(10, ["Actual"]+ action_dists[1].tolist()))
 
-        if print_output:
+        if print_output and validation_data is not None:
             _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
-            # Saving SavedModel instance
-            savepath = self.builder.save()
-            print("Model saved to: {}".format(savepath))
             print('Final Accuracy: ' + str(100 * (1 - validation_err)))
 
-    def train_reward(self, sess, image_data, y_data, num_epochs, print_output=True):
+        # Saving SavedModel instance
+        savepath = self.builder.save()
+        print("Model saved to: {}".format(savepath))
+
+    def train_reward(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
         """Infers the reward using backprop, holding the planner fixed.
 
         Due to Tensorflow constraints, image_data must contain exactly
         batch_size number of MDPs on which the reward should be inferred.
+
+        The rewards are initialized to the values in reward_data. If reward_data
+        is None, the rewards are initialized to all zeroes.
         """
-        # TODO(rohinmshah): We can get this to work with arbitrary numbers of
-        # MDPs by inferring the reward functions and saving the resulting
-        # Tensors outside of a Tensorflow Variable, and then putting them back
-        # in to Tensorflow whenever necessary (when calling sess.run).
         if print_output:
             print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
+        if reward_data is None:
+            reward_data = np.zeros(image_data.shape)
 
-        for epoch in range(num_epochs):
-            tstart = time.time()
+        batch_size = self.config.batchsize
+        num_batches = int(image_data.shape[0] / batch_size)
+        for batch_num in range(num_batches):
+            if print_output and batch_num % 10 == 0:
+                print('Batch {} of {}'.format(batch_num, num_batches))
+            start, end = batch_num * batch_size, (batch_num + 1) * batch_size
+            # We can't feed in reward_data directly to self.reward, because then
+            # it will treat it as a constant and will not be able to update it
+            # with backprop. Instead, we first run an op that assigns the
+            # reward, and only then do the backprop.
             fd = {
-                "image:0": image_data,
-                "y:0": y_data,
+                "reward_input:0": reward_data[start:end],
             }
-            _, predicted_reward, e_, c_ = sess.run(
-                [self.reward_optimize_op, self.reward, self.err, self.step2_cost],
-                feed_dict=fd)
-            elapsed = time.time() - tstart
-            if print_output:
-                print(fmt_row(10, [epoch, c_, e_, elapsed]))
+            sess.run([self.assign_reward.op], feed_dict=fd)
+
+            for epoch in range(num_epochs):
+                tstart = time.time()
+                fd = {
+                    "image:0": image_data[start:end],
+                    "y:0": y_data[start:end]
+                }
+                # print('running session')
+                _, e_, c_ = sess.run(
+                    [self.reward_optimize_op, self.err, self.step2_cost],
+                    feed_dict=fd)
+                # print('success!')
+                elapsed = time.time() - tstart
+                if print_output and batch_num % 10 == 0:
+                    print(fmt_row(10, [epoch, c_, e_, elapsed]))
+
+            reward_data[start:end] = self.reward.eval()
+
+        return reward_data
 
 
 def run_interruptibly(fn, step_name='this step'):
@@ -222,23 +254,22 @@ def run_interruptibly(fn, step_name='this step'):
     except KeyboardInterrupt:
         print('Skipping the rest of ' + step_name)
 
-def go():
-    # get flags || Data
-    config = init_flags()
-    # seed random generators
-    np.random.seed(config.seeds[0])
-    random.seed(config.seeds[0])
+def run_inference(planner_train_data, planner_validation_data, reward_data,
+                  algorithm_fn, config):
+    # seed random number generators
+    seed = config.seeds.pop(0)
+    np.random.seed(seed)
+    random.seed(seed)
     # use flags to create model and retrieve relevant operations
     architecture = PlannerArchitecture(config)
 
-    if config.datafile:
-        image_train, reward_train, start_states_train, y_train, \
-        image_test1, reward_test1, start_states_test1, y_test1, \
-        image_test2, reward_test2, start_states_test2, y_test2 = load_dataset(config.datafile)
-    else:
-        image_train, reward_train, start_states_train, y_train, \
-        image_test1, reward_test1, start_states_test1, y_test1, \
-        image_test2, reward_test2, start_states_test2, y_test2 = generate_gridworld_irl(config)
+    image_train, reward_train, _, y_train = planner_train_data
+    image_validation, reward_validation, _, y_validation = planner_validation_data
+    train_data = (image_train, reward_train, y_train)
+    validation_data = (image_validation, reward_validation, y_validation)
+
+    image_irl, reward_irl, start_states_irl, y_irl = reward_data
+    reward_data = (image_irl, y_irl)
 
     # Launch the graph
     with tf.Session() as sess:
@@ -249,37 +280,100 @@ def go():
             summary_writer = tf.summary.FileWriter(config.logdir, sess.graph)
 
         architecture.register_new_session(sess)
-        train_data = (image_train, reward_train, y_train)
-        test1_data = (image_test1, reward_test1, y_test1)
 
-        run_interruptibly(
-            lambda: architecture.train_planner(
-                sess, train_data, test1_data, config.epochs),
-            'planner training')
-
-        run_interruptibly(
-            lambda: architecture.train_reward(
-                sess, image_test2, y_test2, config.reward_epochs),
-            'reward training')
+        inferred_rewards = algorithm_fn(
+            architecture, sess, train_data, validation_data, reward_data, config)
 
         print('The first reward should be:')
-        print(reward_test2[0])
-        inferred_rewards = architecture.reward.eval()
+        print(reward_irl[0])
         # normalized_inferred_reward = inferred_reward / inferred_reward.max()
         print('The inferred reward is:')
         print(inferred_rewards[0])
 
         reward_percents = []
-        for label, reward, wall, start_state, i in zip(reward_test2, inferred_rewards, image_test2, start_states_test2, range(len(reward_test2))):
-            plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
+        for label, reward, wall, start_state, i in zip(reward_irl, inferred_rewards, image_irl, start_states_irl, range(len(reward_irl))):
+            if i < 10:
+                plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
             reward_percents.append(
                 evaluate_proxy(wall, start_state, reward, label, episode_length=20))
 
         average_percent_reward = float(sum(reward_percents)) / len(reward_percents)
-        print(reward_percents)
+        print(reward_percents[:10])
         print('On average planning with the inferred rewards is '
               + str(100 * average_percent_reward)
               + '% as good as planning with the true rewards')
 
+def two_phase_algorithm(architecture, sess, train_data, validation_data,
+                        reward_data, config):
+    config.em_iterations = 0
+    return iterative_algorithm(
+        architecture, sess, train_data, validation_data, reward_data, config)
+
+def iterative_algorithm(architecture, sess, train_data, validation_data,
+                        reward_data, config):
+    """Iterative EM-like algorithm.
+
+    The train and validation data are used to initialize the planner, but fine
+    tuning of both the reward and the planner are done with reward_data.
+    """
+    image_irl, y_irl = reward_data
+    run_interruptibly(
+        lambda: architecture.train_planner(
+            sess, train_data, validation_data, config.epochs),
+        'planner training')
+
+    rewards = architecture.train_reward(
+        sess, image_irl, None, y_irl, config.reward_epochs)
+
+    for _ in range(config.em_iterations):
+        run_interruptibly(
+            lambda: architecture.train_planner(
+                sess, train_data, validation_data, config.epochs),
+            'planner training')
+        rewards = architecture.train_reward(
+            sess, image_irl, None, y_irl, config.reward_epochs)
+
+    return rewards
+
+def infer_given_some_rewards(config):
+    print('Assumption: We have some human data where the rewards are known')
+    agent, other_agents = create_agents_from_config(config)
+    train_data, validation_data = generate_data_for_planner(
+        agent, config, other_agents)
+    reward_data = generate_data_for_reward(agent, config, other_agents)
+    run_inference(train_data, validation_data, reward_data,
+                  two_phase_algorithm, config)
+
+def infer_with_boltzmann_planner(config):
+    print('Using a Boltzmann planner to mimic normal IRL')
+    agent, other_agents = create_agents_from_config(config)
+    optimal_agent = agents.OptimalAgent(
+        gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
+    train_data, validation_data = generate_data_for_planner(
+        optimal_agent, config, other_agents)
+    reward_data = generate_data_for_reward(agent, config, other_agents)
+    run_inference(train_data, validation_data, reward_data,
+                  two_phase_algorithm, config)
+
+def infer_with_no_rewards(config):
+    print('No rewards given, using the iterative EM-like algorithm')
+    agent, other_agents = create_agents_from_config(config)
+    optimal_agent = agents.OptimalAgent(
+        gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
+    train_data, validation_data = generate_data_for_planner(
+        optimal_agent, config, other_agents)
+    reward_data = generate_data_for_reward(agent, config, other_agents)
+    run_inference(train_data, validation_data, reward_data,
+                  iterative_algorithm, config)
+
 if __name__=='__main__':
-    go()
+    # get flags || Data
+    config = init_flags()
+    if config.algorithm == 'given_rewards':
+        infer_given_some_rewards(config)
+    elif config.algorithm == 'boltzmann_planner':
+        infer_with_boltzmann_planner(config)
+    elif config.algorithm == 'no_rewards':
+        infer_with_no_rewards(config)
+    else:
+        raise ValueError('Unknown algorithm: ' + str(config.algorithm))

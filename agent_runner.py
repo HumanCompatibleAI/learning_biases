@@ -61,4 +61,8 @@ def evaluate_proxy(walls, start_state, proxy_reward, true_reward, gamma=0.9, epi
     true_agent.set_mdp(true_mdp)
     true_trajectory = run_agent(true_agent, env, episode_length)
     reward_from_true_agent = get_reward_from_trajectory(true_trajectory, gamma)
+    if reward_from_true_agent == 0:
+        # TODO(rohinmshah): Figure out why this can happen, and come up with a
+        # better solution than this hack
+        return (1.0 + reward_from_proxy_agent) / (1.0 + reward_from_true_agent)
     return float(reward_from_proxy_agent) / reward_from_true_agent
