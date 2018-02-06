@@ -115,54 +115,59 @@ class TestGridworld(unittest.TestCase):
         })
 
     def test_actions(self):
-        a = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
+        a = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.STAY]
         all_acts = set(a)
-        self_loop_acts = set([Direction.SELF_LOOP])
-        exit_acts = set([Direction.EXIT])
-        no_acts = set([])
+        self.assertEqual(set(Direction.ALL_DIRECTIONS), all_acts)
 
-        self.assertEqual(set(self.mdp1.get_actions((0, 0))), self_loop_acts)
+        with self.assertRaises(ValueError):
+            self.mdp1.get_actions((0, 0))
+
         self.assertEqual(set(self.mdp1.get_actions((1, 1))), all_acts)
-        self.assertEqual(set(self.mdp1.get_actions((1, 2))), exit_acts)
+        self.assertEqual(set(self.mdp1.get_actions((1, 2))), all_acts)
         self.assertEqual(set(self.mdp2.get_actions((6, 2))), all_acts)
         self.assertEqual(set(self.mdp2.get_actions((3, 1))), all_acts)
-        self.assertEqual(set(self.mdp3.get_actions((2, 2))), exit_acts)
+        self.assertEqual(set(self.mdp3.get_actions((2, 2))), all_acts)
 
     def test_rewards(self):
         grid1_reward_table = {
-            ((3, 3), Direction.EXIT): 1,
-            ((1, 2), Direction.EXIT): 3
+            (3, 3): 1,
+            (1, 2): 3
         }
         grid2_reward_table = {
-            ((1, 1), Direction.EXIT): 9
+            (1, 1): 9
         }
         grid3_reward_table = {
-            ((1, 1), Direction.EXIT): 3.5,
-            ((2, 2), Direction.EXIT): 1,
-            ((3, 1), Direction.EXIT): -10
+            (1, 1): 3.5,
+            (2, 2): 1,
+            (3, 1): -10
         }
         self.check_all_rewards(self.mdp1, grid1_reward_table, 0)
         self.check_all_rewards(self.mdp2, grid2_reward_table, -0.01)
         self.check_all_rewards(self.mdp3, grid3_reward_table, -0.01)
 
-    def check_all_rewards(self, mdp, reward_lookup_table, default):
+    def check_all_rewards(self, mdp, reward_lookup_table, living_reward):
         for state in mdp.get_states():
             for action in mdp.get_actions(state):
-                expected = reward_lookup_table.get((state, action), default)
+                expected = 0
+                if state in reward_lookup_table:
+                    expected += reward_lookup_table[state]
+                if action != Direction.STAY:
+                    expected += living_reward
                 self.assertEqual(mdp.get_reward(state, action), expected)
 
     def test_transitions(self):
         n, s = Direction.NORTH, Direction.SOUTH
         e, w = Direction.EAST, Direction.WEST
-        exit_action, self_loop_action = Direction.EXIT, Direction.SELF_LOOP
+        stay_action = Direction.STAY
 
         # Grid 1: No noise
-        result = self.mdp1.get_transition_states_and_probs((0, 0), self_loop_action)
-        self.assertEqual(set(result), set([((0, 0), 1)]))
+        with self.assertRaises(ValueError):
+            self.mdp1.get_transition_states_and_probs((0, 0), stay_action)
+
         result = self.mdp1.get_transition_states_and_probs((1, 3), n)
         self.assertEqual(set(result), set([((1, 2), 1)]))
-        result = self.mdp1.get_transition_states_and_probs((1, 2), exit_action)
-        self.assertEqual(set(result), set([(self.mdp1.terminal_state, 1)]))
+        result = self.mdp1.get_transition_states_and_probs((1, 2), stay_action)
+        self.assertEqual(set(result), set([((1, 2), 1)]))
         result = self.mdp1.get_transition_states_and_probs((1, 1), n)
         self.assertEqual(set(result), set([((1, 1), 1)]))
 
@@ -191,16 +196,14 @@ class TestGridworld(unittest.TestCase):
         ]))
         result = self.mdp2.get_transition_states_and_probs((3, 1), n)
         self.assertEqual(set(result), set([((3, 1), 1)]))
-        result = self.mdp2.get_transition_states_and_probs((1, 1), exit_action)
-        self.assertEqual(set(result), set([(self.mdp2.terminal_state, 1)]))
+        result = self.mdp2.get_transition_states_and_probs((1, 1), stay_action)
+        self.assertEqual(set(result), set([((1, 1), 1)]))
 
     def test_states_reachable(self):
         def check_grid(grid):
             self.assertEqual(set(grid.get_states()), self.dfs(grid))
 
-        # Some of the states in self.mdp1 are not reachable, since the agent
-        # can't move out of a state with reward in it, so don't check grid1.
-        for grid in [self.mdp2, self.mdp3]:
+        for grid in [self.mdp1, self.mdp2, self.mdp3]:
             check_grid(grid)
 
     def dfs(self, grid):
@@ -237,13 +240,14 @@ class TestGridworld(unittest.TestCase):
         self.assertEqual(reward, -0.01)
         self.assertEqual(env.get_current_state(), next_state)
         self.assertFalse(env.is_done())
-        next_state, reward = env.perform_action(Direction.EXIT)
-        self.assertEqual(next_state, self.mdp3.terminal_state)
+        next_state, reward = env.perform_action(Direction.STAY)
+        self.assertEqual(next_state, (2, 2))
         self.assertEqual(reward, 1)
         self.assertEqual(env.get_current_state(), next_state)
-        self.assertTrue(env.is_done())
+        self.assertFalse(env.is_done())
         env.reset()
         self.assertFalse(env.is_done())
+        self.assertEqual(env.get_current_state(), (3, 3))
 
     def test_numpy_conversion(self):
         def check_mdp(mdp):

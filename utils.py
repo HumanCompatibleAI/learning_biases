@@ -54,9 +54,13 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     fig.savefig(filename)
 
 def init_flags():
+    # Algorithm
+    tf.app.flags.DEFINE_string(
+        'algorithm', 'given_rewards', 'Which algorithm to run')
+    tf.app.flags.DEFINE_integer(
+        'em_iterations', 2, 'Number of iterations for the EM-like algorithm')
+
     # Data flags
-    #   Load data
-    tf.app.flags.DEFINE_string('datafile', None, 'Where to get data from, only used it not None')
     #   Generate data
     tf.app.flags.DEFINE_boolean(
         'simple_mdp', False, 'Whether to use the simple random MDP generator')
@@ -72,9 +76,11 @@ def init_flags():
         'action_distance_threshold', 0.5,
         'Minimum distance between two action distributions to be "different"')
     tf.app.flags.DEFINE_integer(
-        'num_train', 500, 'Number of examples for training the planning module')
+        'num_train', 5000, 'Number of examples for training the planning module')
     tf.app.flags.DEFINE_integer(
-        'num_test', 200, 'Number of examples for testing the planning module')
+        'num_test', 2000, 'Number of examples for testing the planning module')
+    tf.app.flags.DEFINE_integer(
+        'num_mdps', 1000, 'Number of MDPs to infer the reward of')
 
     # Hyperparameters
     tf.app.flags.DEFINE_string(
@@ -93,14 +99,14 @@ def init_flags():
         'reward_epochs', 50, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
-    tf.app.flags.DEFINE_integer('ch_q', 6, 'Channels in q layer')
-    tf.app.flags.DEFINE_integer('num_actions', 6, 'Number of actions')
-    tf.app.flags.DEFINE_integer('batchsize', 12, 'Batch size')
+    tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
+    tf.app.flags.DEFINE_integer('num_actions', 5, 'Number of actions')
+    tf.app.flags.DEFINE_integer('batchsize', 20, 'Batch size')
 
     # Agent
     tf.app.flags.DEFINE_string(
         'agent', 'optimal', 'Agent to generate training data with')
-    tf.app.flags.DEFINE_float('gamma', 1.0, 'Discount factor')
+    tf.app.flags.DEFINE_float('gamma', 0.9, 'Discount factor')
     tf.app.flags.DEFINE_float('beta', None, 'Noise when selecting actions')
     tf.app.flags.DEFINE_integer(
         'num_iters', 50,
@@ -120,7 +126,7 @@ def init_flags():
         'In particular, when generating training data, we print the number of '
         'training examples on which agent and other_agent would choose different '
         'action distributions.')
-    tf.app.flags.DEFINE_float('other_gamma', 1.0, 'Gamma for other agent')
+    tf.app.flags.DEFINE_float('other_gamma', 0.9, 'Gamma for other agent')
     tf.app.flags.DEFINE_float('other_beta', None, 'Beta for other agent')
     tf.app.flags.DEFINE_integer('other_num_iters', 50, 'Num iters for other agent')
     tf.app.flags.DEFINE_integer('other_max_delay', 5, 'Max delay for other agent')
@@ -128,46 +134,22 @@ def init_flags():
         'other_hyperbolic_constant', 1.0, 'Hyperbolic constant for other agent')
 
     # Miscellaneous
-    tf.app.flags.DEFINE_integer('seed', 0, 'Random seed for both numpy and random')
+    tf.app.flags.DEFINE_string(
+        'seeds', '1,2,3,5,8,13,21,34', 'Random seeds for both numpy and random')
     tf.app.flags.DEFINE_integer(
         'display_step', 1, 'Print summary output every n epochs')
     tf.app.flags.DEFINE_boolean('log', False, 'Enables tensorboard summary')
     tf.app.flags.DEFINE_string(
         'logdir', '/tmp/planner-vin/', 'Directory to store tensorboard summary')
 
-
     config = tf.app.flags.FLAGS
+    # It is required that the number of unknown reward functions be divisible by
+    # the batch size, due to Tensorflow constraints.
+    if config.num_mdps % config.batchsize != 0:
+        config.num_mdps = config.num_mdps - (config.num_mdps % config.batchsize)
+        print('Reduced number of MDPs to {} to be divisible by the batch size'.format(config.num_mdps))
 
-    # It is required that the number of unknown reward functions be equal to the
-    # batch size. If we tried to train multiple batches, then they would all be
-    # modifying the same reward function, which would be bad.
-    config.num_mdps = config.batchsize
-
-    if config.datafile:
-        get_flag_data_from_filename(config, config.datafile) # gets everything including seed
-    return config
-
-def get_flag_data_from_filename(config, fname):
-    """ From a filename, get all the hyperparameters and push them into config """
-
-    names = ['num_train', 'num_test', 'seed', 'imsize',
-    'reward_prob', 'batchsize', 'statebatchsize', 'simple_mdp',
-    'action_distance_threshold', 'agent', 'gamma', 'beta', 'max_delay', 'hyperbolic_constant'
-    ]
-
-    values = re.findall(r"-([^-]*)[-\.]", fname)
-    for name, val in zip(names, values):
-        if val == 'None':
-            val = None
-        elif val == 'True':
-            val = True
-        elif val =='False':
-            val = False
-        elif '.' in val:
-            val = float(val)
-        elif re.search('\d', val):
-            val = int(val)
-        setattr(config, name, val)
+    config.seeds = list(map(int, config.seeds.split(',')))
     return config
 
 class Distribution(object):

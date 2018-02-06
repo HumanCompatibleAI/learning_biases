@@ -5,11 +5,32 @@ from keras.models import Model
 import numpy as np
 import tensorflow as tf
 
+class Model(object):
+    """Encapsulates a model that given an MDP predicts an agent's policy.
+
+    Saves references to useful Tensors, such as logits.
+    """
+
+    def __init__(self, logits, output_probs):
+        self.logits = logits
+        self.output_probs = output_probs
+
+
+def create_model(image, reward, config):
+    X  = tf.stack([image, reward], axis=-1)
+    if config.model == 'VIN':
+        return VI_Block(X, config)
+    elif config.model == "SIMPLE":
+        return simple_model(X, config)
+    else:
+        raise ValueError('Unknown model: ' + config.model)
+
+
 def simple_model(X, config):
     """ Creates Conv-Net to run on 2-channel Grid Input (walls, rewards)
     However, to ensure that the entire grid is convolved over, each architecture has to be individually constructed"""
 
-    # HYPERPARAMATERS
+    # HYPERPARAMETERS
     # ---------------------------
     ch_i = 2            # Number of channels in input layer (image, reward)
     ch_q = config.ch_q  # Channels in q layer (~actions) 
@@ -71,7 +92,7 @@ def simple_model(X, config):
     # Take average of the output
     X = comb_wts[0]*first + comb_wts[1]*second + comb_wts[2]*third
     X = tf.reshape(X, [-1, ch_q])
-    return X, tf.nn.softmax(X, name='output')
+    return Model(X, tf.nn.softmax(X, name='output'))
 
 def conv_layer(x,filter_shape,name,pad,strides=(1,1,1,1),activation=tf.nn.relu):
     w, b = weight_and_bias(filter_shape,name)
@@ -145,9 +166,9 @@ def VI_Block(X, config):
     
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")
-    return logits, output
+    return Model(logits, output)
 
-def add_distribution(nn, bsize, ch_q, name=None):
+def calculate_action_distribution(nn, bsize, ch_q, name=None):
     """Adds TF code to calculate the % distributions of actions predicted
     nn: any tensor that represents the q-values for the grid
     returns: tensor of [bsize, ch_q] where each column is % of that action predicted

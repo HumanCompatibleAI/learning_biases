@@ -7,6 +7,7 @@ import os.path as path
 import agents
 from agent_runner import run_agent
 from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from utils import Distribution
 
 # Currently unused, but may be useful later
 def print_training_example(mdp, trajectory):
@@ -35,11 +36,12 @@ def generate_example(agent, config, other_agents=[]):
       examples, we report the number of examples (states) on which `agent` and
       the other agent would choose different actions.
 
-    Returns: A tuple of four items:
+    Returns: A tuple of five items:
       image: Numpy array of size imsize x imsize, each element is 1 if there is
              a wall at that location, 0 otherwise.
       rewards: Numpy array of size imsize x imsize, each element is the reward
                obtained at that state. (Most will be zero.)
+      start_state: The starting state for the gridworld (a tuple (x, y)).
       action_dists: Numpy array of size imsize x imsize x num_actions. The
                     probability distributions over actions for each state.
       num_different: Numpy array of size `len(other_agents)`. `num_different[i]`
@@ -62,6 +64,12 @@ def generate_example(agent, config, other_agents=[]):
         return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
 
     def action(state):
+        # Walls are invalid states and the MDP will refuse to give an action for
+        # them. However, the VIN's architecture requires it to provide an action
+        # distribution for walls too, so hardcode it to always be STAY.
+        x, y = state
+        if mdp.walls[y][x]:
+            return dist_to_numpy(Distribution({Direction.STAY : 1}))
         return dist_to_numpy(agent.get_action_distribution(state))
 
     agent.set_mdp(mdp)
@@ -88,39 +96,73 @@ def generate_example(agent, config, other_agents=[]):
         return sum([sum([(1 if differs((x, y)) else 0) for x in range(imsize)]) for y in range(imsize)])
 
     num_different = np.array([calculate_different(o) for o in other_agents])
-    walls, rewards, _ = mdp.convert_to_numpy_input()
-    return walls, rewards, action_dists, num_different
+    walls, rewards, start_state = mdp.convert_to_numpy_input()
+    return walls, rewards, start_state, action_dists, num_different
 
-def generate_n_examples(n, agent, config, other_agents=[]):
+def get_filename(n, agent, config, seed):
+    pattern = 'gridworlds-v1-seed-{0}-num-{1}-agent-{2}-imsize-{3.imsize}-wallprob-{3.wall_prob}-rewardprob-{3.reward_prob}-simplemdp-{3.simple_mdp}.npz'
+    return pattern.format(seed, n, agent, config)
+
+def save_dataset(filename, dataset):
+    np.savez(filename, *dataset)
+
+def load_dataset(filename):
+    """ Load dataset unpacks the numpy array with all the gridworld files"""
+    data = np.load(filename)
+    return tuple([data['arr_{}'.format(i)] for i in range(4)])
+
+def generate_n_examples(n, agent, config, seed=0, other_agents=[], path='datasets/'):
     """Calls generate_example n times to create a dataset of examples of size n.
 
-    Returns the same three Numpy arrays as generate_example, except that they
+    Returns the same four Numpy arrays as generate_example, except that they
     now have shape (n, *previous_shape). (The last Numpy array from
     generate_example is analyzed and printed out, and so is not returned.)
     """
-    imsize = config.imsize
+    filename = path + get_filename(n, agent, config, seed)
+    try:
+        dataset = load_dataset(filename)
+        print('Reusing existing dataset')
+        return dataset
+    except FileNotFoundError:
+        print('Could not find ' + filename)
+        pass
+
+    np.random.seed(seed)
+    random.seed(seed)
+    print('Generating {} examples'.format(n))
     data = [generate_example(agent, config, other_agents) for _ in range(n)]
-    walls, rewards, labels, num_different = map(np.array, zip(*data))
-    num_different = np.array(num_different)
-    fraction_different = np.sum(num_different, axis=0) * 1.0 / (n * imsize * imsize)
-    print('Fraction of states where agents choose different actions:')
-    print(fraction_different)
-    return walls, rewards, labels
+    walls, rewards, start_states, labels, num_different = map(np.array, zip(*data))
+    if other_agents:
+        num_different = np.array(num_different)
+        num_states = (n * config.imsize * config.imsize)
+        fraction_different = float(np.sum(num_different, axis=0)) / num_states
+        print('Fraction of states where agents choose different actions: '
+              + str(fraction_different))
 
-def generate_gridworld_data(agent, config, other_agents=[]):
-    """Generates training and test data for Gridworld data."""
-    print('Generating %d training examples' % config.num_train)
-    imagetrain, rewardtrain, ytrain = generate_n_examples(config.num_train, agent, config, other_agents)
-    print('Generating %d test examples' % config.num_test)
-    imagetest, rewardtest, ytest = generate_n_examples(config.num_test, agent, config, other_agents)
-    return imagetrain, rewardtrain, ytrain, imagetest, rewardtest, ytest
+    dataset = walls, rewards, start_states, labels
+    save_dataset(filename, dataset)
+    return dataset
 
-def generate_gridworld_irl(config):
+def generate_data_for_planner(agent, config, other_agents=[]):
+    """Generates training and test data for Gridworld data.
+
+    Returns a tuple of two elements, each of which is the return value of a call
+    to generate_n_examples)."""
+    train_data = generate_n_examples(
+        config.num_train, agent, config, config.seeds.pop(0), other_agents)
+    test_data = generate_n_examples(
+        config.num_test, agent, config, config.seeds.pop(0), other_agents)
+    return train_data, test_data
+
+def generate_data_for_reward(agent, config, other_agents=[]):
     """Generates an IRL problem for Gridworlds.
 
-    Returns 9 Numpy arrays, from 3 calls to generate_n_examples, corresponding
+    Returns 12 Numpy arrays, from 3 calls to generate_n_examples, corresponding
     to train data, test data for step 1, and test data for step 2.
     """
+    return generate_n_examples(config.num_mdps, agent, config, config.seeds.pop(0), other_agents)
+
+def create_agents_from_config(config):
     agent = create_agent(
         config.agent, config.gamma, config.beta,
         config.num_iters, config.max_delay,
@@ -133,11 +175,7 @@ def generate_gridworld_irl(config):
             config.other_hyperbolic_constant)
         other_agents.append(other_agent)
 
-    step1_data = generate_gridworld_data(agent, config, other_agents)
-    num_mdps = config.num_mdps
-    print('Generating %d unknown reward examples' % num_mdps)
-    step2_data = generate_n_examples(num_mdps, agent, config, other_agents)
-    return step1_data + step2_data
+    return agent, other_agents
 
 def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
     """Creates the agent specified in config."""
@@ -168,14 +206,6 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             num_iters=num_iters)
     raise ValueError('Invalid agent: ' + agent)
 
-def save_dataset(config, filename):
-    np.savez(filename, *generate_gridworld_irl(config))
-
-def load_dataset(filename):
-    """ Load dataset unpacks the numpy array with all the gridworld files"""
-    data = np.load(filename)
-    return [data['arr_{}'.format(i)] for i in range(9)]
-
 if __name__ == '__main__':
     # creates a dataset for given configuration and saves it to fname
     # default fname is baselinetests2/num_train-XXX-num_test-XXX-imsize-XXX-....npz
@@ -191,7 +221,7 @@ if __name__ == '__main__':
 
     # default arguments for agent (not all will be used for any given agent)
     parser.add_argument('--agent', default='optimal')
-    parser.add_argument('--gamma',type=float,default=1.0) # discount rate
+    parser.add_argument('--gamma',type=float,default=0.9) # discount rate
     # noisiness of action choosing
     parser.add_argument('--beta',type=float,default=None)
     # num iters for value iteration to run
@@ -200,7 +230,7 @@ if __name__ == '__main__':
     parser.add_argument('--hyperbolic_constant',type=float,default=1.0)
 
     parser.add_argument('--other_agent', type=str, default=None)
-    parser.add_argument('--other_gamma',type=float,default=1.0) # discount rate
+    parser.add_argument('--other_gamma',type=float,default=0.9) # discount rate
     # noisiness of action choosing
     parser.add_argument('--other_beta',type=float,default=None)
     # num iters for value iteration to run
