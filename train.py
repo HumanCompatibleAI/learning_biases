@@ -263,10 +263,16 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
     # use flags to create model and retrieve relevant operations
     architecture = PlannerArchitecture(config)
 
-    image_train, reward_train, _, y_train = planner_train_data
-    image_validation, reward_validation, _, y_validation = planner_validation_data
-    train_data = (image_train, reward_train, y_train)
-    validation_data = (image_validation, reward_validation, y_validation)
+    if planner_train_data and planner_validation_data:
+        image_train, reward_train, _, y_train = planner_train_data
+        image_validation, reward_validation, _, y_validation = planner_validation_data
+        train_data = (image_train, reward_train, y_train)
+        validation_data = (image_validation, reward_validation, y_validation)
+    else:
+        # This is for algorithms which do not need data to infer
+        # Like vi_algorithm
+        train_data = None
+        validation_data = None
 
     image_irl, reward_irl, start_states_irl, y_irl = reward_data
     reward_data = (image_irl, y_irl)
@@ -335,6 +341,18 @@ def iterative_algorithm(architecture, sess, train_data, validation_data,
 
     return rewards
 
+def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, config):
+    """Value Iteration:
+
+    The only variable is the reward_tensor, allow it to be trained as you try VI to predict actions.
+    """
+    if train_data or validation_data:
+        print("You're wasting compute by generating/loading in train/validation data.")
+        print("Value Iteration does not require any data to make reward inferences.")
+        print("")
+    rewards = architecture.train_reward(sess, image_data=reward_data, reward_data=None, y_data=reward_data,
+                    num_epochs=config.reward_epochs)
+
 def infer_given_some_rewards(config):
     print('Assumption: We have some human data where the rewards are known')
     agent, other_agents = create_agents_from_config(config)
@@ -366,6 +384,17 @@ def infer_with_no_rewards(config):
     run_inference(train_data, validation_data, reward_data,
                   iterative_algorithm, config)
 
+def infer_with_value_iteration(config):
+    """ This uses a differentiable value iteration algorithm to infer rewards.
+    It's basically just the reward inference part of infer_with_some_rewards, with model=Value_Iter
+    :param config: tensorflow flags object
+    """
+    print("Using Value Iteration to infer rewards")
+    agent, other_agents = create_agents_from_config(config)
+    # No data for planning necessary
+    reward_data = generate_data_for_reward(agent, config, other_agents)
+    run_inference(None, None, reward_data, vi_algorithm, config)
+
 if __name__=='__main__':
     # get flags || Data
     config = init_flags()
@@ -375,5 +404,7 @@ if __name__=='__main__':
         infer_with_boltzmann_planner(config)
     elif config.algorithm == 'no_rewards':
         infer_with_no_rewards(config)
+    elif config.algorithm == 'vi_inference':
+        infer_with_value_iteration(config)
     else:
         raise ValueError('Unknown algorithm: ' + str(config.algorithm))

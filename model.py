@@ -1,9 +1,7 @@
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
-import keras 
-# from keras.layers import Conv2D, Conv2DTranspose, Input
-from keras.models import Model
 import numpy as np
 import tensorflow as tf
+import pdb
 
 class Model(object):
     """Encapsulates a model that given an MDP predicts an agent's policy.
@@ -22,6 +20,8 @@ def create_model(image, reward, config):
         return VI_Block(X, config)
     elif config.model == "SIMPLE":
         return simple_model(X, config)
+    elif config.model == 'VI':
+        return tf_value_iter(X, config)
     else:
         raise ValueError('Unknown model: ' + config.model)
 
@@ -85,7 +85,7 @@ def simple_model(X, config):
         #     final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
 
     else:
-        raise Error("imsize must be in {8, 14}. Other architectures not yet specified")
+        raise Exception("imsize must be in {8, 14}. Other architectures not yet specified")
 
     comb_wts = tf.Variable(tf.truncated_normal((3,)), dtype=tf.float32, name='combination_wts')
 
@@ -163,7 +163,7 @@ def VI_Block(X, config):
 
     # add logits
     logits = tf.matmul(q_out, w_o)
-    
+
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")
     return Model(logits, output)
@@ -189,3 +189,26 @@ def calculate_action_distribution(nn, bsize, ch_q, name=None):
         name = 'action_distributions'
     distributions = tf.stack([distributions], axis=-1, name=name)
     return distributions
+
+def tf_value_iter(X, config):
+    """
+    Note: this algorithm may need additional attention to the way rewards are inferred
+            Meaning, that batch updates may be especially important, or simultaneous updates
+    Currently: [image, reward] --> VI -->
+                Qvals (image_dim, image_dim, num_actions) -->
+                softmax on state to predict action
+    Also: this algorithm needs the transition probabilities of an MDP
+        but it can use walls to tell if pass/no pass, and reward arr
+
+    :param X: Stacked channel-wise array of image and reward tensors
+    :param config: Tensorflow config flags
+    :return: Q-value table
+    """
+
+    ch_q = config.ch_q # Num actions in q layer (~actions)
+    imsize = config.imsize
+    value_arr = tf.zeros((imsize,imsize),name='Values')
+    qvalues = tf.zeros((config.batchsize,imsize,imsize,ch_q),name='Qval_Table')
+    qvalues = X[:,:,:,1]
+    qvalues = tf.reshape(qvalues, [-1,ch_q])
+    return Model(qvalues, tf.nn.softmax(qvalues,name='output'))
