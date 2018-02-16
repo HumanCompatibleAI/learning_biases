@@ -77,7 +77,6 @@ def generate_example(agent, config, other_agents=[]):
     action_dists = [[action((x, y)) for x in range(imsize)] for y in range(imsize)]
     action_dists = np.array(action_dists)
 
-    threshold = config.action_distance_threshold
     def calculate_different(other_agent):
         """
         Return the number of states in minibatches on which the action chosen by
@@ -93,7 +92,7 @@ def generate_example(agent, config, other_agents=[]):
             # TODO(rohinmshah): L2 norm is not the right distance metric for
             # probability distributions, maybe use something else?
             # Not KL divergence, since it may be undefined
-            return np.linalg.norm(action_dist - dist) > threshold
+            return np.linalg.norm(action_dist - dist) > config.action_distance_threshold
         return sum([sum([(1 if differs((x, y)) else 0) for x in range(imsize)]) for y in range(imsize)])
 
     num_different = np.array([calculate_different(o) for o in other_agents])
