@@ -89,9 +89,11 @@ class PlannerArchitecture(object):
             self.step2_cost = logits_cost
 
         # Define optimizers
-        planner_optimizer = tf.train.RMSPropOptimizer(
-            learning_rate=config.lr, epsilon=1e-6, centered=True)
-        self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
+        if config.model != 'VI':
+            planner_optimizer = tf.train.RMSPropOptimizer(
+                learning_rate=config.lr, epsilon=1e-6, centered=True)
+            self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
+
         reward_optimizer = tf.train.RMSPropOptimizer(
             learning_rate=config.reward_lr, epsilon=1e-6, centered=True)
         self.reward_optimize_op = reward_optimizer.minimize(self.step2_cost, var_list=[self.reward])
@@ -350,8 +352,11 @@ def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, c
         print("You're wasting compute by generating/loading in train/validation data.")
         print("Value Iteration does not require any data to make reward inferences.")
         print("")
-    rewards = architecture.train_reward(sess, image_data=reward_data, reward_data=None, y_data=reward_data,
+
+    image_data, y_data = reward_data
+    rewards = architecture.train_reward(sess, image_data=image_data, reward_data=None, y_data=y_data,
                     num_epochs=config.reward_epochs)
+    return rewards
 
 def infer_given_some_rewards(config):
     print('Assumption: We have some human data where the rewards are known')
