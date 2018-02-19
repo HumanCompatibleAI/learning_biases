@@ -6,7 +6,8 @@ import os.path as path
 
 import agents
 from agent_runner import run_agent
-from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from gridworld import GridworldMdp, Direction
+from mdp_interface import Mdp
 from utils import Distribution
 
 # Currently unused, but may be useful later
