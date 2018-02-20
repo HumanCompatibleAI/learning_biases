@@ -40,6 +40,15 @@ og_ker = [
      [0, 0, 0]]
 ]
 
+# Convolutions work when end = 1 or 3, but not 2, 4, or 5
+# Additionally, in order for the convolutions to work, they seem to have to be hardcoded in reverse
+# This means that the convolution for NORTH looks like the convolution for SOUTH
+# kernel for north = [[0, 0, 0],
+#                     [0, 0, 0],
+#                     [0, 1, 0]]
+# And this will produce [[0, 1, 0],
+#                        [0, 0, 0],
+#                        [0, 0, 0]]
 end = 1
 og_ker = list(reversed(og_ker[:end]))
 print("og kernel")
