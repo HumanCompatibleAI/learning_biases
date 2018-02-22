@@ -3,7 +3,8 @@ import numpy as np
 from agent_interface import Agent
 from agent_runner import run_agent, get_reward_from_trajectory
 from agents import OptimalAgent, NaiveTimeDiscountingAgent, SophisticatedTimeDiscountingAgent, MyopicAgent
-from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from gridworld import GridworldMdp, Direction
+from mdp_interface import Mdp
 from utils import Distribution
 
 class TestAgents(unittest.TestCase):
@@ -25,7 +26,7 @@ class TestAgents(unittest.TestCase):
         n, s, e, w, stay = self.all_actions
 
         mdp = GridworldMdp(grid, living_reward=-0.1)
-        env = GridworldEnvironment(mdp)
+        env = Mdp(mdp)
         agent = OptimalAgent(gamma=0.95, num_iters=20)
         agent.set_mdp(mdp)
         start_state = mdp.get_start_state()
@@ -40,7 +41,7 @@ class TestAgents(unittest.TestCase):
 
         # Same thing, but with a bigger discount
         mdp = GridworldMdp(grid, living_reward=-0.001)
-        env = GridworldEnvironment(mdp)
+        env = Mdp(mdp)
         agent = OptimalAgent(gamma=0.5, num_iters=20)
         agent.set_mdp(mdp)
         start_state = mdp.get_start_state()
@@ -143,7 +144,7 @@ class TestAgents(unittest.TestCase):
         n, s, e, w, stay = self.all_actions
 
         mdp = GridworldMdp(grid, living_reward=-0.1)
-        env = GridworldEnvironment(mdp)
+        env = Mdp(mdp)
 
         optimal_agent = OptimalAgent(gamma=0.9, num_iters=20)
         optimal_agent.set_mdp(mdp)

@@ -9,13 +9,13 @@ class GridworldMdpNoR(object):
 
     Specifies all of the static information that an agent has access to when
     playing in the given grid world, including the state space, action space,
-    transition probabilities, start state, etc. The reward is by default *not
-    present*, though subclasses may add in funcitonality for the reward.
+    transition probabilities, start state, etc. The agent can take any of the \
+    four cardinal directions as an action, or the STAY action.
 
-    The agent can take any of the four cardinal directions as an action, or the
-    STAY action, getting a living reward (typically negative in order to
-    incentivize shorter paths). The agent also gets the reward for the state it
-    *started* in (not the one it ended up in).
+    The reward is by default *not present*, though subclasses may add in
+    funcitonality for the reward.
+
+
     """
     def __init__(self, walls, start_state, noise=0):
         self.height = len(walls)
@@ -70,19 +70,19 @@ class GridworldMdpNoR(object):
         if action == Direction.STAY:
             return [(state, 1.0)]
 
-        next_state = self.attempt_to_move_in_direction(state, action)
+        next_state = self._attempt_to_move_in_direction(state, action)
         if self.noise == 0.0:
             return [(next_state, 1.0)]
 
         successors = defaultdict(float)
         successors[next_state] += 1.0 - self.noise
         for direction in Direction.get_adjacent_directions(action):
-            next_state = self.attempt_to_move_in_direction(state, direction)
+            next_state = self._attempt_to_move_in_direction(state, direction)
             successors[next_state] += (self.noise / 2.0)
 
         return successors.items()
 
-    def attempt_to_move_in_direction(self, state, action):
+    def _attempt_to_move_in_direction(self, state, action):
         """Return the new state an agent would be in if it took the action.
 
         Requires: action is in self.get_actions(state).
@@ -118,15 +118,15 @@ class GridworldMdp(GridworldMdpNoR):
 
         Raises: AssertionError if the grid is invalid.
         """
-        self.assert_valid_grid(grid)
+        self._assert_valid_grid(grid)
 
         walls = [[space == 'X' for space in row] for row in grid]
-        rewards, start_state = self.get_rewards_and_start_state(grid)
+        rewards, start_state = self._get_rewards_and_start_state(grid)
         GridworldMdpNoR.__init__(self, walls, start_state, noise)
         self.rewards = rewards
         self.living_reward = living_reward
 
-    def assert_valid_grid(self, grid):
+    def _assert_valid_grid(self, grid):
         """Raises an AssertionError if the grid is invalid.
 
         grid:  A sequence of sequences of spaces, representing a grid of a
@@ -164,12 +164,13 @@ class GridworldMdp(GridworldMdpNoR):
             return element in ['X', ' ', 'A'] or is_float(element)
 
         all_elements = [element for row in grid for element in row]
-        assert all(is_valid_element(element) for element in all_elements), 'Invalid element: must be X, A, blank space, or a number'
+        assert all(is_valid_element(element) for element in all_elements), \
+               'Invalid element: must be X, A, blank space, or a number'
         assert all_elements.count('A') == 1, "'A' must be present exactly once"
         floats = [element for element in all_elements if is_float(element)]
         assert len(floats) >= 1, 'There must at least one reward square'
 
-    def get_rewards_and_start_state(self, grid):
+    def _get_rewards_and_start_state(self, grid):
         """Extracts the rewards and start state from grid.
 
         Assumes that grid is a valid grid.
@@ -384,55 +385,6 @@ class GridworldMdp(GridworldMdpNoR):
             return ''.join([get_char(x, y) for x in range(self.width)])
 
         return '\n'.join([get_row_str(y) for y in range(self.height)])
-
-
-# TODO(rohinmshah): This is a generic MDP environment, it isn't specific to
-# Gridworlds. Put it in its own file and rename the gridworld field to mdp.
-class GridworldEnvironment(object):
-    """An environment containing a single agent that can take actions.
-
-    The environment keeps track of the current state of the agent, and updates
-    it as the agent takes actions, and provides rewards to the agent.
-    """
-
-    def __init__(self, gridworld):
-        self.gridworld = gridworld
-        self.reset()
-
-    def get_current_state(self):
-        return self.state
-
-    def get_actions(self, state):
-        return self.gridworld.get_actions(state)
-
-    def perform_action(self, action):
-        """Performs the action, updating the state and providing a reward."""
-        state = self.get_current_state()
-        next_state, reward = self.get_random_next_state(state, action)
-        self.state = next_state
-        return (next_state, reward)
-
-    def get_random_next_state(self, state, action):
-        """Chooses the next state according to T(state, action)."""
-        rand = random.random()
-        sum = 0.0
-        results = self.gridworld.get_transition_states_and_probs(state, action)
-        for next_state, prob in results:
-            sum += prob
-            if sum > 1.0:
-                raise ValueError('Total transition probability more than one.')
-            if rand < sum:
-                reward = self.gridworld.get_reward(state, action)
-                return (next_state, reward)
-        raise ValueError('Total transition probability less than one.')
-
-    def reset(self):
-        """Resets the environment. Does NOT reset the agent."""
-        self.state = self.gridworld.get_start_state()
-
-    def is_done(self):
-        """Returns True if the episode is over and the agent cannot act."""
-        return self.gridworld.is_terminal(self.get_current_state())
 
 
 class Direction(object):

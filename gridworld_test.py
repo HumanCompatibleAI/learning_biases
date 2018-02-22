@@ -1,6 +1,7 @@
 import unittest
 
-from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from gridworld import GridworldMdp, Direction
+from mdp_interface import Mdp
 import random
 
 class TestDirection(unittest.TestCase):
@@ -220,7 +221,7 @@ class TestGridworld(unittest.TestCase):
         return visited
 
     def test_environment(self):
-        env = GridworldEnvironment(self.mdp3)
+        env = Mdp(self.mdp3)
         self.assertEqual(env.get_current_state(), (3, 3))
         next_state, reward = env.perform_action(Direction.NORTH)
         self.assertEqual(next_state, (3, 2))

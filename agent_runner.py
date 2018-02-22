@@ -1,4 +1,5 @@
-from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from gridworld import GridworldMdp, Direction
+from mdp_interface import Mdp
 from agents import OptimalAgent
 import numpy as np
 
@@ -50,7 +51,7 @@ def evaluate_proxy(walls, start_state, proxy_reward, true_reward, gamma=0.9, epi
     """
     proxy_mdp = GridworldMdp.from_numpy_input(walls, proxy_reward, start_state)
     true_mdp = GridworldMdp.from_numpy_input(walls, true_reward, start_state)
-    env = GridworldEnvironment(true_mdp)
+    env = Mdp(true_mdp)
 
     proxy_agent = OptimalAgent()
     proxy_agent.set_mdp(true_mdp, proxy_mdp)
