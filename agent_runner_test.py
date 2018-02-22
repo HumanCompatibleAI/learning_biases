@@ -1,7 +1,8 @@
 import unittest
 from agent_interface import Agent
 from agent_runner import run_agent, evaluate_proxy
-from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from gridworld import GridworldMdp, Direction
+from mdp_interface import Mdp
 import numpy as np
 import pdb
 
@@ -27,7 +28,7 @@ class TestAgentRunner(unittest.TestCase):
 
         # Keep going east to get the 9 reward
         mdp1 = GridworldMdp(grid, living_reward=0)
-        env1 = GridworldEnvironment(mdp1)
+        env1 = Mdp(mdp1)
         # Make sure that run_agent resets the environment
         env1.perform_action(Direction.NORTH)
         east = Direction.EAST
@@ -39,7 +40,7 @@ class TestAgentRunner(unittest.TestCase):
 
         # Keep going north to get the 2 reward
         mdp2 = GridworldMdp(grid, living_reward=0)
-        env2 = GridworldEnvironment(mdp2)
+        env2 = Mdp(mdp2)
         north = Direction.NORTH
         agent2 = DirectionalAgent(north)
         agent2.set_mdp(mdp2)
@@ -49,7 +50,7 @@ class TestAgentRunner(unittest.TestCase):
 
         # Keep going west, getting the 4 reward and overshooting
         mdp3 = GridworldMdp(grid, living_reward=-0.1)
-        env3 = GridworldEnvironment(mdp3)
+        env3 = Mdp(mdp3)
         west = Direction.WEST
         agent3 = DirectionalAgent(west)
         agent3.set_mdp(mdp3)
@@ -59,7 +60,7 @@ class TestAgentRunner(unittest.TestCase):
 
         # Keep going south, never getting a reward
         mdp4 = GridworldMdp(grid, living_reward=-0.1)
-        env4 = GridworldEnvironment(mdp4)
+        env4 = Mdp(mdp4)
         south = Direction.SOUTH
         agent4 = DirectionalAgent(south)
         agent4.set_mdp(mdp4)

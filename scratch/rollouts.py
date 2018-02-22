@@ -4,7 +4,8 @@
 #
 # TODO: capture sum of rewards of every rollout
 # 		for agent comparison
-from gridworld import GridworldMdp, GridworldEnvironment, Direction
+from gridworld import GridworldMdp, Direction
+from mdp_interface import Mdp
 from gridworld_data import print_training_example
 import numpy as np
 import agents
@@ -42,7 +43,7 @@ mdp = GridworldMdp(preference_grid)
 agent = agents.SophisticatedTimeDiscountingAgent(2, 0.01)
 agent.set_mdp(mdp)
 
-env = GridworldEnvironment(mdp)
+env = Mdp(mdp)
 trajectory = env.perform_rollout(agent,max_iter=20, print_step=1000)
 print_training_example(mdp, trajectory)
 print(agent.reward)
