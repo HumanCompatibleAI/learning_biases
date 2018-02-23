@@ -222,14 +222,14 @@ def tf_value_iter(X, config):
 
     wall_mask = activation(walls)
     masked_values = mask(reward, wall_mask)
-    qvalues = convolve(masked_values, kernel)
+    qvalues = mask(convolve(masked_values, kernel), tf.expand_dims(wall_mask,-1))
     for i in range(num_iters-1):
         # compute values
         values = discount*tf.reduce_max(qvalues,reduction_indices=[-1]) + masked_values
         # mask values
         masked_values = mask(values, wall_mask)
         # compute qvalues
-        qvalues = convolve(masked_values, kernel)
+        qvalues = mask(convolve(masked_values, kernel), tf.expand_dims(wall_mask,-1))
 
     qvalues = tf.reshape(qvalues, [-1,ch_q])
     return Model(qvalues, tf.nn.softmax(qvalues,name='output'))
