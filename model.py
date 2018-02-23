@@ -244,4 +244,5 @@ def mask(values, masking):
     return tf.multiply(values, masking)
 
 def convolve(values, kernel):
+    values = tf.expand_dims(values, axis=-1)
     return tf.nn.conv2d(values, kernel, strides=(1,1,1,1), padding="SAME")
