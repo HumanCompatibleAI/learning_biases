@@ -205,52 +205,43 @@ def tf_value_iter(X, config):
     :return: Q-value table
     """
     ch_q = config.ch_q # Num actions in q layer (~actions)
-    imsize = config.imsize
-    bsize = config.batchsize
     num_iters = config.num_iters
     discount = 0.9
 
     print("VI is being performed with {} iterations.".format(num_iters))
     print("VI is assuming the MDP is deterministic.")
     print("VI is assuming MDP discount is 0.9 (hard coded).")
-    print("VI is assuming there are 5 actions: up, down, left, right, stay")
+    print("VI is assuming there are 5 actions: up, down, left, right, stay (ordered)")
 
     # Unpack X tensor
     reward = X[:,:,:,1]
     walls = X[:,:,:,0]
-    # values = np.zeros((bsize,imsize,imsize),name='Value_Table')
+    kernel = tf.constant(np.load("convkernel.npy"))
 
-    # Initial values for V and Q
-    values = reward
-    qvalues = tf.zeros((bsize,imsize,imsize,ch_q),name='Qval_Table')
+    assert kernel.shape[-1] == ch_q, "config.ch_q != number of actions hard coded in convkernel.npy"
 
-    # Compute Transition matrix from walls
-    # ------------------------------------
-    # Could have walls tensor contain transition probabilities from state s to s'
-    # Each element could be num_actions dimensional
-    # Currently: T(s'|s) is (1 - wall[i,j]), where wall[i,j] = 1 if there's a wall at (i,j)
-    # Also this algorithm currently only works on action spaces = {stay, up, right, down, left}
-    trans = tf.zeros((bsize,imsize,imsize,ch_q),name='Transitions')
-    action_space = [(0,0), (1,0), (0,1), (-1, 0), (0,-1)]
-    for i in range(imsize):
-        for j in range(imsize):
-            actions = [1-walls[:,i+a,j+b] for (a,b) in action_space]
-            trans[:,i,j,:] = tf.stack(actions,axis=-1)
-
-    # kernel = [[0,1,0],[1,1,1],[0,1,0]]
-    # kernel = tf.convert_to_tensor(np.array(kernel))
-
-    for i in range(num_iters):
-        qcopy = tf.zeros((bsize,imsize,imsize,ch_q),name="Qcopy")
-        for row in range(imsize):
-            for col in range(imsize):
-                qcopy[:,row,col,:] = reward[:,row,col]
-                for k,(a,b) in enumerate(action_space):
-                    qcopy[:,row+a,col+b,k] += trans[:row+a,col+b,k] * qvalues[:,row+a,col+b,k]
-        qvalues = qcopy
-        values = tf.argmax(qvalues,dimension=-1)
+    wall_mask = activation(walls)
+    masked_values = mask(reward, wall_mask)
+    qvalues = convolve(masked_values, kernel)
+    for i in range(num_iters-1):
+        # compute values
+        values = discount*tf.reduce_max(qvalues,reduction_indices=[-1]) + masked_values
+        # mask values
+        masked_values = mask(values, wall_mask)
+        # compute qvalues
+        qvalues = convolve(masked_values, kernel)
 
     qvalues = tf.reshape(qvalues, [-1,ch_q])
     return Model(qvalues, tf.nn.softmax(qvalues,name='output'))
 
-    # Maybe for this I need to just add sparse tensors :/
+
+# Helper Functions for tf_value_iter
+
+def activation(tensor):
+    return 1 - tensor
+
+def mask(values, masking):
+    return tf.multiply(values, masking)
+
+def convolve(values, kernel):
+    return tf.nn.conv2d(values, kernel, strides=(1,1,1,1), padding="SAME")
