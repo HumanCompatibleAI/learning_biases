@@ -7,7 +7,7 @@ sess = tf.InteractiveSession()
 
 walls  = [[1, 1, 1, 1, 1],
           [1, 0, 0, 0, 1],
-          [1, 0, 0, 0, 1],
+          [1, 0, 1, 0, 1],
           [1, 0, 0, 0, 1],
           [1, 1, 1, 1, 1]]
 reward = [[0, 0, 0, 0, 0],
@@ -15,12 +15,11 @@ reward = [[0, 0, 0, 0, 0],
           [0, 0, 0, 0, 0],
           [0, 0, 0, 0, 0],
           [0, 0, 0, 0, 0]]
+
 walls = np.array(walls)
 reward = np.array(reward)
 agent_start = (1, 3)
-mdp = GridworldMdp.from_numpy_input(walls,reward,start_state=agent_start)
-print("MDP:")
-print(mdp)
+mdp = GridworldMdp.from_numpy_input(walls.astype(np.float32),reward.astype(np.float32),start_state=agent_start)
 imsize = walls.shape[0]
 discount = 0.9
 num_iters = 50
@@ -45,8 +44,6 @@ def castAgentValuesToNumpy(agent_dict):
 def run_test(walls, reward):
     """Runs test on given walls & rewards
     walls, reward: 2d numpy arrays (numbers)"""
-    print("Reward")
-    print(reward)
 
     agent = OptimalAgent(num_iters=num_iters)
     agent.set_mdp(mdp)
@@ -61,11 +58,7 @@ def run_test(walls, reward):
 
 
     compareValues(true_values, predicted_values)
-    print("-"*20)
-    print("Predicted values:")
-    print(predicted_values)
-    print("\nTrue values:")
-    print(true_values)
+    visualizeValueDiff(true_values,predicted_values)
 
 def compareValues(true_values, predicted_values):
     # true_values[i,j] = 0 --> walls[i,j] = 1
@@ -73,9 +66,20 @@ def compareValues(true_values, predicted_values):
     true = true_values[true_values != 0]
     predicted = predicted_values[true_values != 0]
 
-    tol = 1e-3
-    values_are_close = np.allclose(true, predicted,atol=tol,equal_nan=True)
+    tol = 1e-1
+    for i in range(3):
+        values_are_close = np.allclose(true, predicted,atol=tol,equal_nan=True)
+        print("Predicted values are within {} of values: {}".format(tol, values_are_close))
+        tol = tol/10
 
-    print("Predicted values are within {} of values: {}".format(tol, values_are_close))
+
+def visualizeValueDiff(true_values, predicted_values):
+    print("-"*20)
+    print("True values:")
+    print(true_values)
+    print("\nPredicted values:")
+    print(predicted_values)
+    print("\nRelative difference:")
+    print(np.array_str(predicted_values-true_values,precision=2))
 
 run_test(walls, reward)

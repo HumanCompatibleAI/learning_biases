@@ -227,7 +227,7 @@ def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount=0.9):
         # compute values
         values = tf.reduce_max(qvalues, axis=3, keep_dims=True, name="v")
         # mask values
-        masked_values = mask(values, wall_mask)
+        masked_values = negative_mask_values(values, wall_mask)
         # compute qvalues
         qvalues = discount*convolve(masked_values, kernel) + masked_reward
         # mask qvalues
@@ -240,6 +240,13 @@ def activation(tensor):
 
 def mask(values, masking):
     return tf.multiply(values, masking)
+
+def negative_mask_values(values, wall_mask):
+    """Subtracts -1000 from where the zero mask would put 0s"""
+    zero_mask = mask(values, wall_mask)
+
+    neg_mask = -1000*activation(wall_mask)
+    return zero_mask + neg_mask
 
 def convolve(values, kernel):
     # values = tf.expand_dims(values, axis=-1)
