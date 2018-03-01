@@ -110,15 +110,15 @@ class PlannerArchitecture(object):
         self.initialize_op = tf.global_variables_initializer()
 
         # Saving model in SavedModel format
-        self.builder = tf.saved_model.builder.SavedModelBuilder(
-            config.logdir+'model/')
+        # self.builder = tf.saved_model.builder.SavedModelBuilder(
+        #     config.logdir+'model/')
 
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
         # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
         sess.run(self.initialize_op)
-        self.builder.add_meta_graph_and_variables(
-            sess, [tf.saved_model.tag_constants.SERVING])
+        # self.builder.add_meta_graph_and_variables(
+        #     sess, [tf.saved_model.tag_constants.SERVING])
 
     def run_epoch(self, sess, data, ops_to_run, ops_to_average, distributions=[]):
         batch_size = self.config.batchsize
