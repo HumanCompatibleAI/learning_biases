@@ -42,7 +42,7 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     """
 
     # Clean up the arrays (imshow only takes values in [0, 1])
-    pos_label, neg_label = visualizeReward(reward)
+    pos_label, neg_label = visualizeReward(label)
     pos_reward, neg_reward = visualizeReward(inferred_reward)
 
     # set up plot
