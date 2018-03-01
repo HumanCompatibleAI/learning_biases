@@ -233,6 +233,8 @@ class GridworldMdp(GridworldMdpNoR):
     def from_numpy_input(walls, reward, start_state):
         """Creates the MDP from the format output by convert_to_numpy_input.
 
+        start_state: tuple of **(y, x)**
+
         See convert_to_numpy_input for the types of the parameters. If
         start_state is not provided, some arbitrary blank space is set as the
         start state. Assumes that the parameters were returned by

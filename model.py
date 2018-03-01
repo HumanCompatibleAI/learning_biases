@@ -230,7 +230,8 @@ def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount=0.9):
         masked_values = mask(values, wall_mask)
         # compute qvalues
         qvalues = discount*convolve(masked_values, kernel) + masked_reward
-
+        # mask qvalues
+        qvalues = mask(qvalues, wall_mask)
     qvalues = tf.reshape(qvalues, [-1,ch_q])
     return Model(qvalues, tf.nn.softmax(qvalues,name='output'))
 
