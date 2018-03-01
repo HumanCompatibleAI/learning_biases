@@ -191,6 +191,10 @@ def calculate_action_distribution(nn, bsize, ch_q, name=None):
     return distributions
 
 def tf_value_iter(X, config):
+    return tf_value_iter_no_config(X, config.ch_q, config.imsize, config.batchsize, config.num_iters)
+
+# Helper Functions for tf_value_iter
+def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount=0.9):
     """
     Note: this algorithm may need additional attention to the way rewards are inferred
             Meaning, that batch updates may be especially important, or simultaneous updates
@@ -204,38 +208,31 @@ def tf_value_iter(X, config):
     :param config: Tensorflow config flags
     :return: Q-value table
     """
-    ch_q = config.ch_q # Num actions in q layer (~actions)
-    num_iters = config.num_iters
-    discount = 0.9
-
     print("VI is being performed with {} iterations.".format(num_iters))
     print("VI is assuming the MDP is deterministic.")
-    print("VI is assuming MDP discount is 0.9 (hard coded).")
     print("VI is assuming there are 5 actions: up, down, left, right, stay (ordered)")
 
     # Unpack X tensor
-    reward = X[:,:,:,1]
-    walls = X[:,:,:,0]
-    kernel = tf.constant(np.load("convkernel.npy"))
+    reward = tf.expand_dims(X[:,:,:,1],-1)
+    walls = tf.expand_dims(X[:,:,:,0],-1)
+    kernel = tf.constant(np.load("convkernel.npy"),dtype=tf.float32)
 
     assert kernel.shape[-1] == ch_q, "config.ch_q != number of actions hard coded in convkernel.npy"
 
     wall_mask = activation(walls)
-    masked_values = mask(reward, wall_mask)
-    qvalues = mask(convolve(masked_values, kernel), tf.expand_dims(wall_mask,-1))
+    masked_reward = mask(reward, wall_mask)
+    masked_values = np.zeros((bsize,imsize,imsize,1),dtype=np.float32)
+    qvalues = discount*convolve(masked_values, kernel) + masked_reward
     for i in range(num_iters-1):
         # compute values
-        values = discount*tf.reduce_max(qvalues,reduction_indices=[-1]) + masked_values
+        values = tf.reduce_max(qvalues, axis=3, keep_dims=True, name="v")
         # mask values
         masked_values = mask(values, wall_mask)
         # compute qvalues
-        qvalues = mask(convolve(masked_values, kernel), tf.expand_dims(wall_mask,-1))
+        qvalues = discount*convolve(masked_values, kernel) + masked_reward
 
     qvalues = tf.reshape(qvalues, [-1,ch_q])
     return Model(qvalues, tf.nn.softmax(qvalues,name='output'))
-
-
-# Helper Functions for tf_value_iter
 
 def activation(tensor):
     return 1 - tensor
@@ -244,5 +241,5 @@ def mask(values, masking):
     return tf.multiply(values, masking)
 
 def convolve(values, kernel):
-    values = tf.expand_dims(values, axis=-1)
+    # values = tf.expand_dims(values, axis=-1)
     return tf.nn.conv2d(values, kernel, strides=(1,1,1,1), padding="SAME")
