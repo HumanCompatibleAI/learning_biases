@@ -90,6 +90,8 @@ class PlannerArchitecture(object):
 
         # Define optimizers
         if config.model != 'VI':
+            print("statement reached")
+            print("config.model is: {}".format(config.model))
             planner_optimizer = tf.train.RMSPropOptimizer(
                 learning_rate=config.lr, epsilon=1e-6, centered=True)
             self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
@@ -112,6 +114,9 @@ class PlannerArchitecture(object):
         # Saving model in SavedModel format
         # self.builder = tf.saved_model.builder.SavedModelBuilder(
         #     config.logdir+'model/')
+
+        # If process does not finish
+        self.final_accuracy = "None"
 
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
@@ -177,10 +182,10 @@ class PlannerArchitecture(object):
                 print(fmt_row(10, [epoch, avg_cost, avg_err, validation_err, elapsed]))
             if self.config.log:
                 summary = tf.Summary()
-                summary.ParseFromString(sess.run(summary_op))
-                summary.value.add(tag='Average error', simple_value=float(avg_err))
-                summary.value.add(tag='Average cost', simple_value=float(avg_cost))
-                summary_writer.add_summary(summary, epoch)
+                # summary.ParseFromString(sess.run(summary_op))
+                # summary.value.add(tag='Average error', simple_value=float(avg_err))
+                # summary.value.add(tag='Average cost', simple_value=float(avg_cost))
+                # summary_writer.add_summary(summary, epoch)
 
         action_dists = [d + b_d for d, b_d in zip(action_dists, epoch_dist)]
         action_dists = [d / (np.sum(d)) for d in action_dists]
@@ -193,10 +198,11 @@ class PlannerArchitecture(object):
         if print_output and validation_data is not None:
             _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
             print('Final Accuracy: ' + str(100 * (1 - validation_err)))
+            self.final_accuracy = 100 * (1 - validation_err)
 
         # Saving SavedModel instance
-        savepath = self.builder.save()
-        print("Model saved to: {}".format(savepath))
+        # savepath = self.builder.save()
+        # print("Model saved to: {}".format(savepath))
 
     def train_reward(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
         """Infers the reward using backprop, holding the planner fixed.
@@ -258,6 +264,9 @@ def run_interruptibly(fn, step_name='this step'):
 
 def run_inference(planner_train_data, planner_validation_data, reward_data,
                   algorithm_fn, config):
+    """
+    :return: (final_accuracy, % reward = optimal planner)
+    """
     # seed random number generators
     seed = config.seeds.pop(0)
     np.random.seed(seed)
@@ -280,7 +289,12 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
     reward_data = (image_irl, y_irl)
 
     # Launch the graph
-    with tf.Session() as sess:
+    gpu_config = None
+    if config.use_gpu:
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.85)
+        gpu_config = tf.ConfigProto(gpu_options=gpu_options)
+
+    with tf.Session(config=gpu_config) as sess:
         if config.log:
             for var in tf.trainable_variables():
                 tf.summary.histogram(var.op.name, var)
@@ -310,6 +324,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         print('On average planning with the inferred rewards is '
               + str(100 * average_percent_reward)
               + '% as good as planning with the true rewards')
+        return architecture.final_accuracy, average_percent_reward
 
 def two_phase_algorithm(architecture, sess, train_data, validation_data,
                         reward_data, config):
@@ -364,7 +379,7 @@ def infer_given_some_rewards(config):
     train_data, validation_data = generate_data_for_planner(
         agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    run_inference(train_data, validation_data, reward_data,
+    return run_inference(train_data, validation_data, reward_data,
                   two_phase_algorithm, config)
 
 def infer_with_boltzmann_planner(config):
@@ -375,7 +390,7 @@ def infer_with_boltzmann_planner(config):
     train_data, validation_data = generate_data_for_planner(
         optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    run_inference(train_data, validation_data, reward_data,
+    return run_inference(train_data, validation_data, reward_data,
                   two_phase_algorithm, config)
 
 def infer_with_no_rewards(config):
@@ -386,7 +401,7 @@ def infer_with_no_rewards(config):
     train_data, validation_data = generate_data_for_planner(
         optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    run_inference(train_data, validation_data, reward_data,
+    return run_inference(train_data, validation_data, reward_data,
                   iterative_algorithm, config)
 
 def infer_with_value_iteration(config):
@@ -398,18 +413,23 @@ def infer_with_value_iteration(config):
     agent, other_agents = create_agents_from_config(config)
     # No data for planning necessary
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    run_inference(None, None, reward_data, vi_algorithm, config)
+    return run_inference(None, None, reward_data, vi_algorithm, config)
 
 if __name__=='__main__':
     # get flags || Data
     config = init_flags()
+    important_vals = None
     if config.algorithm == 'given_rewards':
-        infer_given_some_rewards(config)
+        important_vals = infer_given_some_rewards(config)
     elif config.algorithm == 'boltzmann_planner':
-        infer_with_boltzmann_planner(config)
+        important_vals = infer_with_boltzmann_planner(config)
     elif config.algorithm == 'no_rewards':
-        infer_with_no_rewards(config)
+        important_vals = infer_with_no_rewards(config)
     elif config.algorithm == 'vi_inference':
-        infer_with_value_iteration(config)
+        important_vals = infer_with_value_iteration(config)
     else:
         raise ValueError('Unknown algorithm: ' + str(config.algorithm))
+
+    final_accuracy, performance = important_vals
+    print("<1>{}<1>".format(final_accuracy))
+    print("<2>{}<2>".format(performance))

@@ -153,6 +153,8 @@ def init_flags():
     tf.app.flags.DEFINE_string(
         'logdir', '/tmp/planner-vin/', 'Directory to store tensorboard summary')
 
+    tf.app.flags.DEFINE_bool('use_gpu', False, 'Enables GPU usage')
+
     config = tf.app.flags.FLAGS
     # It is required that the number of unknown reward functions be divisible by
     # the batch size, due to Tensorflow constraints.
