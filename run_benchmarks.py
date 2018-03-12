@@ -12,8 +12,8 @@ FLAGS = [
     ['k',               [25]],
     ['ch_h',            [150]],
     ['agent',           ['optimal','myopic','sophisticated','naive']],
-    ['num_iters',       [50]],
-    ['max_delay',       [5]],
+    # ['num_iters',       [50]],
+    # ['max_delay',       [5]],
     ['hyperbolic_constant',     [1.0]],
     # ['other_agent',     [None]], # more flags for other agent here
     ['algorithm',       ['given_rewards', 'no_rewards', 'boltzmann_planner', 'vi_inference']], # more here
@@ -24,7 +24,7 @@ FLAGS = [
     # ['reward_regularizer_C',    [1e-4]],
     ['model',           ['SIMPLE','VIN','VI']],
     ['seeds',           ['1,2,3,5,8,13,21,34', '89,714,10,1234,13,21,34,795', '1,2,3,4,5,75,86,907', '123,765,65,4234,5223,665,7234,897']],
-    ['batchsize', [20]],
+    # ['batchsize', [20]],
     ['use_gpu', ['True']]
 ]
 
@@ -96,9 +96,9 @@ def run_benchmarks(interpreter, flags, dest='benchmark_data/'):
                 final_accuracy = "None"
                 performance = "None"
 
-            save_file = open(save_name, "w")
-            save_file.write(", ".join([final_accuracy, performance]) + "\n")
-            save_file.close()
+            # save_file = open(save_name, "w")
+            # save_file.write(", ".join([final_accuracy, performance]) + "\n")
+            # save_file.close()
 
             csv_entry = csv_entry + "{0}, {1}\n".format(final_accuracy, performance)
             index_csv.write(csv_entry)
