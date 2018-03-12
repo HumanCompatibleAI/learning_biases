@@ -23,7 +23,7 @@ FLAGS = [
     # ['vin_regularizer_C',   [1e-4]],
     # ['reward_regularizer_C',    [1e-4]],
     ['model',           ['SIMPLE','VIN','VI']],
-    ['seeds',           ['1,2,3,5,8,13,21,34', '2,3,5,8,13,21,34,55', '3,5,8,13,21,34,55,89', '1,2,3,4,5,6,7,8']],
+    ['seeds',           ['1,2,3,5,8,13,21,34', '89,714,10,1234,13,21,34,795', '1,2,3,4,5,75,86,907', '123,765,65,4234,5223,665,7234,897']],
     ['batchsize', [20]],
     ['use_gpu', ['True']]
 ]
@@ -109,8 +109,6 @@ def run_benchmarks(interpreter, flags, dest='benchmark_data/'):
 
 
 if __name__ == '__main__':
-
-    flags_to_test = [['algorithm',['given_rewards']]]+FLAGS[-4:]
     # for fname, str2run, csv_entry in flag_generator(flags_to_test):
     #     print("{1}".format(fname, str2run, csv_entry))
 

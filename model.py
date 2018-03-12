@@ -1,7 +1,6 @@
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 import numpy as np
 import tensorflow as tf
-import pdb
 
 class Model(object):
     """Encapsulates a model that given an MDP predicts an agent's policy.
@@ -191,10 +190,10 @@ def calculate_action_distribution(nn, bsize, ch_q, name=None):
     return distributions
 
 def tf_value_iter(X, config):
-    return tf_value_iter_no_config(X, config.ch_q, config.imsize, config.batchsize, config.num_iters)
+    return tf_value_iter_no_config(X, config.ch_q, config.imsize, config.batchsize, config.num_iters, config.gamma)
 
 # Helper Functions for tf_value_iter
-def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount=0.9):
+def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount):
     """
     Note: this algorithm may need additional attention to the way rewards are inferred
             Meaning, that batch updates may be especially important, or simultaneous updates
@@ -215,7 +214,7 @@ def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount=0.9):
     # Unpack X tensor
     reward = tf.expand_dims(X[:,:,:,1],-1)
     walls = tf.expand_dims(X[:,:,:,0],-1)
-    kernel = tf.constant(np.load("convkernel.npy"),dtype=tf.float32)
+    kernel = tf.constant(np.load("convkernel.npy"), dtype=tf.float32)
 
     assert kernel.shape[-1] == ch_q, "config.ch_q != number of actions hard coded in convkernel.npy"
 
