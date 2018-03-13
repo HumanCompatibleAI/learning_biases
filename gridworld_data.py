@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import random
 import csv
-import os.path as path
+import os
 
 import agents
 from agent_runner import run_agent
@@ -112,25 +112,23 @@ def load_dataset(filename):
     data = np.load(filename)
     return tuple([data['arr_{}'.format(i)] for i in range(4)])
 
-def generate_n_examples(n, agent, config, seed=0, other_agents=[], path='datasets/'):
+def generate_n_examples(n, agent, config, seed=0, other_agents=[], folder='datasets/'):
     """Calls generate_example n times to create a dataset of examples of size n.
 
     Returns the same four Numpy arrays as generate_example, except that they
     now have shape (n, *previous_shape). (The last Numpy array from
     generate_example is analyzed and printed out, and so is not returned.)
     """
-    filename = path + get_filename(n, agent, config, seed)
-    try:
+    filename = folder + get_filename(n, agent, config, seed)
+    if os.path.exists(filename):
         dataset = load_dataset(filename)
         print('Reusing existing dataset')
         return dataset
-    except FileNotFoundError:
-        print('Could not find ' + filename)
-        pass
 
+    print('Could not find ' + filename)
+    print('Generating {} examples'.format(n))
     np.random.seed(seed)
     random.seed(seed)
-    print('Generating {} examples'.format(n))
     data = [generate_example(agent, config, other_agents) for _ in range(n)]
     walls, rewards, start_states, labels, num_different = map(np.array, zip(*data))
     if other_agents:

@@ -30,7 +30,7 @@ def squish(v):
 
 def visualizeReward(reward):
     pos_reward = np.where(reward > 0, reward,  0)
-    neg_reward = -1*np.where(reward< 0, reward, 0)
+    neg_reward = -1*np.where(reward < 0, reward, 0)
     pos_reward = squish(pos_reward)
     neg_reward = squish(neg_reward)
     return pos_reward,neg_reward
