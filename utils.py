@@ -20,6 +20,21 @@ def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
 
+def softmax(v):
+    return np.exp(v)/np.sum(np.exp(v))
+
+def squish(v):
+    if v.any():
+        return (v - np.min(v)) / np.max(v-np.min(v))
+    return v
+
+def visualizeReward(reward):
+    pos_reward = np.where(reward > 0, reward,  0)
+    neg_reward = -1*np.where(reward< 0, reward, 0)
+    pos_reward = squish(pos_reward)
+    neg_reward = squish(neg_reward)
+    return pos_reward,neg_reward
+
 def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png'):
     """Plots rewards (true and predicted) and saves them to a file.
 
@@ -27,23 +42,19 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     """
 
     # Clean up the arrays (imshow only takes values in [0, 1])
-
-    label = label - np.min(label)
-    label = label / np.max(label)
-
-    inferred_reward = inferred_reward - np.min(inferred_reward)
-    inferred_reward = inferred_reward / np.max(inferred_reward)
+    pos_label, neg_label = visualizeReward(label)
+    pos_reward, neg_reward = visualizeReward(inferred_reward)
 
     # set up plot
     fig, axes = plt.subplots(1,2)
-    label = np.stack([label, walls, np.zeros(walls.shape)],axis=-1).reshape(list(walls.shape)+[3])
+    label = np.stack([pos_label, walls, neg_label],axis=-1).reshape(list(walls.shape)+[3])
 
     # truth plot
     true = axes[0].imshow(label)
     axes[0].set_title("Truth")
 
     # inferred plot
-    rew = np.stack([inferred_reward, walls, np.zeros(walls.shape)],axis=-1).reshape(list(walls.shape)+[3])
+    rew = np.stack([pos_reward, walls, neg_reward],axis=-1).reshape(list(walls.shape)+[3])
     tensor = axes[1].imshow(rew)
     axes[1].set_title("Predicted")
 
@@ -84,7 +95,7 @@ def init_flags():
 
     # Hyperparameters
     tf.app.flags.DEFINE_string(
-        'model','SIMPLE','VIN or SIMPLE')
+        'model','SIMPLE','VIN, SIMPLE, or VI')
     tf.app.flags.DEFINE_float(
         'vin_regularizer_C', 0.0001, 'Regularization constant for the VIN')
     tf.app.flags.DEFINE_float(
@@ -141,6 +152,8 @@ def init_flags():
     tf.app.flags.DEFINE_boolean('log', False, 'Enables tensorboard summary')
     tf.app.flags.DEFINE_string(
         'logdir', '/tmp/planner-vin/', 'Directory to store tensorboard summary')
+
+    tf.app.flags.DEFINE_bool('use_gpu', False, 'Enables GPU usage')
 
     config = tf.app.flags.FLAGS
     # It is required that the number of unknown reward functions be divisible by

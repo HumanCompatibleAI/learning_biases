@@ -89,9 +89,13 @@ class PlannerArchitecture(object):
             self.step2_cost = logits_cost
 
         # Define optimizers
-        planner_optimizer = tf.train.RMSPropOptimizer(
-            learning_rate=config.lr, epsilon=1e-6, centered=True)
-        self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
+        if config.model != 'VI':
+            print("statement reached")
+            print("config.model is: {}".format(config.model))
+            planner_optimizer = tf.train.RMSPropOptimizer(
+                learning_rate=config.lr, epsilon=1e-6, centered=True)
+            self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
+
         reward_optimizer = tf.train.RMSPropOptimizer(
             learning_rate=config.reward_lr, epsilon=1e-6, centered=True)
         self.reward_optimize_op = reward_optimizer.minimize(self.step2_cost, var_list=[self.reward])
@@ -108,15 +112,18 @@ class PlannerArchitecture(object):
         self.initialize_op = tf.global_variables_initializer()
 
         # Saving model in SavedModel format
-        self.builder = tf.saved_model.builder.SavedModelBuilder(
-            config.logdir+'model/')
+        # self.builder = tf.saved_model.builder.SavedModelBuilder(
+        #     config.logdir+'model/')
+
+        # If process does not finish
+        self.final_accuracy = "None"
 
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
         # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
         sess.run(self.initialize_op)
-        self.builder.add_meta_graph_and_variables(
-            sess, [tf.saved_model.tag_constants.SERVING])
+        # self.builder.add_meta_graph_and_variables(
+        #     sess, [tf.saved_model.tag_constants.SERVING])
 
     def run_epoch(self, sess, data, ops_to_run, ops_to_average, distributions=[]):
         batch_size = self.config.batchsize
@@ -175,10 +182,10 @@ class PlannerArchitecture(object):
                 print(fmt_row(10, [epoch, avg_cost, avg_err, validation_err, elapsed]))
             if self.config.log:
                 summary = tf.Summary()
-                summary.ParseFromString(sess.run(summary_op))
-                summary.value.add(tag='Average error', simple_value=float(avg_err))
-                summary.value.add(tag='Average cost', simple_value=float(avg_cost))
-                summary_writer.add_summary(summary, epoch)
+                # summary.ParseFromString(sess.run(summary_op))
+                # summary.value.add(tag='Average error', simple_value=float(avg_err))
+                # summary.value.add(tag='Average cost', simple_value=float(avg_cost))
+                # summary_writer.add_summary(summary, epoch)
 
         action_dists = [d + b_d for d, b_d in zip(action_dists, epoch_dist)]
         action_dists = [d / (np.sum(d)) for d in action_dists]
@@ -191,10 +198,11 @@ class PlannerArchitecture(object):
         if print_output and validation_data is not None:
             _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
             print('Final Accuracy: ' + str(100 * (1 - validation_err)))
+            self.final_accuracy = 100 * (1 - validation_err)
 
         # Saving SavedModel instance
-        savepath = self.builder.save()
-        print("Model saved to: {}".format(savepath))
+        # savepath = self.builder.save()
+        # print("Model saved to: {}".format(savepath))
 
     def train_reward(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
         """Infers the reward using backprop, holding the planner fixed.
@@ -256,6 +264,9 @@ def run_interruptibly(fn, step_name='this step'):
 
 def run_inference(planner_train_data, planner_validation_data, reward_data,
                   algorithm_fn, config):
+    """
+    :return: (final_accuracy, % reward = optimal planner)
+    """
     # seed random number generators
     seed = config.seeds.pop(0)
     np.random.seed(seed)
@@ -263,16 +274,27 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
     # use flags to create model and retrieve relevant operations
     architecture = PlannerArchitecture(config)
 
-    image_train, reward_train, _, y_train = planner_train_data
-    image_validation, reward_validation, _, y_validation = planner_validation_data
-    train_data = (image_train, reward_train, y_train)
-    validation_data = (image_validation, reward_validation, y_validation)
+    if planner_train_data and planner_validation_data:
+        image_train, reward_train, _, y_train = planner_train_data
+        image_validation, reward_validation, _, y_validation = planner_validation_data
+        train_data = (image_train, reward_train, y_train)
+        validation_data = (image_validation, reward_validation, y_validation)
+    else:
+        # This is for algorithms which do not need data to infer
+        # Like vi_algorithm
+        train_data = None
+        validation_data = None
 
     image_irl, reward_irl, start_states_irl, y_irl = reward_data
     reward_data = (image_irl, y_irl)
 
     # Launch the graph
-    with tf.Session() as sess:
+    gpu_config = None
+    if config.use_gpu:
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.85)
+        gpu_config = tf.ConfigProto(gpu_options=gpu_options)
+
+    with tf.Session(config=gpu_config) as sess:
         if config.log:
             for var in tf.trainable_variables():
                 tf.summary.histogram(var.op.name, var)
@@ -302,6 +324,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         print('On average planning with the inferred rewards is '
               + str(100 * average_percent_reward)
               + '% as good as planning with the true rewards')
+        return architecture.final_accuracy, average_percent_reward
 
 def two_phase_algorithm(architecture, sess, train_data, validation_data,
                         reward_data, config):
@@ -335,13 +358,28 @@ def iterative_algorithm(architecture, sess, train_data, validation_data,
 
     return rewards
 
+def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, config):
+    """Value Iteration:
+
+    The only variable is the reward_tensor, allow it to be trained as you try VI to predict actions.
+    """
+    if train_data or validation_data:
+        print("You're wasting compute by generating/loading in train/validation data.")
+        print("Value Iteration does not require any data to make reward inferences.")
+        print("")
+
+    image_data, y_data = reward_data
+    rewards = architecture.train_reward(sess, image_data=image_data, reward_data=None, y_data=y_data,
+                    num_epochs=config.reward_epochs)
+    return rewards
+
 def infer_given_some_rewards(config):
     print('Assumption: We have some human data where the rewards are known')
     agent, other_agents = create_agents_from_config(config)
     train_data, validation_data = generate_data_for_planner(
         agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    run_inference(train_data, validation_data, reward_data,
+    return run_inference(train_data, validation_data, reward_data,
                   two_phase_algorithm, config)
 
 def infer_with_boltzmann_planner(config):
@@ -352,7 +390,7 @@ def infer_with_boltzmann_planner(config):
     train_data, validation_data = generate_data_for_planner(
         optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    run_inference(train_data, validation_data, reward_data,
+    return run_inference(train_data, validation_data, reward_data,
                   two_phase_algorithm, config)
 
 def infer_with_no_rewards(config):
@@ -363,17 +401,35 @@ def infer_with_no_rewards(config):
     train_data, validation_data = generate_data_for_planner(
         optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    run_inference(train_data, validation_data, reward_data,
+    return run_inference(train_data, validation_data, reward_data,
                   iterative_algorithm, config)
+
+def infer_with_value_iteration(config):
+    """ This uses a differentiable value iteration algorithm to infer rewards.
+    It's basically just the reward inference part of infer_with_some_rewards, with model=Value_Iter
+    :param config: tensorflow flags object
+    """
+    print("Using Value Iteration to infer rewards")
+    agent, other_agents = create_agents_from_config(config)
+    # No data for planning necessary
+    reward_data = generate_data_for_reward(agent, config, other_agents)
+    return run_inference(None, None, reward_data, vi_algorithm, config)
 
 if __name__=='__main__':
     # get flags || Data
     config = init_flags()
+    important_vals = None
     if config.algorithm == 'given_rewards':
-        infer_given_some_rewards(config)
+        important_vals = infer_given_some_rewards(config)
     elif config.algorithm == 'boltzmann_planner':
-        infer_with_boltzmann_planner(config)
+        important_vals = infer_with_boltzmann_planner(config)
     elif config.algorithm == 'no_rewards':
-        infer_with_no_rewards(config)
+        important_vals = infer_with_no_rewards(config)
+    elif config.algorithm == 'vi_inference':
+        important_vals = infer_with_value_iteration(config)
     else:
         raise ValueError('Unknown algorithm: ' + str(config.algorithm))
+
+    final_accuracy, performance = important_vals
+    print("<1>{}<1>".format(final_accuracy))
+    print("<2>{}<2>".format(performance))

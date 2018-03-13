@@ -1,7 +1,4 @@
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
-import keras 
-# from keras.layers import Conv2D, Conv2DTranspose, Input
-from keras.models import Model
 import numpy as np
 import tensorflow as tf
 
@@ -22,6 +19,8 @@ def create_model(image, reward, config):
         return VI_Block(X, config)
     elif config.model == "SIMPLE":
         return simple_model(X, config)
+    elif config.model == 'VI':
+        return tf_value_iter(X, config)
     else:
         raise ValueError('Unknown model: ' + config.model)
 
@@ -85,7 +84,7 @@ def simple_model(X, config):
         #     final_shape,strides=[1,2,2,1],pad='VALID',activation=None)
 
     else:
-        raise Error("imsize must be in {8, 14}. Other architectures not yet specified")
+        raise Exception("imsize must be in {8, 14}. Other architectures not yet specified")
 
     comb_wts = tf.Variable(tf.truncated_normal((3,)), dtype=tf.float32, name='combination_wts')
 
@@ -163,7 +162,7 @@ def VI_Block(X, config):
 
     # add logits
     logits = tf.matmul(q_out, w_o)
-    
+
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")
     return Model(logits, output)
@@ -189,3 +188,65 @@ def calculate_action_distribution(nn, bsize, ch_q, name=None):
         name = 'action_distributions'
     distributions = tf.stack([distributions], axis=-1, name=name)
     return distributions
+
+def tf_value_iter(X, config):
+    return tf_value_iter_no_config(X, config.ch_q, config.imsize, config.batchsize, config.num_iters, config.gamma)
+
+# Helper Functions for tf_value_iter
+def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount):
+    """
+    Note: this algorithm may need additional attention to the way rewards are inferred
+            Meaning, that batch updates may be especially important, or simultaneous updates
+    Currently: [image, reward] --> VI -->
+                Qvals (image_dim, image_dim, num_actions) -->
+                softmax on state to predict action
+    Also: this algorithm needs the transition probabilities of an MDP
+        but it can use walls to tell if pass/no pass, and reward arr
+
+    :param X: Stacked channel-wise array of image and reward tensors
+    :param config: Tensorflow config flags
+    :return: Q-value table
+    """
+    print("VI is being performed with {} iterations.".format(num_iters))
+    print("VI is assuming the MDP is deterministic.")
+    print("VI is assuming there are 5 actions: up, down, left, right, stay (ordered)")
+
+    # Unpack X tensor
+    reward = tf.expand_dims(X[:,:,:,1],-1)
+    walls = tf.expand_dims(X[:,:,:,0],-1)
+    kernel = tf.constant(np.load("convkernel.npy"), dtype=tf.float32)
+
+    assert kernel.shape[-1] == ch_q, "config.ch_q != number of actions hard coded in convkernel.npy"
+
+    wall_mask = activation(walls)
+    masked_reward = mask(reward, wall_mask)
+    masked_values = np.zeros((bsize,imsize,imsize,1),dtype=np.float32)
+    qvalues = discount*convolve(masked_values, kernel) + masked_reward
+    for i in range(num_iters-1):
+        # compute values
+        values = tf.reduce_max(qvalues, axis=3, keep_dims=True, name="v")
+        # mask values
+        masked_values = negative_mask_values(values, wall_mask)
+        # compute qvalues
+        qvalues = discount*convolve(masked_values, kernel) + masked_reward
+        # mask qvalues
+        qvalues = mask(qvalues, wall_mask)
+    qvalues = tf.reshape(qvalues, [-1,ch_q])
+    return Model(qvalues, tf.nn.softmax(qvalues,name='output'))
+
+def activation(tensor):
+    return 1 - tensor
+
+def mask(values, masking):
+    return tf.multiply(values, masking)
+
+def negative_mask_values(values, wall_mask):
+    """Subtracts -1000 from where the zero mask would put 0s"""
+    zero_mask = mask(values, wall_mask)
+
+    neg_mask = -1000*activation(wall_mask)
+    return zero_mask + neg_mask
+
+def convolve(values, kernel):
+    # values = tf.expand_dims(values, axis=-1)
+    return tf.nn.conv2d(values, kernel, strides=(1,1,1,1), padding="SAME")
