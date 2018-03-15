@@ -90,8 +90,6 @@ class PlannerArchitecture(object):
 
         # Define optimizers
         if config.model != 'VI':
-            print("statement reached")
-            print("config.model is: {}".format(config.model))
             planner_optimizer = tf.train.RMSPropOptimizer(
                 learning_rate=config.lr, epsilon=1e-6, centered=True)
             self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
@@ -116,7 +114,7 @@ class PlannerArchitecture(object):
         #     config.logdir+'model/')
 
         # If process does not finish
-        self.final_accuracy = "None"
+        self.final_accuracy = "NA"
 
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
