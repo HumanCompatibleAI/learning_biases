@@ -8,7 +8,7 @@ import tensorflow as tf
 import agents
 from gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
 from model import create_model, calculate_action_distribution
-from utils import fmt_row, init_flags, plot_reward
+from utils import fmt_row, init_flags, plot_reward, set_seeds
 from agent_runner import evaluate_proxy
 import sys
 
@@ -274,8 +274,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
     """
     # seed random number generators
     seed = config.seeds.pop(0)
-    np.random.seed(seed)
-    random.seed(seed)
+    set_seeds(seed)
     # use flags to create model and retrieve relevant operations
     architecture = PlannerArchitecture(config)
 

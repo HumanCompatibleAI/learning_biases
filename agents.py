@@ -70,18 +70,25 @@ class ValueIterationLikeAgent(Agent):
 
         self.values = values
 
-    def converged(self, values, new_values):
+    def converged(self, values, new_values, tolerance=1e-3):
         """Returns True if value iteration has converged.
 
-        Value iteration has converged if no value has changed by more than 1e-3.
+        Value iteration has converged if no value has changed by more than tolerance.
 
         values: The values from the previous iteration of value iteration.
         new_values: The new value computed during this iteration.
         """
         for mu in new_values.keys():
-            if abs(values[mu] - new_values[mu]) > 1e-3:
+            if abs(values[mu] - new_values[mu]) > tolerance:
                 return False
         return True
+
+    def value(self, mu):
+        """Computes V(mu).
+
+        mu: Generalized state
+        """
+        return self.values[mu]
 
     def qvalue(self, mu, a, values=None):
         """Computes Q(mu, a) from the values table.

@@ -2,6 +2,7 @@ import unittest
 
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
+from utils import set_seeds
 import random
 
 class TestDirection(unittest.TestCase):
@@ -264,7 +265,7 @@ class TestGridworld(unittest.TestCase):
         check_mdp(self.mdp3)
 
     def test_random_gridworld_generation(self):
-        random.seed(314159)
+        set_seeds(314159)
         mdp = GridworldMdp.generate_random(8, 8, 0, 0)
         self.assertEqual(mdp.height, 8)
         self.assertEqual(mdp.width, 8)

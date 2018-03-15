@@ -1,11 +1,13 @@
 import unittest
 import numpy as np
+import time
 from agent_interface import Agent
 from agent_runner import run_agent, get_reward_from_trajectory
 from agents import OptimalAgent, NaiveTimeDiscountingAgent, SophisticatedTimeDiscountingAgent, MyopicAgent
+from fast_agents import FastOptimalAgent
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
-from utils import Distribution
+from utils import Distribution, set_seeds
 
 class TestAgents(unittest.TestCase):
     def setUp(self):
@@ -17,7 +19,7 @@ class TestAgents(unittest.TestCase):
         return actions, get_reward_from_trajectory(trajectory, gamma)
         
 
-    def test_optimal_agent(self):
+    def optimal_agent_test(self, agent):
         grid = ['XXXXXXXXX',
                 'X9X6XA  X',
                 'X X X XXX',
@@ -27,7 +29,6 @@ class TestAgents(unittest.TestCase):
 
         mdp = GridworldMdp(grid, living_reward=-0.1)
         env = Mdp(mdp)
-        agent = OptimalAgent(gamma=0.95, num_iters=20)
         agent.set_mdp(mdp)
         start_state = mdp.get_start_state()
 
@@ -49,7 +50,7 @@ class TestAgents(unittest.TestCase):
         # Values
         # Inaccurate because I ignore living reward and we only use 20
         # iterations of value iteration, so only check to 2 places
-        self.assertAlmostEqual(agent.values[start_state], 0.25, places=2)
+        self.assertAlmostEqual(agent.value(start_state), 0.25, places=2)
 
         # Action distribution
         action_dist = agent.get_action_distribution(start_state)
@@ -82,6 +83,34 @@ class TestAgents(unittest.TestCase):
         self.assertEqual(nprob, sprob)
         self.assertTrue(wprob > eprob)
         self.assertTrue(eprob > nprob)
+
+    def test_optimal_agent(self):
+        agent = OptimalAgent(gamma=0.95, num_iters=20)
+        self.optimal_agent_test(agent)
+
+    def test_gridworld_optimal_agent(self):
+        agent = FastOptimalAgent(gamma=0.95, num_iters=20)
+        self.optimal_agent_test(agent)
+
+    def time(self, fn, message):
+        start = time.time()
+        fn()
+        end = time.time()
+        print(message + ': ' + str(end - start) + 's')
+
+    def test_compare_optimal_agents(self):
+        set_seeds(314159)
+        agent1 = OptimalAgent(gamma=0.95, num_iters=50)
+        agent2 = FastOptimalAgent(gamma=0.95, num_iters=50)
+        mdp = GridworldMdp.generate_random_connected(16, 16, 0.8)
+        print(mdp)
+        env = Mdp(mdp)
+        self.time(lambda: agent1.set_mdp(mdp), "Python planner")
+        self.time(lambda: agent2.set_mdp(mdp), "Numpy planner")
+        for s in mdp.get_states():
+            for a in mdp.get_actions(s):
+                qval1, qval2 = agent1.qvalue(s, a), agent2.qvalue(s, a)
+                self.assertAlmostEqual(qval1, qval2, places=7)
 
     # TODO(rohinmshah): Think through and fix this test
     """
