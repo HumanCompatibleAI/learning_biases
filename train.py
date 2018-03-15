@@ -41,7 +41,6 @@ class PlannerArchitecture(object):
         self.y  = tf.placeholder(
             tf.float32, name="y",  shape=[batch_size, imsize, imsize, num_actions])
 
-        self.reward_shape = (batch_size, imsize, imsize)
         self.reward = tf.Variable(
             tf.zeros([batch_size, imsize, imsize]), name='reward', trainable=False)
         self.assign_reward = self.reward.assign(self.reward_input)
@@ -215,7 +214,7 @@ class PlannerArchitecture(object):
         if print_output:
             print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
         if reward_data is None:
-            reward_data = np.zeros(self.reward_shape)
+            reward_data = np.zeros(image_data.shape)
 
         batch_size = self.config.batchsize
         num_batches = int(image_data.shape[0] / batch_size)
@@ -251,51 +250,56 @@ class PlannerArchitecture(object):
 
         return reward_data
 
-    def train_joint(self, sess, train_data, validation_data, num_epochs, print_output=True):
+    def train_joint(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
         """Trains the planner module given MDPs with reward functions and the
         corresponding policies.
+
+        Essentially performs train_reward, but also passes planner graph
 
         Validation can be turned off by explicitly passing None.
         """
         if print_output:
-            print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
+            print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
+        if reward_data is None:
+            # Initialize the reward array to random values
+            reward_data = np.random.randn(*image_data.shape)
 
-        # Initialize the reward array to random values
-        reward_data = np.random.randn(self.reward_shape*)
+        planner_ops = [self.planner_optimize_op, self.step1_cost]
+        batch_size = self.config.batchsize
+        num_batches = int(image_data.shape[0] / batch_size)
+        for batch_num in range(num_batches):
+            if print_output and batch_num % 10 == 0:
+                print('Batch {} of {}'.format(batch_num, num_batches))
+            start, end = batch_num * batch_size, (batch_num + 1) * batch_size
+            # We can't feed in reward_data directly to self.reward, because then
+            # it will treat it as a constant and will not be able to update it
+            # with backprop. Instead, we first run an op that assigns the
+            # reward, and only then do the backprop.
+            fd = {
+                "reward_input:0": reward_data[start:end],
+            }
+            sess.run([self.assign_reward.op], feed_dict=fd)
 
-        num_actions = self.config.num_actions
-        action_dists = [np.zeros(num_actions), np.zeros(num_actions)]
-        for epoch in range(int(num_epochs)):
-            _, (avg_cost, avg_err), elapsed, epoch_dist = self.run_epoch(
-                sess, train_data, [self.planner_optimize_op, self.reward_optimize_op],
-                [self.step1_cost, self.err], [self.pred_dist, self.y_dist])
+            # Run an epoch on each batch of MDPs to infer their rewards
+            for epoch in range(num_epochs):
+                tstart = time.time()
+                fd = {
+                    "image:0": image_data[start:end],
+                    "y:0": y_data[start:end]
+                }
 
-            # Display logs per epoch step
-            if print_output and epoch % self.config.display_step == 0:
-                if validation_data is not None:
-                    _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
-                else:
-                    validation_err = 'N/A'
-                print(fmt_row(10, [epoch, avg_cost, avg_err, validation_err, elapsed]))
-            if self.config.log:
-                summary = tf.Summary()
-                # summary.ParseFromString(sess.run(summary_op))
-                # summary.value.add(tag='Average error', simple_value=float(avg_err))
-                # summary.value.add(tag='Average cost', simple_value=float(avg_cost))
-                # summary_writer.add_summary(summary, epoch)
+                # Run both step1 & step2 ops, report only error & step2 cost
+                _, e_, c_, _etc, __etc = sess.run(
+                    [self.reward_optimize_op, self.err, self.step2_cost] + planner_ops,
+                    feed_dict=fd)
 
-        action_dists = [d + b_d for d, b_d in zip(action_dists, epoch_dist)]
-        action_dists = [d / (np.sum(d)) for d in action_dists]
-        if print_output and action_dists:
-            print("Action Distribution Comparison")
-            print("------------------------------")
-            print(fmt_row(10, ["Predicted"] + action_dists[0].tolist()))
-            print(fmt_row(10, ["Actual"]+ action_dists[1].tolist()))
+                elapsed = time.time() - tstart
+                if print_output and batch_num % 10 == 0:
+                    print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
-        if print_output and validation_data is not None:
-            _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
-            print('Final Accuracy: ' + str(100 * (1 - validation_err)))
-            self.final_accuracy = 100 * (1 - validation_err)
+            reward_data[start:end] = self.reward.eval()
+
+        return reward_data
 
 def run_interruptibly(fn, step_name='this step'):
     """Runs fn in a mode where KeyboardInterrupts will interrupt fn but will
@@ -410,20 +414,19 @@ def joint_algorithm(architecture, sess, train_data, validation_data,
                     reward_data, config):
     """Interruptibly trains the model + planner on the trajectories.
 
-    Then infers reward.
+    Then infers reward. Currently, does not pretrain the model.
+    In the future, probably worth looking into how to pretrain jointly.
     """
+    assert not train_data and not validation_data, "joint pretraining not yet supported"
 
     image_irl, y_irl = reward_data
 
     run_interruptibly(
         lambda: architecture.train_joint(
-            sess, train_data, validation_data, config.epochs),
+            sess, image_irl, None, y_irl, config.epochs),
         'reward & planner training')
 
-    rewards = architecture.train_reward(
-        sess, image_irl, None, y_irl, config.reward_epochs
-    )
-
+    rewards = architecture.reward.eval()
     return rewards
 
 def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, config):
@@ -480,12 +483,12 @@ def joint_infer_with_no_rewards(config):
 
     print("No rewards given, updating planner and inferred reward jointly")
     agent, other_agents = create_agents_from_config(config)
-    optimal_agent = agents.OptimalAgent(
-        gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
-    train_data, validation_data = generate_data_for_planner(
-        optimal_agent, config, other_agents)
+    # optimal_agent = agents.OptimalAgent(
+    #     gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
+    # train_data, validation_data = generate_data_for_planner(
+    #     optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data,
+    return run_inference(None, None, reward_data,
                          joint_algorithm, config)
 
 def infer_with_value_iteration(config):
