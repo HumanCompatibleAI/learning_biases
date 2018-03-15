@@ -45,7 +45,8 @@ class PlannerArchitecture(object):
             tf.zeros([batch_size, imsize, imsize]), name='reward', trainable=False)
         self.assign_reward = self.reward.assign(self.reward_input)
 
-        print('Creating model: ' + config.model)
+        if config.verbosity >= 1:
+            print('Creating model: ' + config.model)
         self.model = create_model(self.image, self.reward, config)
 
         # Add tensors to calculate action distributions
@@ -112,9 +113,9 @@ class PlannerArchitecture(object):
         self.initialize_op = tf.global_variables_initializer()
 
         # Saving model in SavedModel format
-        # self.builder = tf.saved_model.builder.SavedModelBuilder(
-        #     config.logdir+'model/')
-
+        # if config.log:
+        #     self.builder = tf.saved_model.builder.SavedModelBuilder(
+        #         config.logdir+'model/')
         # If process does not finish
         self.final_accuracy = "None"
 
@@ -122,8 +123,9 @@ class PlannerArchitecture(object):
         # The tag on this model is to access the weights explicitly
         # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
         sess.run(self.initialize_op)
-        # self.builder.add_meta_graph_and_variables(
-        #     sess, [tf.saved_model.tag_constants.SERVING])
+        # if self.config.log:
+        #     self.builder.add_meta_graph_and_variables(
+        #         sess, [tf.saved_model.tag_constants.SERVING])
 
     def run_epoch(self, sess, data, ops_to_run, ops_to_average, distributions=[]):
         batch_size = self.config.batchsize
@@ -157,13 +159,13 @@ class PlannerArchitecture(object):
         elapsed = time.time() - tstart
         return op_results, averages, elapsed, avg_dists
 
-    def train_planner(self, sess, train_data, validation_data, num_epochs, print_output=True):
+    def train_planner(self, sess, train_data, validation_data, num_epochs):
         """Trains the planner module given MDPs with reward functions and the
         corresponding policies.
 
         Validation can be turned off by explicitly passing None.
         """
-        if print_output:
+        if self.config.verbosity >= 3:
             print(fmt_row(10, ["Epoch", "Train Cost", "Train Err", "Valid Err", "Epoch Time"]))
 
         num_actions = self.config.num_actions
@@ -174,12 +176,15 @@ class PlannerArchitecture(object):
                 [self.step1_cost, self.err], [self.pred_dist, self.y_dist])
 
             # Display logs per epoch step
-            if print_output and epoch % self.config.display_step == 0:
+            if self.config.verbosity >= 3 and epoch % self.config.display_step == 0:
                 if validation_data is not None:
                     _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
                 else:
                     validation_err = 'N/A'
                 print(fmt_row(10, [epoch, avg_cost, avg_err, validation_err, elapsed]))
+            elif self.config.verbosity >= 2 and epoch % self.config.display_step == 0:
+                print('Epoch {} of {}'.format(epoch, num_epochs))
+
             if self.config.log:
                 summary = tf.Summary()
                 # summary.ParseFromString(sess.run(summary_op))
@@ -189,20 +194,22 @@ class PlannerArchitecture(object):
 
         action_dists = [d + b_d for d, b_d in zip(action_dists, epoch_dist)]
         action_dists = [d / (np.sum(d)) for d in action_dists]
-        if print_output and action_dists:
+        if self.config.verbosity >= 3 and action_dists:
             print("Action Distribution Comparison")
             print("------------------------------")
             print(fmt_row(10, ["Predicted"] + action_dists[0].tolist()))
             print(fmt_row(10, ["Actual"]+ action_dists[1].tolist()))
 
-        if print_output and validation_data is not None:
+        if self.config.verbosity >= 1 and validation_data is not None:
             _, (validation_err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
             print('Final Accuracy: ' + str(100 * (1 - validation_err)))
             self.final_accuracy = 100 * (1 - validation_err)
+            print('Validation Accuracy: ' + str(100 * (1 - validation_err)))
 
         # Saving SavedModel instance
-        # savepath = self.builder.save()
-        # print("Model saved to: {}".format(savepath))
+        # if self.config.log:
+        #     savepath = self.builder.save()
+        #     print("Model saved to: {}".format(savepath))
 
     def train_reward(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
         """Infers the reward using backprop, holding the planner fixed.
@@ -213,7 +220,7 @@ class PlannerArchitecture(object):
         The rewards are initialized to the values in reward_data. If reward_data
         is None, the rewards are initialized to all zeroes.
         """
-        if print_output:
+        if self.config.verbosity >= 3:
             print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
         if reward_data is None:
             reward_data = np.zeros(image_data.shape)
@@ -221,7 +228,7 @@ class PlannerArchitecture(object):
         batch_size = self.config.batchsize
         num_batches = int(image_data.shape[0] / batch_size)
         for batch_num in range(num_batches):
-            if print_output and batch_num % 10 == 0:
+            if self.config.verbosity >= 2 and batch_num % 10 == 0:
                 print('Batch {} of {}'.format(batch_num, num_batches))
             start, end = batch_num * batch_size, (batch_num + 1) * batch_size
             # We can't feed in reward_data directly to self.reward, because then
@@ -239,13 +246,11 @@ class PlannerArchitecture(object):
                     "image:0": image_data[start:end],
                     "y:0": y_data[start:end]
                 }
-                # print('running session')
                 _, e_, c_ = sess.run(
                     [self.reward_optimize_op, self.err, self.step2_cost],
                     feed_dict=fd)
-                # print('success!')
                 elapsed = time.time() - tstart
-                if print_output and batch_num % 10 == 0:
+                if self.config.verbosity >= 3 and batch_num % 10 == 0:
                     print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
             reward_data[start:end] = self.reward.eval()
@@ -306,24 +311,27 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         inferred_rewards = algorithm_fn(
             architecture, sess, train_data, validation_data, reward_data, config)
 
-        print('The first reward should be:')
-        print(reward_irl[0])
-        # normalized_inferred_reward = inferred_reward / inferred_reward.max()
-        print('The inferred reward is:')
-        print(inferred_rewards[0])
+        if config.verbosity >= 3:
+            print('The first reward should be:')
+            print(reward_irl[0])
+            # normalized_inferred_reward = inferred_reward / inferred_reward.max()
+            print('The inferred reward is:')
+            print(inferred_rewards[0])
 
         reward_percents = []
         for label, reward, wall, start_state, i in zip(reward_irl, inferred_rewards, image_irl, start_states_irl, range(len(reward_irl))):
-            if i < 10:
+            if config.plot_rewards and i < 10:
                 plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
             reward_percents.append(
                 evaluate_proxy(wall, start_state, reward, label, episode_length=20))
 
         average_percent_reward = float(sum(reward_percents)) / len(reward_percents)
-        print(reward_percents[:10])
-        print('On average planning with the inferred rewards is '
-              + str(100 * average_percent_reward)
-              + '% as good as planning with the true rewards')
+        if config.verbosity >= 1:
+            print(reward_percents[:10])
+            print('On average planning with the inferred rewards is '
+                  + str(100 * average_percent_reward)
+                  + '% as good as planning with the true rewards')
+
         return architecture.final_accuracy, average_percent_reward
 
 def two_phase_algorithm(architecture, sess, train_data, validation_data,
@@ -374,27 +382,30 @@ def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, c
     return rewards
 
 def infer_given_some_rewards(config):
-    print('Assumption: We have some human data where the rewards are known')
+    if config.verbosity >= 2:
+        print('Assumption: We have some human data where the rewards are known')
     agent, other_agents = create_agents_from_config(config)
     train_data, validation_data = generate_data_for_planner(
         agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
     return run_inference(train_data, validation_data, reward_data,
-                  two_phase_algorithm, config)
+                         two_phase_algorithm, config)
 
-def infer_with_boltzmann_planner(config):
-    print('Using a Boltzmann planner to mimic normal IRL')
+def infer_with_rational_planner(config, beta=None):
+    if config.verbosity >= 2:
+        print('Using a rational planner with beta {} to mimic normal IRL'.format(beta))
     agent, other_agents = create_agents_from_config(config)
     optimal_agent = agents.OptimalAgent(
-        gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
+        gamma=config.gamma, beta=beta, num_iters=config.num_iters)
     train_data, validation_data = generate_data_for_planner(
         optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
     return run_inference(train_data, validation_data, reward_data,
-                  two_phase_algorithm, config)
+                         two_phase_algorithm, config)
 
 def infer_with_no_rewards(config):
-    print('No rewards given, using the iterative EM-like algorithm')
+    if config.verbosity >= 2:
+        print('No rewards given, using the iterative EM-like algorithm')
     agent, other_agents = create_agents_from_config(config)
     optimal_agent = agents.OptimalAgent(
         gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
@@ -402,7 +413,7 @@ def infer_with_no_rewards(config):
         optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(agent, config, other_agents)
     return run_inference(train_data, validation_data, reward_data,
-                  iterative_algorithm, config)
+                         iterative_algorithm, config)
 
 def infer_with_value_iteration(config):
     """ This uses a differentiable value iteration algorithm to infer rewards.
@@ -415,21 +426,22 @@ def infer_with_value_iteration(config):
     reward_data = generate_data_for_reward(agent, config, other_agents)
     return run_inference(None, None, reward_data, vi_algorithm, config)
 
-if __name__=='__main__':
-    # get flags || Data
-    config = init_flags()
-    important_vals = None
+def run_algorithm(config):
     if config.algorithm == 'given_rewards':
-        important_vals = infer_given_some_rewards(config)
+        return infer_given_some_rewards(config)
     elif config.algorithm == 'boltzmann_planner':
-        important_vals = infer_with_boltzmann_planner(config)
+        beta = config.beta if config.beta is not None else 1.0
+        return infer_with_rational_planner(config, beta)
+    elif config.algorithm == 'optimal_planner':
+        return infer_with_rational_planner(config, None)
     elif config.algorithm == 'no_rewards':
-        important_vals = infer_with_no_rewards(config)
-    elif config.algorithm == 'vi_inference':
-        important_vals = infer_with_value_iteration(config)
+        return infer_with_no_rewards(config)
     else:
         raise ValueError('Unknown algorithm: ' + str(config.algorithm))
 
-    final_accuracy, performance = important_vals
+if __name__=='__main__':
+    # get flags || Data
+    config = init_flags()
+    final_accuracy, performance = run_algorithm(config)
     print("<1>{}<1>".format(final_accuracy))
     print("<2>{}<2>".format(performance))
