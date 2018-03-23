@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import random
 
-from agents import OptimalAgent
+from fast_agents import FastOptimalAgent
 from gridworld import GridworldMdpNoR, GridworldMdp, Direction
 from gridworld_data import load_dataset
 from utils import plot_reward, set_seeds
@@ -25,7 +25,7 @@ class GridworldMdpLearnableR(GridworldMdpNoR):
 
     def policy_log_likelihood(self, policy, weights, beta):
         self.weights = weights
-        agent = OptimalAgent()
+        agent = FastOptimalAgent()
         agent.set_mdp(self)
 
         def qval(state):

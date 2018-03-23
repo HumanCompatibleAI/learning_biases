@@ -5,6 +5,7 @@ import csv
 import os
 
 import agents
+import fast_agents
 from agent_runner import run_agent
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
@@ -178,7 +179,7 @@ def create_agents_from_config(config):
 def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
     """Creates the agent specified in config."""
     if agent == 'optimal':
-        return agents.OptimalAgent(
+        return fast_agents.FastOptimalAgent(
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)

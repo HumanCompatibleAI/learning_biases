@@ -41,14 +41,11 @@ class ValueIterationLikeAgent(Agent):
         self.reward_mdp = reward_mdp if reward_mdp is not None else mdp
         self.compute_values()
 
-    # TODO(rohinmshah): Optimize this for the case where the state is a tuple of
-    # integers by keeping the values in a multidimensional array instead of a
-    # dictionary.
     def compute_values(self):
         """Computes the values for self.mdp using value iteration.
 
-        Populates a dictionary self.values, such that self.values[mu] is the
-        value (a float) of the generalized state mu.
+        Populates an object self.values, such that self.values[mu] is the value
+        (a float) of the generalized state mu.
         """
         values = defaultdict(float)
         for iter in range(self.num_iters):
@@ -211,22 +208,22 @@ class DelayDependentAgent(ValueIterationLikeAgent):
     def get_mus(self):
         """Override to handle states with delays."""
         states = self.mdp.get_states()
-        return [(s, d) for s in states for d in range(self.max_delay + 1)]
+        return [s + (d,) for s in states for d in range(self.max_delay + 1)]
 
     def get_transition_mus_and_probs(self, mu, a):
         """Override to handle states with delays."""
-        s, d = mu
-        transitions = self.mdp.get_transition_states_and_probs(s, a)
+        x, y, d = mu
+        transitions = self.mdp.get_transition_states_and_probs((x, y), a)
         newd = min(d + 1, self.max_delay)
-        return [((s2, newd), p) for s2, p in transitions]
+        return [((x2, y2, newd), p) for (x2, y2), p in transitions]
 
     def extend_state_to_mu(self, state):
         """Override to handle states with delays."""
-        return (state, 0)
+        return state + (0,)
 
     def extract_state_from_mu(self, mu):
         """Override to handle states with delays."""
-        return mu[0]
+        return (mu[0], mu[1])
 
 class TimeDiscountingAgent(DelayDependentAgent):
     """A hyperbolic time discounting agent.
@@ -249,9 +246,9 @@ class TimeDiscountingAgent(DelayDependentAgent):
 
     def get_reward(self, mu, a):
         """Override to apply hyperbolic time discounting."""
-        s, d = mu
+        x, y, d = mu
         discount = (1.0 / (1.0 + self.discount_constant * d))
-        return discount * self.mdp.get_reward(s, a)
+        return discount * self.mdp.get_reward((x, y), a)
 
 class NaiveTimeDiscountingAgent(TimeDiscountingAgent):
     """The naive time discounting agent.
@@ -271,8 +268,8 @@ class SophisticatedTimeDiscountingAgent(TimeDiscountingAgent):
     """
     def get_mu_for_planning(self, mu):
         """Override to implement sophisticated time-inconsistent behavior."""
-        s, d = mu
-        return (s, 0)
+        x, y, d = mu
+        return (x, y, 0)
 
     def __str__(self):
         pattern = 'Sophisticated-maxdelay-{0.max_delay}-discountconst-{0.discount_constant}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
@@ -295,7 +292,7 @@ class MyopicAgent(DelayDependentAgent):
 
     def get_reward(self, mu, a):
         """Override to ignore rewards after the horizon."""
-        s, d = mu
+        x, y, d = mu
         if d >= self.horizon:
             return 0
         return super(MyopicAgent, self).get_reward(mu, a)
