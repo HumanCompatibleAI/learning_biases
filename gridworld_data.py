@@ -191,14 +191,14 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             beta=beta,
             num_iters=num_iters)
     elif agent == 'sophisticated':
-        return agents.SophisticatedTimeDiscountingAgent(
+        return fast_agents.FastSophisticatedTimeDiscountingAgent(
             max_delay,
             hyperbolic_constant,
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)
     elif agent == 'myopic':
-        return agents.MyopicAgent(
+        return fast_agents.FastMyopicAgent(
             max_delay,
             gamma=gamma,
             beta=beta,

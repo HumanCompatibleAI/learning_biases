@@ -166,7 +166,7 @@ class FastSophisticatedTimeDiscountingAgent(agents.SophisticatedTimeDiscountingA
         self.values = self.values[:,:,:-1]
 
     def __str__(self):
-        pattern = 'Sophisticated-maxdelay-{0.max_delay}-discountconst-{0.discount_constant}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
+        pattern = 'FastSophisticated-maxdelay-{0.max_delay}-discountconst-{0.discount_constant}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
         return pattern.format(self)
 
 
