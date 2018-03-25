@@ -5,10 +5,11 @@ import csv
 import os
 
 import agents
+import fast_agents
 from agent_runner import run_agent
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
-from utils import Distribution
+from utils import Distribution, init_flags
 
 # Currently unused, but may be useful later
 def print_training_example(mdp, trajectory):
@@ -178,28 +179,34 @@ def create_agents_from_config(config):
 def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
     """Creates the agent specified in config."""
     if agent == 'optimal':
-        return agents.OptimalAgent(
+        return fast_agents.FastOptimalAgent(
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)
     elif agent == 'naive':
-        return agents.NaiveTimeDiscountingAgent(
+        return fast_agents.FastNaiveTimeDiscountingAgent(
             max_delay,
             hyperbolic_constant,
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)
     elif agent == 'sophisticated':
-        return agents.SophisticatedTimeDiscountingAgent(
+        return fast_agents.FastSophisticatedTimeDiscountingAgent(
             max_delay,
             hyperbolic_constant,
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)
     elif agent == 'myopic':
-        return agents.MyopicAgent(
+        return fast_agents.FastMyopicAgent(
             max_delay,
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)
     raise ValueError('Invalid agent: ' + agent)
+
+
+if __name__ == '__main__':
+    config = init_flags()
+    agent, other_agents = create_agents_from_config(config)
+    generate_data_for_reward(agent, config, other_agents)

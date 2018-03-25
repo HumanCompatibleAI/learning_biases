@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import random
 import re
 import pdb
 import matplotlib
@@ -19,6 +20,11 @@ def fmt_item(x, l):
 def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
+
+def set_seeds(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.set_random_seed(seed)
 
 def softmax(v):
     return np.exp(v)/np.sum(np.exp(v))

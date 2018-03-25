@@ -6,9 +6,10 @@ import random
 import tensorflow as tf
 
 import agents
+import fast_agents
 from gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
 from model import create_model, calculate_action_distribution
-from utils import fmt_row, init_flags, plot_reward
+from utils import fmt_row, init_flags, plot_reward, set_seeds
 from agent_runner import evaluate_proxy
 import sys
 
@@ -274,8 +275,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
     """
     # seed random number generators
     seed = config.seeds.pop(0)
-    np.random.seed(seed)
-    random.seed(seed)
+    set_seeds(seed)
     # use flags to create model and retrieve relevant operations
     architecture = PlannerArchitecture(config)
 
@@ -395,7 +395,7 @@ def infer_with_rational_planner(config, beta=None):
     if config.verbosity >= 2:
         print('Using a rational planner with beta {} to mimic normal IRL'.format(beta))
     agent, other_agents = create_agents_from_config(config)
-    optimal_agent = agents.OptimalAgent(
+    optimal_agent = fast_agents.FastOptimalAgent(
         gamma=config.gamma, beta=beta, num_iters=config.num_iters)
     train_data, validation_data = generate_data_for_planner(
         optimal_agent, config, other_agents)
@@ -407,7 +407,7 @@ def infer_with_no_rewards(config):
     if config.verbosity >= 2:
         print('No rewards given, using the iterative EM-like algorithm')
     agent, other_agents = create_agents_from_config(config)
-    optimal_agent = agents.OptimalAgent(
+    optimal_agent = fast_agents.FastOptimalAgent(
         gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
     train_data, validation_data = generate_data_for_planner(
         optimal_agent, config, other_agents)
