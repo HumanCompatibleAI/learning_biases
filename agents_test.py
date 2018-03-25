@@ -171,7 +171,8 @@ class TestAgents(unittest.TestCase):
         actions, _ = self.run_on_env(myopic_agent, env, gamma=0.9, episode_length=10)
         self.assertEqual(actions, [s, s, e, e, e, e, e, n, stay, stay])
 
-    def compare_agents(self, agent1, agent2, print_mdp=False):
+    def compare_agents(self, name, agent1, agent2, print_mdp=False):
+        print('Comparing {0} agents'.format(name))
         set_seeds(314159)
         mdp = GridworldMdp.generate_random_connected(16, 16, 0.8)
         if print_mdp: print(mdp)
@@ -185,14 +186,24 @@ class TestAgents(unittest.TestCase):
                 self.assertAlmostEqual(qval1, qval2, places=7)
 
     def test_compare_optimal_agents(self):
-        agent1 = agents.OptimalAgent(gamma=0.95, num_iters=50)
-        agent2 = fast_agents.FastOptimalAgent(gamma=0.95, num_iters=50)
-        self.compare_agents(agent1, agent2, print_mdp=True)
+        agent1 = agents.OptimalAgent(gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastOptimalAgent(gamma=0.95, num_iters=20)
+        self.compare_agents('optimal', agent1, agent2, print_mdp=True)
 
     def test_compare_naive_agents(self):
-        agent1 = agents.NaiveTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=50)
-        agent2 = fast_agents.FastNaiveTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=50)
-        self.compare_agents(agent1, agent2)
+        agent1 = agents.NaiveTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastNaiveTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        self.compare_agents('naive', agent1, agent2)
+
+    def test_compare_sophisticated_agents(self):
+        agent1 = agents.SophisticatedTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastSophisticatedTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        self.compare_agents('sophisticated', agent1, agent2)
+
+    def test_compare_myopic_agents(self):
+        agent1 = agents.MyopicAgent(6, gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastMyopicAgent(6, gamma=0.95, num_iters=20)
+        self.compare_agents('myopic', agent1, agent2)
 
 if __name__ == '__main__':
     unittest.main()

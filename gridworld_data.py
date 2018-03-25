@@ -9,7 +9,7 @@ import fast_agents
 from agent_runner import run_agent
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
-from utils import Distribution
+from utils import Distribution, init_flags
 
 # Currently unused, but may be useful later
 def print_training_example(mdp, trajectory):
@@ -204,3 +204,9 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             beta=beta,
             num_iters=num_iters)
     raise ValueError('Invalid agent: ' + agent)
+
+
+if __name__ == '__main__':
+    config = init_flags()
+    agent, other_agents = create_agents_from_config(config)
+    generate_data_for_reward(agent, config, other_agents)
