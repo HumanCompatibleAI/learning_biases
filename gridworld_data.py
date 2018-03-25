@@ -184,7 +184,7 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             beta=beta,
             num_iters=num_iters)
     elif agent == 'naive':
-        return agents.NaiveTimeDiscountingAgent(
+        return fast_agents.FastNaiveTimeDiscountingAgent(
             max_delay,
             hyperbolic_constant,
             gamma=gamma,
