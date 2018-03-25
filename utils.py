@@ -24,6 +24,7 @@ def fmt_row(width, row):
 def set_seeds(seed):
     random.seed(seed)
     np.random.seed(seed)
+    tf.set_random_seed(seed)
 
 def softmax(v):
     return np.exp(v)/np.sum(np.exp(v))
