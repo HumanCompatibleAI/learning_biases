@@ -21,7 +21,7 @@ FLAGS = [
     ['reward_prob',     [0.05]],
     ['imsize',          [8, 14]],
     # ['vin_regularizer_C',   [1e-4]],
-    # ['reward_regularizer_C',    [1e-4]],T
+    # ['reward_regularizer_C',    [1e-4]],
     ['model',           ['SIMPLE','VIN','VI']],
     ['seeds',           ['1,2,3,5,8,13,21,34', '89,714,10,1234,13,21,34,795', '1,2,3,4,5,75,86,907', '123,765,65,4234,5223,665,7234,897']],
     # ['batchsize', [20]],
