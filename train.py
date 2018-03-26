@@ -214,7 +214,7 @@ class PlannerArchitecture(object):
         if print_output:
             print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
         if reward_data is None:
-            reward_data = np.zeros(image_data.shape)
+            reward_data = np.random.randn(image_data.shape)
 
         batch_size = self.config.batchsize
         num_batches = int(image_data.shape[0] / batch_size)
@@ -267,21 +267,19 @@ class PlannerArchitecture(object):
         planner_ops = [self.planner_optimize_op, self.step1_cost]
         batch_size = self.config.batchsize
         num_batches = int(image_data.shape[0] / batch_size)
-        for batch_num in range(num_batches):
-            if print_output and batch_num % 10 == 0:
-                print('Batch {} of {}'.format(batch_num, num_batches))
-            start, end = batch_num * batch_size, (batch_num + 1) * batch_size
-            # We can't feed in reward_data directly to self.reward, because then
-            # it will treat it as a constant and will not be able to update it
-            # with backprop. Instead, we first run an op that assigns the
-            # reward, and only then do the backprop.
-            fd = {
-                "reward_input:0": reward_data[start:end],
-            }
-            sess.run([self.assign_reward.op], feed_dict=fd)
-
+        for epoch in range(num_epochs):
             # Run an epoch on each batch of MDPs to infer their rewards
-            for epoch in range(num_epochs):
+            for batch_num in range(num_batches):
+                start, end = batch_num * batch_size, (batch_num + 1) * batch_size
+                # We can't feed in reward_data directly to self.reward, because then
+                # it will treat it as a constant and will not be able to update it
+                # with backprop. Instead, we first run an op that assigns the
+                # reward, and only then do the backprop.
+                fd = {
+                    "reward_input:0": reward_data[start:end],
+                }
+                sess.run([self.assign_reward.op], feed_dict=fd)
+
                 tstart = time.time()
                 fd = {
                     "image:0": image_data[start:end],
@@ -293,11 +291,12 @@ class PlannerArchitecture(object):
                     [self.reward_optimize_op, self.err, self.step2_cost] + planner_ops,
                     feed_dict=fd)
 
+                self.final_accuracy = (1-e_)*100
                 elapsed = time.time() - tstart
                 if print_output and batch_num % 10 == 0:
                     print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
-            reward_data[start:end] = self.reward.eval()
+                reward_data[start:end] = self.reward.eval()
 
         return reward_data
 
@@ -421,12 +420,9 @@ def joint_algorithm(architecture, sess, train_data, validation_data,
 
     image_irl, y_irl = reward_data
 
-    run_interruptibly(
-        lambda: architecture.train_joint(
-            sess, image_irl, None, y_irl, config.epochs),
-        'reward & planner training')
+    rewards = architecture.train_joint(
+            sess, image_irl, None, y_irl, config.epochs)
 
-    rewards = architecture.reward.eval()
     return rewards
 
 def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, config):
