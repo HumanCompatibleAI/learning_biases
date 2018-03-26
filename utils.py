@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import random
 import re
 import pdb
 import matplotlib
@@ -19,6 +20,11 @@ def fmt_item(x, l):
 def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
+
+def set_seeds(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.set_random_seed(seed)
 
 def softmax(v):
     return np.exp(v)/np.sum(np.exp(v))
@@ -99,15 +105,15 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'vin_regularizer_C', 0.0001, 'Regularization constant for the VIN')
     tf.app.flags.DEFINE_float(
-        'reward_regularizer_C', 0.0001, 'Regularization constant for the reward')
+        'reward_regularizer_C', 0, 'Regularization constant for the reward')
     tf.app.flags.DEFINE_float(
-        'lr', 0.025, 'Learning rate when training the planning module')
+        'lr', 0.01, 'Learning rate when training the planning module')
     tf.app.flags.DEFINE_float(
         'reward_lr', 0.1, 'Learning rate when inferring a reward function')
     tf.app.flags.DEFINE_integer(
-        'epochs', 30, 'Number of epochs to train the planning module for')
+        'epochs', 10, 'Number of epochs to train the planning module for')
     tf.app.flags.DEFINE_integer(
-        'reward_epochs', 50, 'Number of epochs when inferring a reward function')
+        'reward_epochs', 20, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
     tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
@@ -125,7 +131,7 @@ def init_flags():
     tf.app.flags.DEFINE_integer(
         'max_delay', 5,
         'Maximum delay that the agent should use. '
-        'Only affects naive/sophisticated and myopic agents.')
+        'Only affects naive, sophisticated and myopic agents.')
     tf.app.flags.DEFINE_float(
         'hyperbolic_constant', 1.0,
         'Discount for the future for hyperbolic time discounters')
@@ -144,14 +150,26 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'other_hyperbolic_constant', 1.0, 'Hyperbolic constant for other agent')
 
-    # Miscellaneous
-    tf.app.flags.DEFINE_string(
-        'seeds', '1,2,3,5,8,13,21,34', 'Random seeds for both numpy and random')
+    # Output
     tf.app.flags.DEFINE_integer(
         'display_step', 1, 'Print summary output every n epochs')
     tf.app.flags.DEFINE_boolean('log', False, 'Enables tensorboard summary')
     tf.app.flags.DEFINE_string(
         'logdir', '/tmp/planner-vin/', 'Directory to store tensorboard summary')
+    tf.app.flags.DEFINE_integer(
+        'verbosity', 3,
+        """Level of output to terminal (higher means more output).
+        Level 0 suppresses all output.
+        Level 1 includes only output about key metrics.
+        Level 2 includes infrequent progress updates.
+        Level 3 provides detailed information on training progress.
+        """)
+    tf.app.flags.DEFINE_boolean(
+        'plot_rewards', True, 'Whether or not to plot rewards')
+
+    # Miscellaneous
+    tf.app.flags.DEFINE_string(
+        'seeds', '1,2,3,5,8,13,21,34', 'Random seeds for both numpy and random')
 
     tf.app.flags.DEFINE_bool('use_gpu', False, 'Enables GPU usage')
 

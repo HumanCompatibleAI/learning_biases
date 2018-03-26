@@ -1,11 +1,13 @@
 import unittest
 import numpy as np
+import time
+import agents
+import fast_agents
 from agent_interface import Agent
 from agent_runner import run_agent, get_reward_from_trajectory
-from agents import OptimalAgent, NaiveTimeDiscountingAgent, SophisticatedTimeDiscountingAgent, MyopicAgent
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
-from utils import Distribution
+from utils import Distribution, set_seeds
 
 class TestAgents(unittest.TestCase):
     def setUp(self):
@@ -17,7 +19,7 @@ class TestAgents(unittest.TestCase):
         return actions, get_reward_from_trajectory(trajectory, gamma)
         
 
-    def test_optimal_agent(self):
+    def optimal_agent_test(self, agent):
         grid = ['XXXXXXXXX',
                 'X9X6XA  X',
                 'X X X XXX',
@@ -27,7 +29,6 @@ class TestAgents(unittest.TestCase):
 
         mdp = GridworldMdp(grid, living_reward=-0.1)
         env = Mdp(mdp)
-        agent = OptimalAgent(gamma=0.95, num_iters=20)
         agent.set_mdp(mdp)
         start_state = mdp.get_start_state()
 
@@ -42,14 +43,14 @@ class TestAgents(unittest.TestCase):
         # Same thing, but with a bigger discount
         mdp = GridworldMdp(grid, living_reward=-0.001)
         env = Mdp(mdp)
-        agent = OptimalAgent(gamma=0.5, num_iters=20)
+        agent = agents.OptimalAgent(gamma=0.5, num_iters=20)
         agent.set_mdp(mdp)
         start_state = mdp.get_start_state()
 
         # Values
         # Inaccurate because I ignore living reward and we only use 20
         # iterations of value iteration, so only check to 2 places
-        self.assertAlmostEqual(agent.values[start_state], 0.25, places=2)
+        self.assertAlmostEqual(agent.value(start_state), 0.25, places=2)
 
         # Action distribution
         action_dist = agent.get_action_distribution(start_state)
@@ -62,7 +63,7 @@ class TestAgents(unittest.TestCase):
         self.assertEqual(actions, [s, s, e, e, stay, stay, stay, stay, stay, stay])
 
         # Same thing, but with Boltzmann rationality
-        agent = OptimalAgent(beta=1, gamma=0.5, num_iters=20)
+        agent = agents.OptimalAgent(beta=1, gamma=0.5, num_iters=20)
         agent.set_mdp(mdp)
 
         # Action distribution
@@ -83,6 +84,20 @@ class TestAgents(unittest.TestCase):
         self.assertTrue(wprob > eprob)
         self.assertTrue(eprob > nprob)
 
+    def test_optimal_agent(self):
+        agent = agents.OptimalAgent(gamma=0.95, num_iters=20)
+        self.optimal_agent_test(agent)
+
+    def test_gridworld_optimal_agent(self):
+        agent = fast_agents.FastOptimalAgent(gamma=0.95, num_iters=20)
+        self.optimal_agent_test(agent)
+
+    def time(self, fn, message):
+        start = time.time()
+        fn()
+        end = time.time()
+        print(message + ': ' + str(end - start) + 's')
+
     # TODO(rohinmshah): Think through and fix this test
     """
     def test_time_discounting_agents(self):
@@ -96,17 +111,17 @@ class TestAgents(unittest.TestCase):
         mdp = GridworldMdp(grid, living_reward=-0.001)
         env = GridworldEnvironment(mdp)
 
-        optimal_agent = OptimalAgent(gamma=0.9, num_iters=20)
+        optimal_agent = agents.OptimalAgent(gamma=0.9, num_iters=20)
         optimal_agent.set_mdp(mdp)
         actions, _ = self.run_on_env(optimal_agent, env, gamma=0.9, episode_length=7)
         self.assertEqual(actions, [w, w, w, w, s, s, stay])
 
-        naive_agent = NaiveTimeDiscountingAgent(10, 1, gamma=0.9, num_iters=20)
+        naive_agent = agents.NaiveTimeDiscountingAgent(10, 1, gamma=0.9, num_iters=20)
         naive_agent.set_mdp(mdp)
         actions, _ = self.run_on_env(naive_agent, env, gamma=0.9, episode_length=7)
         self.assertEqual(actions, [w, w, s, stay, stay, stay, stay])
 
-        soph_agent = SophisticatedTimeDiscountingAgent(10, 1, gamma=0.9, num_iters=20)
+        soph_agent = agents.SophisticatedTimeDiscountingAgent(10, 1, gamma=0.9, num_iters=20)
         soph_agent.set_mdp(mdp)
         actions, _ = self.run_on_env(soph_agent, env, gamma=0.9, episode_length=7)
         self.assertEqual(actions, [s, s, stay])
@@ -146,15 +161,49 @@ class TestAgents(unittest.TestCase):
         mdp = GridworldMdp(grid, living_reward=-0.1)
         env = Mdp(mdp)
 
-        optimal_agent = OptimalAgent(gamma=0.9, num_iters=20)
+        optimal_agent = agents.OptimalAgent(gamma=0.9, num_iters=20)
         optimal_agent.set_mdp(mdp)
         actions, _ = self.run_on_env(optimal_agent, env, gamma=0.9, episode_length=10)
         self.assertEqual(actions, [e, e, e, e, e, s, stay, stay, stay, stay])
 
-        myopic_agent = MyopicAgent(6, gamma=0.9, num_iters=20)
+        myopic_agent = agents.MyopicAgent(6, gamma=0.9, num_iters=20)
         myopic_agent.set_mdp(mdp)
         actions, _ = self.run_on_env(myopic_agent, env, gamma=0.9, episode_length=10)
         self.assertEqual(actions, [s, s, e, e, e, e, e, n, stay, stay])
+
+    def compare_agents(self, name, agent1, agent2, print_mdp=False):
+        print('Comparing {0} agents'.format(name))
+        set_seeds(314159)
+        mdp = GridworldMdp.generate_random_connected(16, 16, 0.8)
+        if print_mdp: print(mdp)
+        env = Mdp(mdp)
+        self.time(lambda: agent1.set_mdp(mdp), "Python planner")
+        self.time(lambda: agent2.set_mdp(mdp), "Numpy planner")
+        for s in mdp.get_states():
+            for a in mdp.get_actions(s):
+                mu = agent1.extend_state_to_mu(s)
+                qval1, qval2 = agent1.qvalue(mu, a), agent2.qvalue(mu, a)
+                self.assertAlmostEqual(qval1, qval2, places=7)
+
+    def test_compare_optimal_agents(self):
+        agent1 = agents.OptimalAgent(gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastOptimalAgent(gamma=0.95, num_iters=20)
+        self.compare_agents('optimal', agent1, agent2, print_mdp=True)
+
+    def test_compare_naive_agents(self):
+        agent1 = agents.NaiveTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastNaiveTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        self.compare_agents('naive', agent1, agent2)
+
+    def test_compare_sophisticated_agents(self):
+        agent1 = agents.SophisticatedTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastSophisticatedTimeDiscountingAgent(10, 1, gamma=0.95, num_iters=20)
+        self.compare_agents('sophisticated', agent1, agent2)
+
+    def test_compare_myopic_agents(self):
+        agent1 = agents.MyopicAgent(6, gamma=0.95, num_iters=20)
+        agent2 = fast_agents.FastMyopicAgent(6, gamma=0.95, num_iters=20)
+        self.compare_agents('myopic', agent1, agent2)
 
 if __name__ == '__main__':
     unittest.main()
