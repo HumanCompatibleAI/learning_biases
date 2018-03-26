@@ -210,7 +210,7 @@ class PlannerArchitecture(object):
         #     savepath = self.builder.save()
         #     print("Model saved to: {}".format(savepath))
 
-    def train_reward(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
+    def train_reward(self, sess, image_data, reward_data, y_data, num_epochs):
         """Infers the reward using backprop, holding the planner fixed.
 
         Due to Tensorflow constraints, image_data must contain exactly
@@ -222,7 +222,7 @@ class PlannerArchitecture(object):
         if self.config.verbosity >= 3:
             print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
         if reward_data is None:
-            reward_data = np.random.randn(image_data.shape)
+            reward_data = np.random.randn(*image_data.shape)
 
         batch_size = self.config.batchsize
         num_batches = int(image_data.shape[0] / batch_size)
@@ -256,7 +256,7 @@ class PlannerArchitecture(object):
 
         return reward_data
 
-    def train_joint(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
+    def train_joint(self, sess, image_data, reward_data, y_data, num_epochs):
         """Trains the planner module given MDPs with reward functions and the
         corresponding policies.
 
@@ -264,7 +264,7 @@ class PlannerArchitecture(object):
 
         Validation can be turned off by explicitly passing None.
         """
-        if print_output:
+        if self.config.verbosity >= 3:
             print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
         if reward_data is None:
             # Initialize the reward array to random values
@@ -299,7 +299,7 @@ class PlannerArchitecture(object):
 
                 self.final_accuracy = (1-e_)*100
                 elapsed = time.time() - tstart
-                if print_output and batch_num % 10 == 0:
+                if self.config.verbosity >= 3 and batch_num % 10 == 0:
                     print(fmt_row(10, [epoch, c_, e_, elapsed]))
 
                 reward_data[start:end] = self.reward.eval()
@@ -362,7 +362,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         inferred_rewards = algorithm_fn(
             architecture, sess, train_data, validation_data, reward_data, config)
 
-        if config.verbosity >= 3:
+        if config.verbosity >= 4:
             print('The first reward should be:')
             print(reward_irl[0])
             # normalized_inferred_reward = inferred_reward / inferred_reward.max()
@@ -451,22 +451,32 @@ def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, c
 def infer_given_some_rewards(config):
     if config.verbosity >= 2:
         print('Assumption: We have some human data where the rewards are known')
+
     agent, other_agents = create_agents_from_config(config)
+    num_traj, num_train = config.num_human_trajectories, config.num_with_rewards
+    num_without_reward = make_evenly_batched(num_traj - num_train, config)
+
     train_data, validation_data = generate_data_for_planner(
-        agent, config, other_agents)
-    reward_data = generate_data_for_reward(agent, config, other_agents)
+        num_train, config.num_validation, agent, config, other_agents)
+    reward_data = generate_data_for_reward(
+        num_without_reward, agent, config, other_agents)
     return run_inference(train_data, validation_data, reward_data,
                          two_phase_algorithm, config)
 
 def infer_with_rational_planner(config, beta=None):
     if config.verbosity >= 2:
         print('Using a rational planner with beta {} to mimic normal IRL'.format(beta))
+
     agent, other_agents = create_agents_from_config(config)
+    num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
+    num_simulated, num_validation = config.num_simulated, config.num_validation
+
     optimal_agent = fast_agents.FastOptimalAgent(
         gamma=config.gamma, beta=beta, num_iters=config.num_iters)
     train_data, validation_data = generate_data_for_planner(
-        optimal_agent, config, other_agents)
-    reward_data = generate_data_for_reward(agent, config, other_agents)
+        num_simulated, num_validation, optimal_agent, config, other_agents)
+    reward_data = generate_data_for_reward(
+        num_without_reward, agent, config, other_agents)
     return run_inference(train_data, validation_data, reward_data,
                          two_phase_algorithm, config)
 
@@ -474,11 +484,15 @@ def infer_with_no_rewards(config):
     if config.verbosity >= 2:
         print('No rewards given, using the iterative EM-like algorithm')
     agent, other_agents = create_agents_from_config(config)
+    num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
+    num_simulated, num_validation = config.num_simulated, config.num_validation
+
     optimal_agent = fast_agents.FastOptimalAgent(
         gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
     train_data, validation_data = generate_data_for_planner(
-        optimal_agent, config, other_agents)
-    reward_data = generate_data_for_reward(agent, config, other_agents)
+        num_simulated, num_validation, optimal_agent, config, other_agents)
+    reward_data = generate_data_for_reward(
+        num_without_reward, agent, config, other_agents)
     return run_inference(train_data, validation_data, reward_data,
                          iterative_algorithm, config)
 
@@ -505,7 +519,9 @@ def infer_with_value_iteration(config):
     print("Using Value Iteration to infer rewards")
     agent, other_agents = create_agents_from_config(config)
     # No data for planning necessary
-    reward_data = generate_data_for_reward(agent, config, other_agents)
+    num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
+    reward_data = generate_data_for_reward(
+        num_without_reward, agent, config, other_agents)
     return run_inference(None, None, reward_data, vi_algorithm, config)
 
 def run_algorithm(config):
@@ -524,6 +540,16 @@ def run_algorithm(config):
         return infer_with_value_iteration(config)
     else:
         raise ValueError('Unknown algorithm: ' + str(config.algorithm))
+
+
+def make_evenly_batched(n, config):
+    # It is required that the number of unknown reward functions be divisible by
+    # the batch size, due to Tensorflow constraints.
+    if n % config.batchsize != 0:
+        n = n - (n % config.batchsize)
+        print('Reducing to {} MDPs to be divisible by the batch size'.format(n))
+    return n
+
 
 if __name__=='__main__':
     # get flags || Data

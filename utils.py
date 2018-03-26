@@ -81,7 +81,7 @@ def init_flags():
     #   Generate data
     tf.app.flags.DEFINE_boolean(
         'simple_mdp', False, 'Whether to use the simple random MDP generator')
-    tf.app.flags.DEFINE_integer('imsize', 8, 'Size of input image')
+    tf.app.flags.DEFINE_integer('imsize', 16, 'Size of input image')
     tf.app.flags.DEFINE_float(
         'wall_prob', 0.05,
         'Probability of having a wall at any particular space in the gridworld. '
@@ -93,11 +93,14 @@ def init_flags():
         'action_distance_threshold', 0.5,
         'Minimum distance between two action distributions to be "different"')
     tf.app.flags.DEFINE_integer(
-        'num_train', 5000, 'Number of examples for training the planning module')
+        'num_human_trajectories', 6000, 'Number of human trajectories we see')
     tf.app.flags.DEFINE_integer(
-        'num_test', 2000, 'Number of examples for testing the planning module')
+        'num_validation', 2000,
+        'Number of extra trajectories to generate to validate the planning module')
     tf.app.flags.DEFINE_integer(
-        'num_mdps', 1000, 'Number of MDPs to infer the reward of')
+        'num_with_rewards', 0, 'Number of MDPs where reward info is known')
+    tf.app.flags.DEFINE_integer(
+        'num_simulated', 0, 'Number of MDPs with simulated trajectories')
 
     # Hyperparameters
     tf.app.flags.DEFINE_string(
@@ -116,6 +119,7 @@ def init_flags():
         'reward_epochs', 20, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
+    tf.app.flags.DEFINE_integer('ch_p', 5, 'Channels in proxy reward layer')
     tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
     tf.app.flags.DEFINE_integer('num_actions', 5, 'Number of actions')
     tf.app.flags.DEFINE_integer('batchsize', 20, 'Batch size')
@@ -170,17 +174,28 @@ def init_flags():
     # Miscellaneous
     tf.app.flags.DEFINE_string(
         'seeds', '1,2,3,5,8,13,21,34', 'Random seeds for both numpy and random')
-
     tf.app.flags.DEFINE_bool('use_gpu', False, 'Enables GPU usage')
+    tf.app.flags.DEFINE_bool('strict', False, 'Disables permissive flags')
 
     config = tf.app.flags.FLAGS
-    # It is required that the number of unknown reward functions be divisible by
-    # the batch size, due to Tensorflow constraints.
-    if config.num_mdps % config.batchsize != 0:
-        config.num_mdps = config.num_mdps - (config.num_mdps % config.batchsize)
-        print('Reduced number of MDPs to {} to be divisible by the batch size'.format(config.num_mdps))
-
     config.seeds = list(map(int, config.seeds.split(',')))
+
+    def warn_or_error(message):
+        if config.strict:
+            raise ValueError(message)
+        else:
+            print(message)
+
+    if config.algorithm == 'given_rewards':
+        if config.num_simulated != 0:
+            warn_or_error("num_simulated is nonzero, even though simulated trajectories are useless for given_rewards")
+        if config.num_with_rewards == 0:
+            if config.strict:
+                raise ValueError("num_with_rewards must be nonzero for given_rewards")
+            else:
+                config.num_with_rewards = min(5000, config.num_human_trajectories - 1000)
+                print("num_with_rewards must be nonzero for given_rewards, setting it to " + str(config.num_with_rewards))
+    # TODO(rohinmshah): Enforce constraints on flags for algorithms, based on --strict. An example constraint is above, but there are more.
     return config
 
 class Distribution(object):
