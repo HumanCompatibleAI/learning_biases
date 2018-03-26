@@ -92,8 +92,6 @@ class PlannerArchitecture(object):
 
         # Define optimizers
         if config.model != 'VI':
-            print("statement reached")
-            print("config.model is: {}".format(config.model))
             planner_optimizer = tf.train.RMSPropOptimizer(
                 learning_rate=config.lr, epsilon=1e-6, centered=True)
             self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
@@ -118,7 +116,7 @@ class PlannerArchitecture(object):
         #     self.builder = tf.saved_model.builder.SavedModelBuilder(
         #         config.logdir+'model/')
         # If process does not finish
-        self.final_accuracy = "None"
+        self.final_accuracy = "NA"
 
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
@@ -224,7 +222,7 @@ class PlannerArchitecture(object):
         if self.config.verbosity >= 3:
             print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
         if reward_data is None:
-            reward_data = np.zeros(image_data.shape)
+            reward_data = np.random.randn(image_data.shape)
 
         batch_size = self.config.batchsize
         num_batches = int(image_data.shape[0] / batch_size)
@@ -258,6 +256,55 @@ class PlannerArchitecture(object):
 
         return reward_data
 
+    def train_joint(self, sess, image_data, reward_data, y_data, num_epochs, print_output=True):
+        """Trains the planner module given MDPs with reward functions and the
+        corresponding policies.
+
+        Essentially performs train_reward, but also passes planner graph
+
+        Validation can be turned off by explicitly passing None.
+        """
+        if print_output:
+            print(fmt_row(10, ["Iteration", "Train Cost", "Train Err", "Iter Time"]))
+        if reward_data is None:
+            # Initialize the reward array to random values
+            reward_data = np.random.randn(*image_data.shape)
+
+        planner_ops = [self.planner_optimize_op, self.step1_cost]
+        batch_size = self.config.batchsize
+        num_batches = int(image_data.shape[0] / batch_size)
+        for epoch in range(num_epochs):
+            # Run an epoch on each batch of MDPs to infer their rewards
+            for batch_num in range(num_batches):
+                start, end = batch_num * batch_size, (batch_num + 1) * batch_size
+                # We can't feed in reward_data directly to self.reward, because then
+                # it will treat it as a constant and will not be able to update it
+                # with backprop. Instead, we first run an op that assigns the
+                # reward, and only then do the backprop.
+                fd = {
+                    "reward_input:0": reward_data[start:end],
+                }
+                sess.run([self.assign_reward.op], feed_dict=fd)
+
+                tstart = time.time()
+                fd = {
+                    "image:0": image_data[start:end],
+                    "y:0": y_data[start:end]
+                }
+
+                # Run both step1 & step2 ops, report only error & step2 cost
+                _, e_, c_, _etc, __etc = sess.run(
+                    [self.reward_optimize_op, self.err, self.step2_cost] + planner_ops,
+                    feed_dict=fd)
+
+                self.final_accuracy = (1-e_)*100
+                elapsed = time.time() - tstart
+                if print_output and batch_num % 10 == 0:
+                    print(fmt_row(10, [epoch, c_, e_, elapsed]))
+
+                reward_data[start:end] = self.reward.eval()
+
+        return reward_data
 
 def run_interruptibly(fn, step_name='this step'):
     """Runs fn in a mode where KeyboardInterrupts will interrupt fn but will
@@ -271,6 +318,10 @@ def run_interruptibly(fn, step_name='this step'):
 def run_inference(planner_train_data, planner_validation_data, reward_data,
                   algorithm_fn, config):
     """
+    Evaluates a given algorithm_fn based upon its inferred reward
+
+    Specifically, regret is calculated with respect to the reward_data
+
     :return: (final_accuracy, % reward = optimal planner)
     """
     # seed random number generators
@@ -366,6 +417,22 @@ def iterative_algorithm(architecture, sess, train_data, validation_data,
 
     return rewards
 
+def joint_algorithm(architecture, sess, train_data, validation_data,
+                    reward_data, config):
+    """Interruptibly trains the model + planner on the trajectories.
+
+    Then infers reward. Currently, does not pretrain the model.
+    In the future, probably worth looking into how to pretrain jointly.
+    """
+    assert not train_data and not validation_data, "joint pretraining not yet supported"
+
+    image_irl, y_irl = reward_data
+
+    rewards = architecture.train_joint(
+            sess, image_irl, None, y_irl, config.epochs)
+
+    return rewards
+
 def vi_algorithm(architecture, sess, train_data, validation_data, reward_data, config):
     """Value Iteration:
 
@@ -415,10 +482,25 @@ def infer_with_no_rewards(config):
     return run_inference(train_data, validation_data, reward_data,
                          iterative_algorithm, config)
 
+def joint_infer_with_no_rewards(config):
+    """Performs inference of reward by learning a trajectory.
+
+    Backpropagation of reward and planner module performed jointly.
+    """
+
+    print("No rewards given, updating planner and inferred reward jointly")
+    agent, other_agents = create_agents_from_config(config)
+    # optimal_agent = agents.OptimalAgent(
+    #     gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
+    # train_data, validation_data = generate_data_for_planner(
+    #     optimal_agent, config, other_agents)
+    reward_data = generate_data_for_reward(agent, config, other_agents)
+    return run_inference(None, None, reward_data,
+                         joint_algorithm, config)
+
 def infer_with_value_iteration(config):
     """ This uses a differentiable value iteration algorithm to infer rewards.
     It's basically just the reward inference part of infer_with_some_rewards, with model=Value_Iter
-    :param config: tensorflow flags object
     """
     print("Using Value Iteration to infer rewards")
     agent, other_agents = create_agents_from_config(config)
@@ -436,6 +518,10 @@ def run_algorithm(config):
         return infer_with_rational_planner(config, None)
     elif config.algorithm == 'no_rewards':
         return infer_with_no_rewards(config)
+    elif config.algorithm == 'joint_no_rewards':
+        return joint_infer_with_no_rewards(config)
+    elif config.algorithm == 'vi_inference':
+        return infer_with_value_iteration(config)
     else:
         raise ValueError('Unknown algorithm: ' + str(config.algorithm))
 
