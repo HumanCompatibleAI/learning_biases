@@ -25,7 +25,8 @@ FLAGS = [
     ['model',           ['SIMPLE','VIN','VI']],
     ['seeds',           ['1,2,3,5,8,13,21,34', '89,714,10,1234,13,21,34,795', '1,2,3,4,5,75,86,907', '123,765,65,4234,5223,665,7234,897']],
     # ['batchsize', [20]],
-    ['use_gpu', ['True']]
+    ['use_gpu', ['True']],
+    ['verbosity', ['3']]
 ]
 
 INTERPRETER="/home/ngundotra/.conda/envs/IRL/bin/python"

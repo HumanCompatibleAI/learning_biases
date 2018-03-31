@@ -2,7 +2,6 @@ import tensorflow as tf
 import numpy as np
 import random
 import re
-import pdb
 import matplotlib
 matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
@@ -155,6 +154,8 @@ def init_flags():
         'other_hyperbolic_constant', 1.0, 'Hyperbolic constant for other agent')
 
     # Output
+    tf.app.flags.DEFINE_string(
+        'output_folder', 'data/', 'Folder to write statistics to')
     tf.app.flags.DEFINE_integer(
         'display_step', 1, 'Print summary output every n epochs')
     tf.app.flags.DEFINE_boolean('log', False, 'Enables tensorboard summary')
@@ -249,3 +250,10 @@ class Distribution(object):
 
     def __repr__(self):
         return 'Distribution(%s)' % repr(self.dist)
+
+
+def concat_folder(folder, element):
+    """folder and element are strings"""
+    if folder[-1] == '/':
+        return folder + element
+    return folder + '/' + element
