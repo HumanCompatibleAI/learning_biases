@@ -87,12 +87,17 @@ def init_flags():
         'Has no effect if --simple_mdp is False.')
     tf.app.flags.DEFINE_float(
         'reward_prob', 0.05,
-        'Probability of having a reward at any particular space in the gridworld')
+        'Probability of having a reward at any particular space in the gridworld. '
+        'Has no effect if --simple_mdp is False.')
+    tf.app.flags.DEFINE_integer(
+        'num_rewards', 5,
+        'Number of positions in the gridworld that should have reward. '
+        'Has no effect if --simple_mdp is True.')
     tf.app.flags.DEFINE_float(
         'action_distance_threshold', 0.5,
         'Minimum distance between two action distributions to be "different"')
     tf.app.flags.DEFINE_integer(
-        'num_human_trajectories', 6000, 'Number of human trajectories we see')
+        'num_human_trajectories', 8000, 'Number of human trajectories we see')
     tf.app.flags.DEFINE_integer(
         'num_validation', 2000,
         'Number of extra trajectories to generate to validate the planning module')
@@ -111,11 +116,11 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'lr', 0.01, 'Learning rate when training the planning module')
     tf.app.flags.DEFINE_float(
-        'reward_lr', 0.1, 'Learning rate when inferring a reward function')
+        'reward_lr', 1.0, 'Learning rate when inferring a reward function')
     tf.app.flags.DEFINE_integer(
-        'epochs', 10, 'Number of epochs to train the planning module for')
+        'epochs', 20, 'Number of epochs to train the planning module for')
     tf.app.flags.DEFINE_integer(
-        'reward_epochs', 20, 'Number of epochs when inferring a reward function')
+        'reward_epochs', 50, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
     tf.app.flags.DEFINE_integer('ch_p', 5, 'Channels in proxy reward layer')
@@ -126,13 +131,13 @@ def init_flags():
     # Agent
     tf.app.flags.DEFINE_string(
         'agent', 'optimal', 'Agent to generate training data with')
-    tf.app.flags.DEFINE_float('gamma', 0.9, 'Discount factor')
+    tf.app.flags.DEFINE_float('gamma', 0.95, 'Discount factor')
     tf.app.flags.DEFINE_float('beta', None, 'Noise when selecting actions')
     tf.app.flags.DEFINE_integer(
         'num_iters', 50,
         'Number of iterations of value iteration the agent should run.')
     tf.app.flags.DEFINE_integer(
-        'max_delay', 5,
+        'max_delay', 10,
         'Maximum delay that the agent should use. '
         'Only affects naive, sophisticated and myopic agents.')
     tf.app.flags.DEFINE_float(
@@ -180,6 +185,7 @@ def init_flags():
 
     config = tf.app.flags.FLAGS
     config.seeds = list(map(int, config.seeds.split(',')))
+    alg = config.algorithm
 
     def warn_or_error(message):
         if config.strict:
@@ -187,16 +193,40 @@ def init_flags():
         else:
             print(message)
 
-    if config.algorithm == 'given_rewards':
-        if config.num_simulated != 0:
-            warn_or_error("num_simulated is nonzero, even though simulated trajectories are useless for given_rewards")
-        if config.num_with_rewards == 0:
-            if config.strict:
-                raise ValueError("num_with_rewards must be nonzero for given_rewards")
-            else:
-                config.num_with_rewards = min(5000, config.num_human_trajectories - 1000)
-                print("num_with_rewards must be nonzero for given_rewards, setting it to " + str(config.num_with_rewards))
-    # TODO(rohinmshah): Enforce constraints on flags for algorithms, based on --strict. An example constraint is above, but there are more.
+    def check_zero(flag):
+        if getattr(config, flag) != 0:
+            warn_or_error('{} > 0 is useless for algorithm {}'.format(flag, alg))
+
+    def check_nonzero(flag, default):
+        if getattr(config, flag) == 0:
+            warn_or_error('{} must be nonzero for algorithm {}'.format(flag, alg))
+            setattr(config, flag, default)
+            print('Setting it to ' + str(default))
+
+    check_nonzero('num_human_trajectories', 8000)
+    if alg == 'given_rewards':
+        check_zero('em_iterations')
+        check_zero('num_simulated')
+        check_nonzero('num_with_rewards', config.num_human_trajectories - 1000)
+        check_nonzero('num_validation', 2000)
+    elif alg == 'no_rewards':
+        check_zero('num_with_rewards')
+        check_nonzero('em_iterations', 2)
+        check_nonzero('num_simulated', 5000)
+        check_nonzero('num_validation', 2000)
+    elif alg in ['boltzmann_planner', 'optimal_planner']:
+        check_zero('em_iterations')
+        check_zero('num_with_rewards')
+        check_nonzero('num_simulated', 5000)
+        check_nonzero('num_validation', 2000)
+    elif alg in ['joint_no_rewards', 'vi_inference']:
+        check_zero('em_iterations')
+        check_zero('num_with_rewards')
+        check_zero('num_simulated')
+        check_zero('num_validation')
+    else:
+        raise ValueError('Unknown algorithm {}'.format(alg))
+
     return config
 
 class Distribution(object):

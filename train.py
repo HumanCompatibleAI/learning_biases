@@ -95,12 +95,10 @@ class PlannerArchitecture(object):
 
         # Define optimizers
         if config.model != 'VI':
-            planner_optimizer = tf.train.RMSPropOptimizer(
-                learning_rate=config.lr, epsilon=1e-6, centered=True)
+            planner_optimizer = tf.train.AdamOptimizer(config.lr)
             self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
 
-        reward_optimizer = tf.train.RMSPropOptimizer(
-            learning_rate=config.reward_lr, epsilon=1e-6, centered=True)
+        reward_optimizer = tf.train.AdamOptimizer(config.reward_lr)
         self.reward_optimize_op = reward_optimizer.minimize(self.step2_cost, var_list=[self.reward])
 
         # Test model & calculate accuracy
@@ -201,25 +199,26 @@ class PlannerArchitecture(object):
         logs['train_planner_validation_errs'].append(validation_errs)
         logs['train_planner_times'].append(times)
 
+        # TODO(rohinmshah): This seems redundant
+        num_actions = self.config.num_actions
+        action_dists = [np.zeros(num_actions), np.zeros(num_actions)]
+        action_dists = [d + b_d for d, b_d in zip(action_dists, epoch_dist)]
+        action_dists = [d / (np.sum(d)) for d in action_dists]
+        pred = action_dists[0].tolist()
+        actual = action_dists[1].tolist()
+        logs['train_planner_predicted_action_dists'].append(pred)
+        logs['train_planner_actual_action_dists'].append(actual)
         if self.config.verbosity >= 3:
-            # TODO(rohinmshah): This seems redundant
-            num_actions = self.config.num_actions
-            action_dists = [np.zeros(num_actions), np.zeros(num_actions)]
-            action_dists = [d + b_d for d, b_d in zip(action_dists, epoch_dist)]
-            action_dists = [d / (np.sum(d)) for d in action_dists]
             print("Action Distribution Comparison")
             print("------------------------------")
-            pred = action_dists[0].tolist()
-            actual = action_dists[1].tolist()
             print(fmt_row(10, ["Predicted"] + pred))
             print(fmt_row(10, ["Actual"]+ actual))
-            logs['train_planner_predicted_action_dists'].append(pred)
-            logs['train_planner_actual_action_dists'].append(actual)
 
-        if self.config.verbosity >= 1 and validation_data is not None:
+        if validation_data is not None:
             _, (err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
             logs['train_planner_final_accuracy'].append(100 * (1 - err))
-            print('Validation Accuracy: ' + str(100 * (1 - err)))
+            if self.config.verbosity >= 1:
+                print('Validation Accuracy: ' + str(100 * (1 - err)))
 
         # Saving SavedModel instance
         # if self.config.log:
@@ -485,11 +484,13 @@ def infer_given_some_rewards(config):
         print('Assumption: We have some human data where the rewards are known')
 
     agent, other_agents = create_agents_from_config(config)
-    num_traj, num_train = config.num_human_trajectories, config.num_with_rewards
-    num_without_reward = make_evenly_batched(num_traj - num_train, config)
+    num_traj, num_with_reward = config.num_human_trajectories, config.num_with_rewards
+    num_without_reward = make_evenly_batched(num_traj - num_with_reward, config)
+    num_validation = config.num_validation
+    num_train = num_with_reward - num_validation
 
     train_data, validation_data = generate_data_for_planner(
-        num_train, config.num_validation, agent, config, other_agents)
+        num_train, num_validation, agent, config, other_agents)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
     return run_inference(train_data, validation_data, reward_data,
@@ -540,7 +541,9 @@ def joint_infer_with_no_rewards(config):
     #     gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
     # train_data, validation_data = generate_data_for_planner(
     #     optimal_agent, config, other_agents)
-    reward_data = generate_data_for_reward(agent, config, other_agents)
+    num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
+    reward_data = generate_data_for_reward(
+        num_without_reward, agent, config, other_agents)
     return run_inference(None, None, reward_data, joint_algorithm, config)
 
 def infer_with_value_iteration(config):

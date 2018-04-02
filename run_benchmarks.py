@@ -1,116 +1,132 @@
 import subprocess as sp
 import os
-
-FLAGS = [
-    # ['num_test',        [2000]],
-    # ['num_train',       [5000]],
-    # ['num_mdps',        [1000]],
-    ['lr',              [0.025, 1e-3]],
-    ['reward_lr',       [0.1, 0.01]],
-    ['epochs',          [70]],
-    ['reward_epochs',   [60]],
-    ['k',               [25]],
-    ['ch_h',            [150]],
-    ['agent',           ['optimal','myopic','sophisticated','naive']],
-    # ['num_iters',       [50]],
-    # ['max_delay',       [5]],
-    ['hyperbolic_constant',     [1.0]],
-    # ['other_agent',     [None]], # more flags for other agent here
-    ['algorithm',       ['given_rewards', 'no_rewards', 'boltzmann_planner', 'vi_inference']], # more here
-    # ['action_distance_threshold', ['0.5']],
-    ['reward_prob',     [0.05]],
-    ['imsize',          [8, 14]],
-    # ['vin_regularizer_C',   [1e-4]],
-    # ['reward_regularizer_C',    [1e-4]],
-    ['model',           ['SIMPLE','VIN','VI']],
-    ['seeds',           ['1,2,3,5,8,13,21,34', '89,714,10,1234,13,21,34,795', '1,2,3,4,5,75,86,907', '123,765,65,4234,5223,665,7234,897']],
-    # ['batchsize', [20]],
-    ['use_gpu', ['True']],
-    ['verbosity', ['3']]
-]
+import sys
+from utils import concat_folder
 
 INTERPRETER="/home/ngundotra/.conda/envs/IRL/bin/python"
 
+FLAGS = [
+    ('agent', ['naive', 'optimal', 'sophisticated', 'myopic']),
+    ('algorithm', [
+        'given_rewards', 'no_rewards', 'boltzmann_planner',
+        'vi_inference', 'joint_no_rewards', 'optimal_planner'
+    ]),
+]
+
+CONSTANT_FLAGS = [
+    ('simple_mdp', False),
+    ('imsize', 16),
+    ('num_rewards', 5),
+    ('num_human_trajectories', 8000),
+    ('vin_regularizer_C', 1e-4),
+    ('reward_regularizer_C', 0),
+    ('lr', 0.01),
+    ('reward_lr', 1.0),
+    ('epochs', 20),
+    ('reward_epochs', 50),
+    ('k', 10),
+    ('ch_h', 150),
+    ('ch_p', 5),
+    ('ch_q', 5),
+    ('num_actions', 5),
+    ('batchsize', 20),
+    ('gamma', 0.95),
+    ('num_iters', 50),
+    ('max_delay', 10),
+    ('hyperbolic_constant', 1.0),
+    ('display_step', 1),
+    ('log', False),
+    ('verbosity', 1),
+    ('plot_rewards', False),
+    ('use_gpu', True),
+    ('strict', False),
+]
+
+def get_algorithm_specific_flags(flags):
+    [alg] = [val for name, val in flags if name == 'algorithm']
+    flag_names = ['em_iterations', 'num_simulated', 'num_with_rewards', 'num_validation', 'model']
+    if alg == 'given_rewards':
+        flag_values = [0, 0, 7000, 2000, 'VIN']
+    elif alg == 'no_rewards':
+        flag_values = [2, 5000, 0, 2000, 'VIN']
+    elif alg in ['boltzmann_planner', 'optimal_planner']:
+        flag_values = [0, 5000, 0, 2000, 'VIN']
+    elif alg == 'joint_no_rewards':
+        flag_values = [0, 0, 0, 0, 'VIN']
+    elif alg == 'vi_inference':
+        flag_values = [0, 0, 0, 0, 'VI']
+    else:
+        raise ValueError('Unknown algorithm {}'.format(alg))
+
+    return list(zip(flag_names, flag_values))
+
+def get_beta_flag(flags):
+    [agent] = [val for name, val in flags if name == 'agent']
+    if agent == 'optimal':
+        return ('beta', 0.1)
+    elif agent in ['naive', 'sophisticated', 'myopic']:
+        return ('beta', 1.0)
+    else:
+        raise ValueError('Unknown agent {}'.format(agent))
+
 def flag_generator(flags):
-    """Generates (fname, string_to_run, csv_entry)"""
+    """Returns a generator that yields list of (flag, value) tuples."""
     if not flags:
-        yield 'end.txt', "", ""
-        raise StopIteration
+        yield []
+        return
 
-    flag_name = flags[0][0]
-    flag_values = flags[0][1]
+    flag_name, flag_values = flags[0]
     for value in flag_values:
-        # Create relevant strings
-        base_string_to_run = "--{0} {1}".format(flag_name, value)
-        base_fname ='{0}-{1}'.format(flag_name, value)
-        if flag_name=='seeds':
-            base_csv = "-".join(value.split(','))
-        else:
-            base_csv = '{0}'.format(value)
-
-        for subtuple in flag_generator(flags[1:]):
-            # Concatenate the relevant examples from higher inputs
-            fname = base_fname + '-' + subtuple[0]
-            string_to_run = base_string_to_run + " " + subtuple[1]
-            csv_entry = base_csv + ", " + subtuple[2]
-
-            yield fname, string_to_run, csv_entry
+        for sublst in flag_generator(flags[1:]):
+            yield [(flag_name, value)] + sublst
 
 
-def parse_proc(proc):
-    if not proc.stdout:
-        return ""
-
+def run_command(interpreter, flags, dest):
+    base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
+    flag_strs = ['--{}={}'.format(name, val) for name, val in flags]
+    command = base_command + flag_strs
+    command_str = ' '.join(command)
+    error_file = concat_folder(dest, 'errors.log')
+    print('Running {}'.format(command_str))
     try:
-        relevant_lines = str(proc.stdout).split("\\n")[-3:-1]
-        final_accuracy = relevant_lines[0].split("<1>")[1]
-        performance = relevant_lines[1].split("<2>")[1]
-        return final_accuracy, performance
+        with open(error_file, 'a') as errtxt:
+            proc = sp.call(command, stderr=errtxt)
+        return True
     except Exception as e:
-        print("Something went wrong while processing Popen object: {}".format(proc))
-        print(e)
+        print("Failed to run: {} because of exception {}".format(command_str, e))
+        return False
 
-
-def run_benchmarks(interpreter, flags, dest='benchmark_data/'):
+def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest):
     """
     :param interpreter: path to relevant python executable
     :param flags: dictionary of flags: [benchmark_values]
     """
-
     if not os.path.isdir(dest):
         os.mkdir(dest)
 
-    base_command = "{} train.py ".format(interpreter)
-
-    count_calls = 0
-    success = 0
-    with open(os.path.join(dest,"index.csv"), 'w') as index_csv:
-        for fname, str_to_run, csv_entry in flag_generator(flags):
-            save_name = os.path.join(dest, fname)
-            try:
-                with open(save_name[-3:]+'err', 'w') as errtxt:
-                    proc = sp.run(base_command + str_to_run, shell=True, stdout=sp.PIPE, stderr=errtxt, check=True)
-                final_accuracy, performance = parse_proc(proc)
+    base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
+    success, count_calls = 0, 0
+    for start in range(low, high):
+        seeds = range(10 * start, 10 * (start + 1))
+        seed_flag = ('seeds', ','.join([str(seed) for seed in seeds]))
+        for flags in flag_generator(flag_parameters):
+            algorithm_flags = get_algorithm_specific_flags(flags)
+            beta_flag = get_beta_flag(flags)
+            all_flags = [seed_flag] + flags + constant_flags + algorithm_flags
+            if run_command(interpreter, all_flags, dest):
                 success += 1
-            except Exception as e:
-                print("failed to run: {}".format(base_command+str_to_run))
-                final_accuracy = "None"
-                performance = "None"
+            if run_command(interpreter, [beta_flag] + all_flags, dest):
+                success += 1
+            count_calls += 2
 
-            # save_file = open(save_name, "w")
-            # save_file.write(", ".join([final_accuracy, performance]) + "\n")
-            # save_file.close()
+        # Delete the generated gridworld data, since it is quite large
+        for seed in range(10*low, 10*high):
+            sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
 
-            csv_entry = csv_entry + "{0}, {1}\n".format(final_accuracy, performance)
-            index_csv.write(csv_entry)
-
-            count_calls += 1
-
-    print("{} out of {} calls were successful".format(success, count_calls))
+    print("{} out of {} calls ran (but may have thrown an exception)".format(success, count_calls))
 
 
 if __name__ == '__main__':
-    # for fname, str2run, csv_entry in flag_generator(flags_to_test):
-    #     print("{1}".format(fname, str2run, csv_entry))
-
-    run_benchmarks(INTERPRETER, FLAGS)
+    _, low, high = sys.argv
+    low, high = int(low), int(high)
+    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, 'benchmark_data/')

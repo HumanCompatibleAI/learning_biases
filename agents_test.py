@@ -174,7 +174,7 @@ class TestAgents(unittest.TestCase):
     def compare_agents(self, name, agent1, agent2, print_mdp=False):
         print('Comparing {0} agents'.format(name))
         set_seeds(314159)
-        mdp = GridworldMdp.generate_random_connected(16, 16, 0.8)
+        mdp = GridworldMdp.generate_random_connected(16, 16, 5)
         if print_mdp: print(mdp)
         env = Mdp(mdp)
         self.time(lambda: agent1.set_mdp(mdp), "Python planner")

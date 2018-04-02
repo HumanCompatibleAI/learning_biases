@@ -300,19 +300,38 @@ class GridworldMdp(GridworldMdpNoR):
         return GridworldMdp(grid)
 
     @staticmethod
-    def generate_random_connected(height, width, pr_reward):
+    def generate_random_connected(height, width, num_rewards):
         """Generates a random instance of a Gridworld.
 
         Unlike with generate_random, it is guaranteed that the agent
         can reach a reward. However, that reward might be negative.
         """
+
+        def generate_start_and_goals():
+            start_state = (width // 2, height // 2)
+            states = [(x, y) for x in range(1, width-1) for y in range(1, height-1)]
+            states.remove(start_state)
+            indices = np.random.choice(len(states), num_rewards, replace=False)
+            return start_state, [states[i] for i in indices]
+
+        (start_x, start_y), goals = generate_start_and_goals()
+        required_nonwalls = list(goals)
+        required_nonwalls.append((start_x, start_y))
+
         directions = [
             Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
         grid = [['X'] * width for _ in range(height)]
         walls = [(x, y) for x in range(1, width-1) for y in range(1, height-1)]
-        random.shuffle(walls)
-        min_free_spots = len(walls) / 2
         dsets = DisjointSets([])
+        first_state = required_nonwalls[0]
+        for x, y in required_nonwalls:
+            grid[y][x] = ' '
+            walls.remove((x, y))
+            dsets.add_singleton((x, y))
+            dsets.union((x, y), first_state)
+
+        min_free_spots = len(walls) / 2
+        random.shuffle(walls)
         while dsets.get_num_elements() < min_free_spots or not dsets.is_connected():
             x, y = walls.pop()
             grid[y][x] = ' '
@@ -322,37 +341,9 @@ class GridworldMdp(GridworldMdpNoR):
                 if dsets.contains((newx, newy)):
                     dsets.union((x, y), (newx, newy))
 
-        def set_random_position_to(token, grid=grid):
-            # this loops through *available* positions in the grid & chooses random one
-            spots = find_available_spots(grid)
-            place = spots[np.random.choice(len(spots))]
-            grid[place[0]][place[1]] = token
-
-        def find_available_spots(grid):
-            spots = []
-            rewards = []
-            for y in range(1, height-1):
-                for x in range(1, width-1):
-                    if grid[y][x] in ['X', ' ']:
-                        spots.append((y, x))
-                    elif type(grid[y][x])==int:
-                        rewards.append((y, x))
-            if len(spots)==0:
-                print('\a')
-                print("no available spots\noverwriting existing reward values")
-                return rewards
-            return spots
-
-        # Makes sure there is one reward
-        set_random_position_to(3)
-        # Sets random starting point for agent
-        set_random_position_to('A')
-        while random.random() < pr_reward:
-            reward = random.randint(-9, 9)
-            # Don't allow 0 rewards
-            while reward == 0:
-                reward = random.randint(-9, 9)
-            set_random_position_to(reward)
+        grid[height // 2][width // 2] = 'A'
+        for x, y in goals:
+            grid[y][x] = random.randint(-9, 9)
 
         return GridworldMdp(grid)
 
