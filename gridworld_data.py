@@ -56,11 +56,12 @@ def generate_example(agent, config, other_agents=[]):
     """
     imsize = config.imsize
     num_actions = config.num_actions
-    pr_wall, pr_reward = config.wall_prob, config.reward_prob
     if config.simple_mdp:
+        pr_wall, pr_reward = config.wall_prob, config.reward_prob
         mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
     else:
-        mdp = GridworldMdp.generate_random_connected(imsize, imsize, pr_reward)
+        num_rewards = config.num_rewards
+        mdp = GridworldMdp.generate_random_connected(imsize, imsize, num_rewards)
 
     def dist_to_numpy(dist):
         return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
@@ -142,24 +143,24 @@ def generate_n_examples(n, agent, config, seed=0, other_agents=[], folder='datas
     save_dataset(filename, dataset)
     return dataset
 
-def generate_data_for_planner(agent, config, other_agents=[]):
+def generate_data_for_planner(num_train, num_validation, agent, config, other_agents=[]):
     """Generates training and test data for Gridworld data.
 
     Returns a tuple of two elements, each of which is the return value of a call
     to generate_n_examples)."""
     train_data = generate_n_examples(
-        config.num_train, agent, config, config.seeds.pop(0), other_agents)
-    test_data = generate_n_examples(
-        config.num_test, agent, config, config.seeds.pop(0), other_agents)
-    return train_data, test_data
+        num_train, agent, config, config.seeds.pop(0), other_agents)
+    validation_data = generate_n_examples(
+        num_validation, agent, config, config.seeds.pop(0), other_agents)
+    return train_data, validation_data
 
-def generate_data_for_reward(agent, config, other_agents=[]):
+def generate_data_for_reward(num_trajs, agent, config, other_agents=[]):
     """Generates an IRL problem for Gridworlds.
 
     Returns 12 Numpy arrays, from 3 calls to generate_n_examples, corresponding
     to train data, test data for step 1, and test data for step 2.
     """
-    return generate_n_examples(config.num_mdps, agent, config, config.seeds.pop(0), other_agents)
+    return generate_n_examples(num_trajs, agent, config, config.seeds.pop(0), other_agents)
 
 def create_agents_from_config(config):
     agent = create_agent(
