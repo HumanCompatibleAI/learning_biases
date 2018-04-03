@@ -1,5 +1,6 @@
-import subprocess as sp
+import argparse
 import os
+import subprocess as sp
 import sys
 from utils import concat_folder
 
@@ -126,7 +127,14 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
     print("{} out of {} calls ran (but may have thrown an exception)".format(success, count_calls))
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--low', required=True)
+    parser.add_argument('--high', required=True)
+    parser.add_argument('-f', '--folder', required=True)
+    return parser.parse_args()
+
 if __name__ == '__main__':
-    _, low, high = sys.argv
-    low, high = int(low), int(high)
-    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, 'benchmark_data/')
+    args = parse_args()
+    low, high = int(args.low), int(args.high)
+    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, args.folder)
