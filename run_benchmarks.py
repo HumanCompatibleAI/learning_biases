@@ -120,7 +120,7 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
             count_calls += 2
 
         # Delete the generated gridworld data, since it is quite large
-        for seed in range(10*low, 10*high):
+        for seed in seeds:
             sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
 
     print("{} out of {} calls ran (but may have thrown an exception)".format(success, count_calls))

@@ -117,7 +117,7 @@ class PlannerArchitecture(object):
         #     self.builder = tf.saved_model.builder.SavedModelBuilder(
         #         config.logdir+'model/')
         # If process does not finish
-        self.final_accuracy = "NA"
+        self.accuracy = "NA"
 
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
@@ -216,7 +216,7 @@ class PlannerArchitecture(object):
 
         if validation_data is not None:
             _, (err,), _, _ = self.run_epoch(sess, validation_data, [], [self.err])
-            logs['train_planner_final_accuracy'].append(100 * (1 - err))
+            logs['accuracy'].append(100 * (1 - err))
             if self.config.verbosity >= 1:
                 print('Validation Accuracy: ' + str(100 * (1 - err)))
 
@@ -278,7 +278,7 @@ class PlannerArchitecture(object):
         logs['train_reward_errs'].append(errs)
         return reward_data
 
-    def train_joint(self, sess, image_data, reward_data, y_data, num_epochs):
+    def train_joint(self, sess, image_data, reward_data, y_data, num_epochs, logs):
         """Trains the planner module given MDPs with reward functions and the
         corresponding policies.
 
@@ -295,36 +295,47 @@ class PlannerArchitecture(object):
         planner_ops = [self.planner_optimize_op, self.step1_cost]
         batch_size = self.config.batchsize
         num_batches = int(image_data.shape[0] / batch_size)
+        errors, costs, times = [], [], []
         for epoch in range(num_epochs):
-            # Run an epoch on each batch of MDPs to infer their rewards
+            tstart = time.time()
+            errors_per_batch, costs_per_batch = [], []
             for batch_num in range(num_batches):
                 start, end = batch_num * batch_size, (batch_num + 1) * batch_size
-                # We can't feed in reward_data directly to self.reward, because then
-                # it will treat it as a constant and will not be able to update it
-                # with backprop. Instead, we first run an op that assigns the
-                # reward, and only then do the backprop.
+                # We can't feed in reward_data directly to self.reward.
+                # See train_reward for the explanation.
                 fd = {
                     "reward_input:0": reward_data[start:end],
                 }
                 sess.run([self.assign_reward.op], feed_dict=fd)
 
-                tstart = time.time()
                 fd = {
                     "image:0": image_data[start:end],
                     "y:0": y_data[start:end]
                 }
 
                 # Run both step1 & step2 ops, report only error & step2 cost
-                _, e_, c_, _etc, __etc = sess.run(
+                _, err, cost, _, _ = sess.run(
                     [self.reward_optimize_op, self.err, self.step2_cost] + planner_ops,
                     feed_dict=fd)
+                errors_per_batch.append(err)
+                costs_per_batch.append(cost)
 
-                self.final_accuracy = (1-e_)*100
-                elapsed = time.time() - tstart
-                if self.config.verbosity >= 3 and batch_num % 10 == 0:
-                    print(fmt_row(10, [epoch, c_, e_, elapsed]))
+            epoch_error = sum(errors_per_batch) / len(errors_per_batch)
+            errors.append(epoch_error)
+            epoch_cost = sum(costs_per_batch) / len(costs_per_batch)
+            costs.append(epoch_cost)
+            elapsed = time.time() - tstart
+            times.append(elapsed)
 
+            if self.config.verbosity >= 3:
+                print(fmt_row(10, [epoch, epoch_cost, epoch_error, elapsed]))
                 reward_data[start:end] = self.reward.eval()
+
+        logs['train_joint_errs'].append(errors)
+        logs['train_joint_costs'].append(costs)
+        logs['train_joint_times'].append(times)
+        self.accuracy = 100 * (1 - errors[-1])
+        logs['accuracy'] = self.accuracy
 
         return reward_data
 
@@ -344,7 +355,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
 
     Specifically, regret is calculated with respect to the reward_data
 
-    :return: (final_accuracy, % reward = optimal planner)
+    :return: logs dictionary
     """
     # seed random number generators
     seed = config.seeds.pop(0)
@@ -356,9 +367,12 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         'train_planner_times': [],
         'train_planner_predicted_action_dists': [],
         'train_planner_actual_action_dists': [],
-        'train_planner_final_accuracy': [],
         'train_reward_costs': [],
         'train_reward_errs': [],
+        'train_joint_costs': [],
+        'train_joint_errs': [],
+        'train_joint_times': [],
+        'accuracy': [],
     }
     # use flags to create model and retrieve relevant operations
     architecture = PlannerArchitecture(config)
@@ -454,13 +468,10 @@ def joint_algorithm(architecture, sess, train_data, validation_data,
     Then infers reward. Currently, does not pretrain the model.
     In the future, probably worth looking into how to pretrain jointly.
     """
-    assert not train_data and not validation_data, "joint pretraining not yet supported"
-
+    assert not train_data and not validation_data, "Can't pretrain for joint"
     image_irl, y_irl = reward_data
-
     rewards = architecture.train_joint(
-            sess, image_irl, None, y_irl, config.epochs, logs)
-
+        sess, image_irl, None, y_irl, config.epochs, logs)
     return rewards
 
 def vi_algorithm(architecture, sess, train_data, validation_data, reward_data,
@@ -469,11 +480,7 @@ def vi_algorithm(architecture, sess, train_data, validation_data, reward_data,
 
     The only variable is the reward_tensor, allow it to be trained as you try VI to predict actions.
     """
-    if train_data or validation_data:
-        print("You're wasting compute by generating/loading in train/validation data.")
-        print("Value Iteration does not require any data to make reward inferences.")
-        print("")
-
+    assert not train_data and not validation_data, "No planner training for VI"
     image_data, y_data = reward_data
     rewards = architecture.train_reward(
         sess, image_data, None, y_data, config.reward_epochs, logs)
@@ -537,10 +544,6 @@ def joint_infer_with_no_rewards(config):
 
     print("No rewards given, updating planner and inferred reward jointly")
     agent, other_agents = create_agents_from_config(config)
-    # optimal_agent = agents.OptimalAgent(
-    #     gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
-    # train_data, validation_data = generate_data_for_planner(
-    #     optimal_agent, config, other_agents)
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
@@ -552,7 +555,6 @@ def infer_with_value_iteration(config):
     """
     print("Using Value Iteration to infer rewards")
     agent, other_agents = create_agents_from_config(config)
-    # No data for planning necessary
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
