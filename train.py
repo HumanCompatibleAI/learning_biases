@@ -255,8 +255,9 @@ class PlannerArchitecture(object):
             }
             sess.run([self.assign_reward.op], feed_dict=fd)
 
-            costs.append([])
-            errs.append([])
+            if batch_num % 10 == 0:
+                costs.append([])
+                errs.append([])
             for epoch in range(num_epochs):
                 tstart = time.time()
                 fd = {
@@ -591,7 +592,7 @@ def save_results(logs, config, seeds):
     flags_dict = config.__dict__['__flags']  # Hacky but works
     flags_dict = {k:v for k, v in flags_dict.items() if k not in IGNORED_FLAGS}
 
-    kvs = tuple(((k, v) for k, v in flags_dict.items()))
+    kvs = tuple(sorted(flags_dict.items()))
     kv_hash = hashlib.sha224(str(kvs).encode()).hexdigest()
     folder = concat_folder(config.output_folder, kv_hash)
     if not os.path.exists(folder):
