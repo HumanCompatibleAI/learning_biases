@@ -395,7 +395,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
     # Launch the graph
     gpu_config = None
     if config.use_gpu:
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.85)
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.25)
         gpu_config = tf.ConfigProto(gpu_options=gpu_options)
 
     with tf.Session(config=gpu_config) as sess:
