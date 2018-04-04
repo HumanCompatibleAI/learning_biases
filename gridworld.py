@@ -344,6 +344,8 @@ class GridworldMdp(GridworldMdpNoR):
         grid[height // 2][width // 2] = 'A'
         for x, y in goals:
             grid[y][x] = random.randint(-9, 9)
+            while grid[y][x] == 0:
+                grid[y][x] = random.randint(-9, 9)
 
         return GridworldMdp(grid)
 

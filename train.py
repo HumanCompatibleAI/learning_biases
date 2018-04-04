@@ -453,12 +453,13 @@ def iterative_algorithm(architecture, sess, train_data, validation_data,
         sess, image_irl, None, y_irl, config.reward_epochs, logs)
 
     for i in range(config.em_iterations):
+        train_data = image_irl, rewards, y_irl
         run_interruptibly(
             lambda: architecture.train_planner(
-                sess, train_data, validation_data, config.epochs, logs),
+                sess, train_data, None, config.epochs, logs),
             'planner training')
         rewards = architecture.train_reward(
-            sess, image_irl, None, y_irl, config.reward_epochs, logs)
+            sess, image_irl, rewards, y_irl, config.reward_epochs, logs)
 
     return rewards
 
