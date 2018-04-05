@@ -497,6 +497,12 @@ def infer_with_value_iteration(config):
     reward_data = generate_data_for_reward(agent, config, other_agents)
     return run_inference(None, None, reward_data, vi_algorithm, config)
 
+def infer_with_max_causal_ent(config):
+    """Uses Adam's code to implement Max Causal Entropy for our gridworld MDP."""
+    print("Using Max Causal Entropy (source @Adam)")
+    agent, other_agents = create_agents_from_config(config)
+    # No data for planning necessary
+
 
 if __name__=='__main__':
     # get flags || Data
