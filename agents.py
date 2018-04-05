@@ -35,6 +35,7 @@ class ValueIterationLikeAgent(Agent):
         super(ValueIterationLikeAgent, self).__init__(gamma)
         self.beta = beta
         self.num_iters = num_iters
+        self.policy = None
 
     def set_mdp(self, mdp, reward_mdp=None):
         super(ValueIterationLikeAgent, self).set_mdp(mdp)

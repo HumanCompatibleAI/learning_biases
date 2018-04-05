@@ -16,6 +16,7 @@ import torch
 from torch.autograd import Variable
 
 from gridworld import GridworldMdpNoR
+from gridworld_data import generate_example
 #TODO: fully torchize?
 
 def max_ent_policy(transition, reward, horizon, discount):
@@ -84,9 +85,9 @@ default_scheduler = {
     ),
 }
 
-def irl(mdp, agent, discount, horizon,
+def _irl(transition, policy, horizon, discount, start_state,
         planner=max_causal_ent_policy, optimizer=None, scheduler=None,
-        num_iter=5000, log_every=100):
+        num_iter=50, log_every=100, verbose=False):
     """
     Args:
         - mdp(TabularMdpEnv): MDP trajectories were drawn from.
@@ -110,14 +111,17 @@ def irl(mdp, agent, discount, horizon,
     Returns (reward, info) where:
         reward(list): estimated reward for each state in the MDP.
         info(dict): log of extra info.
-
-
     """
-    transition = mdp.get_transition_matrix()
-    initial_states = np.zeros(len(transition))
+    assert len(start_state) == 2, "Only support start_states with len 2, of form [x, y]"
+    # Assuming policy is of shape [imsize, imsize, num_actions]
+    start_idx = start_state[0]*len(policy) + start_state[1]
     nS, _, _ = transition.shape
 
-    demo_counts = get_demo_counts(agent)
+
+    initial_states = np.zeros(nS)
+    initial_states[start_idx] = 1
+    policy = flatten_policy(policy)
+    demo_counts = expected_counts(policy, transition, initial_states, horizon, discount)
 
     reward = Variable(torch.zeros(nS), requires_grad=True)
     if optimizer is None:
@@ -136,25 +140,39 @@ def irl(mdp, agent, discount, horizon,
         optimizer.step()
         scheduler.step()
 
-        if i % log_every == 0:
+        if i % log_every == 0 and verbose:
             end = time()
-            print("Time elapsed from trials {} to {}: {}".format(i*log_every, (i+1)*log_every, end-start))
+            print("Time elapsed from trials {} to {}: {}".format(i, i+log_every, end-start))
+            start = time()
 
     return reward.data.numpy()
 
-def irl_on_grid(grid, agent, discount, horizon,
-        planner=max_causal_ent_policy, optimizer=None, scheduler=None,
-        num_iter=5000, log_every=1000):
-    """Wrapper for irl method"""
-    start = (1,1)
-    mdp = GridworldMdpNoR(grid=grid, start_state=start)
-    return irl(mdp, agent, discount, horizon, planner, optimizer, scheduler, num_iter, log_every)
 
-def get_demo_counts(agent):
-    # TODO: compute the agent's values, rewrite irl to accept MDPReward & Agents which use that MDP to plan
-    pass
+def irl_wrapper(image, action_dists, start, config, verbose=False):
+    """Generate max_causal_ent wrapper for generate_example"""
+    transition = GridworldMdpNoR(image, [1, 1]).get_transition_matrix()
+    policy = action_dists
+    horizon = config.horizon
+    discount = config.gamma
+    imsize = len(image)
+    flat_inferred = _irl(transition, policy, horizon, discount,
+                         start_state=start, verbose=verbose)
+    inferred_reward = np.reshape(flat_inferred, (imsize, imsize))
+    return inferred_reward
+
+def flatten_policy(policy):
+    """Reshapes the policy
+    (imsize, imsize, num_actions)
+    to
+    (imsize**2, num_actions)
+    """
+
+    policy = policy.reshape(len(policy)**2, -1)
+    assert (np.sum(policy, axis=-1) == 1).all(), "error while reshaping"
+    return policy
 
 def test():
+    """tests creation of the mdpnor.get_transition_matrix() method, visually :)"""
     walls = [[1,1,1,1],
              [1,0,0,1],
              [1,0,0,1],
