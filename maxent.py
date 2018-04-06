@@ -54,7 +54,7 @@ def expected_counts(policy, transition, initial_states, horizon, discount):
     """Forward pass of algorithm 1 of Ziebart (2008).
     policy(array): 3D matrix of 2D grid, last channel is action prob channel
     transition(array): 2D array (number states, prob(s' | a) for all a)
-    initial_states(array): 1D array of probability distribution over states
+    initial_states(array): 1D array of probability distribution over the initial states
     """
     sumtest = np.sum(initial_states)
     assert np.isclose(sumtest, 1), "Initial states is a pdf over states. Should sum to 1. Currently: {}".format(sumtest)
@@ -151,18 +151,24 @@ def _irl(transition, policy, initial_states, horizon, discount, start_state,
 
 def irl_wrapper(image, action_dists, start, config, verbose=False):
     """Generate max_causal_ent wrapper for generate_example"""
-    transition = GridworldMdpNoR(image, [1, 1]).get_transition_matrix()
-    policy = action_dists
     horizon = config.horizon
     discount = config.gamma
-    imsize = len(image)
 
-    initial_states = np.ones(image.shape) - image
-    initial_states = initial_states / np.sum(initial_states)
+    return _irl_wrapper(image, action_dists, start, horizon, discount, verbose=verbose)
+
+def _irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
+    imsize = len(image)
+    transition = GridworldMdpNoR(image, [1, 1]).get_transition_matrix()
+    policy = action_dists
+
+    # initial_states = np.ones(image.shape) - image
+    # initial_states = initial_states / np.sum(initial_states)
+    initial_states = np.zeros(image.shape)
+    initial_states[start[1], start[0]] = 1
     initial_states = np.reshape(initial_states, -1)
     flat_inferred = _irl(transition, policy, initial_states, horizon, discount,
                          start_state=start, verbose=verbose)
-    inferred_reward = np.reshape(flat_inferred, (imsize, imsize))
+    inferred_reward = np.reshape(flat_inferred, (imsize, imsize)).T
     return inferred_reward
 
 
@@ -174,7 +180,8 @@ def flatten_policy(policy):
     """
 
     policy = policy.reshape(len(policy)**2, -1)
-    assert (np.sum(policy, axis=-1) == 1).all(), "error while reshaping"
+    # print(np.sum(policy, axis=-1))
+    assert (np.isclose(np.sum(policy, axis=-1), 1)).all(), "error while reshaping"
     return policy
 
 
@@ -189,5 +196,47 @@ def test():
     mdp = GridworldMdpNoR(walls, start)
     print(mdp.get_transition_matrix()[4:])
 
+def test_irl():
+    from agents import OptimalAgent
+    from gridworld import GridworldMdp, Direction
+    from utils import Distribution
+
+    num_actions = len(Direction.ALL_DIRECTIONS)
+
+    agent = OptimalAgent(beta=10.0)
+    grid = [['X','X','X','X'],
+             ['X','A',1,'X'],
+             ['X',' ',' ','X'],
+             ['X','X','X','X']]
+    mdp = GridworldMdp(grid=grid)
+    agent.set_mdp(mdp)
+
+    def dist_to_numpy(dist):
+        return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
+
+    def action(state):
+        # Walls are invalid states and the MDP will refuse to give an action for
+        # them. However, the VIN's architecture requires it to provide an action
+        # distribution for walls too, so hardcode it to always be STAY.
+        x, y = state
+        if mdp.walls[y][x]:
+            return dist_to_numpy(Distribution({Direction.STAY : 1}))
+        return dist_to_numpy(agent.get_action_distribution(state))
+
+    imsize = len(grid)
+
+    action_dists = [[action((x, y)) for y in range(imsize)] for x in range(imsize)]
+    action_dists = np.array(action_dists)
+
+    walls, rewards, start_state = mdp.convert_to_numpy_input()
+
+    inferred = _irl_wrapper(walls, action_dists, start_state, 20, 1.0)
+    print(inferred)
+    print("---true below---")
+    print(rewards)
+
+
+
 if __name__ == '__main__':
-    test()
+    # test()
+    test_irl()

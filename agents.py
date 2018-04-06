@@ -118,8 +118,8 @@ class ValueIterationLikeAgent(Agent):
                 best_value, best_actions = action_value, [a]
             elif action_value == best_value:
                 best_actions.append(a)
-        # return Distribution({a : 1 for a in best_actions})
-        return Distribution({best_actions[0] : 1})
+        return Distribution({a : 1 for a in best_actions})
+        # return Distribution({best_actions[0] : 1})
 
     def get_mus(self):
         """Returns all possible generalized states the agent could be in.

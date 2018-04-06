@@ -540,7 +540,6 @@ def infer_with_max_causal_ent(config):
     return None, avg_percent_reward
 
 
-
 if __name__=='__main__':
     # get flags || Data
     config = init_flags()
