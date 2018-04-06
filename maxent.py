@@ -54,8 +54,11 @@ def expected_counts(policy, transition, initial_states, horizon, discount):
     """Forward pass of algorithm 1 of Ziebart (2008).
     policy(array): 3D matrix of 2D grid, last channel is action prob channel
     transition(array): 2D array (number states, prob(s' | a) for all a)
-    initial_states(array): no clue
+    initial_states(array): 1D array of probability distribution over states
     """
+    sumtest = np.sum(initial_states)
+    assert np.isclose(sumtest, 1), "Initial states is a pdf over states. Should sum to 1. Currently: {}".format(sumtest)
+
     nS = transition.shape[0]
     counts = np.zeros((nS, horizon + 1))
     counts[:, 0] = initial_states
@@ -85,9 +88,10 @@ default_scheduler = {
     ),
 }
 
-def _irl(transition, policy, horizon, discount, start_state,
+
+def _irl(transition, policy, initial_states, horizon, discount, start_state,
         planner=max_causal_ent_policy, optimizer=None, scheduler=None,
-        num_iter=50, log_every=100, verbose=False):
+        num_iter=5000, log_every=100, verbose=False):
     """
     Args:
         - mdp(TabularMdpEnv): MDP trajectories were drawn from.
@@ -117,9 +121,6 @@ def _irl(transition, policy, horizon, discount, start_state,
     start_idx = start_state[0]*len(policy) + start_state[1]
     nS, _, _ = transition.shape
 
-
-    initial_states = np.zeros(nS)
-    initial_states[start_idx] = 1
     policy = flatten_policy(policy)
     demo_counts = expected_counts(policy, transition, initial_states, horizon, discount)
 
@@ -155,10 +156,15 @@ def irl_wrapper(image, action_dists, start, config, verbose=False):
     horizon = config.horizon
     discount = config.gamma
     imsize = len(image)
-    flat_inferred = _irl(transition, policy, horizon, discount,
+
+    initial_states = np.ones(image.shape) - image
+    initial_states = initial_states / np.sum(initial_states)
+    initial_states = np.reshape(initial_states, -1)
+    flat_inferred = _irl(transition, policy, initial_states, horizon, discount,
                          start_state=start, verbose=verbose)
     inferred_reward = np.reshape(flat_inferred, (imsize, imsize))
     return inferred_reward
+
 
 def flatten_policy(policy):
     """Reshapes the policy
@@ -170,6 +176,7 @@ def flatten_policy(policy):
     policy = policy.reshape(len(policy)**2, -1)
     assert (np.sum(policy, axis=-1) == 1).all(), "error while reshaping"
     return policy
+
 
 def test():
     """tests creation of the mdpnor.get_transition_matrix() method, visually :)"""
