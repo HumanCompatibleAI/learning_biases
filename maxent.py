@@ -306,6 +306,95 @@ def test_irl(grid, agent):
     return walls, start_state, inferred, rewards
 
 
+def test_visitations(grid, agent):
+    """Tests the expected_counts calculation--might be einsum error"""
+    print("Testing expected_counts")
+    from gridworld import GridworldMdp, Direction
+    from utils import Distribution
+
+    num_actions = len(Direction.ALL_DIRECTIONS)
+
+    mdp = GridworldMdp(grid=grid)
+    agent.set_mdp(mdp)
+
+    def dist_to_numpy(dist):
+        return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
+
+    def action(state):
+        # Walls are invalid states and the MDP will refuse to give an action for
+        # them. However, the VIN's architecture requires it to provide an action
+        # distribution for walls too, so hardcode it to always be STAY.
+        x, y = state
+        if mdp.walls[y][x]:
+            return dist_to_numpy(Distribution({Direction.STAY: 1}))
+        return dist_to_numpy(agent.get_action_distribution(state))
+
+    imsize = len(grid)
+
+    action_dists = [[action((x, y)) for y in range(imsize)] for x in range(imsize)]
+    action_dists = np.array(action_dists)
+
+    walls, rewards, start_state = mdp.convert_to_numpy_input()
+
+    print("Start state for given mdp:", start_state)
+    # inferred = _irl_wrapper(walls, action_dists, start_state, 20, 1.0)
+
+    start = start_state
+    trans = mdp.get_transition_matrix()
+    initial_states = np.zeros((len(grid), len(grid)))
+    initial_states[start[1]][start[0]] = 1
+    initial_states = initial_states.reshape(-1)
+    policy = flatten_policy(action_dists)
+
+    demo_counts = expected_counts(policy, trans, initial_states, 20, 0.9)
+
+    import matplotlib.pyplot as plt
+    plt.imsave("democounts",demo_counts.reshape((len(grid), len(grid))))
+    print("demo counts:", demo_counts)
+
+
+def test_coherence(grid, agent):
+    """Test that these arrays perform as expected under np.einsum"""
+    from gridworld import GridworldMdp, Direction
+    from utils import Distribution
+
+    num_actions = len(Direction.ALL_DIRECTIONS)
+
+    mdp = GridworldMdp(grid=grid)
+    agent.set_mdp(mdp)
+
+    def dist_to_numpy(dist):
+        return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
+
+    def action(state):
+        # Walls are invalid states and the MDP will refuse to give an action for
+        # them. However, the VIN's architecture requires it to provide an action
+        # distribution for walls too, so hardcode it to always be STAY.
+        x, y = state
+        if mdp.walls[y][x]:
+            return dist_to_numpy(Distribution({Direction.STAY: 1}))
+        return dist_to_numpy(agent.get_action_distribution(state))
+
+    imsize = len(grid)
+
+    action_dists = [[action((x, y)) for y in range(imsize)] for x in range(imsize)]
+    action_dists = np.array(action_dists)
+
+    walls, rewards, start_state = mdp.convert_to_numpy_input()
+
+    print("Start state for given mdp:", start_state)
+    # inferred = _irl_wrapper(walls, action_dists, start_state, 20, 1.0)
+
+    start = start_state
+    trans = mdp.get_transition_matrix()
+    initial_states = np.zeros((len(grid), len(grid)))
+    initial_states[start[1]][start[0]] = 1
+    initial_states = initial_states.reshape(-1)
+    policy = flatten_policy(action_dists)
+
+    next_states = np.einsum("i,ij,ijk -> k", initial_states, policy, trans)
+    return next_states.reshape((len(grid), len(grid)))
+
 
 if __name__ == '__main__':
     from agents import OptimalAgent
@@ -322,24 +411,28 @@ if __name__ == '__main__':
     #         ['X','A',' ','X'],
     #         ['X','X','X','X']]
     base = [['X','X','X','X','X','X'],
-            ['X', 1,' ',' ',' ','X'],
+            ['X',' ',' ','X',' ','X'],
+            ['X',' ',' ',' ','X','X'],
             ['X',' ',' ',' ',' ','X'],
-            ['X',' ',' ',' ',' ','X'],
-            ['X',' ',' ',' ',' ','X'],
+            ['X',' ',' ',' ',  1,'X'],
             ['X','X','X','X','X','X']]
 
     grid = copy.deepcopy(base)
-    grid[3][3] = 'A'
-    trans = copy.deepcopy(base)
-    trans[3][4] = 'A'
-    walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
+    grid[1][4] = 'A'
+    # trans = copy.deepcopy(base)
+    # trans[2][4] = 'A'
+    # walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
+    #
+    # print("inferred:\n",inferred)
+    # almostregret = evaluate_proxy(walls,start_state,inferred,rs,episode_length=20)
+    # print('Percent return:', almostregret)
+    #
+    # print("")
+    # walls, start_state, inferred, rs = test_irl(trans, OptimalAgent(beta=1.0))
+    # print("inferred:\n",inferred)
+    # almostregret = evaluate_proxy(walls,start_state,inferred,rs,episode_length=20)
+    # print('Percent return:', almostregret)
+    # test_visitations(grid, agent=OptimalAgent(beta=1.0))
 
-    print("inferred:\n",inferred)
-    almostregret = evaluate_proxy(walls,start_state,inferred,rs, episode_length=20)
-    print('Percent return:', almostregret)
-
-    print("")
-    walls, start_state, inferred, rs = test_irl(trans, OptimalAgent(beta=1.0))
-    print("inferred:\n",inferred)
-    almostregret = evaluate_proxy(walls,start_state,inferred,rs, episode_length=20)
-    print('Percent return:', almostregret)
+    out = test_coherence(grid, agent=OptimalAgent(beta=1.0))
+    print(out)
