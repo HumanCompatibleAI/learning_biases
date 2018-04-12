@@ -416,9 +416,14 @@ if __name__ == '__main__':
             ['X',' ',' ',' ',' ','X'],
             ['X',' ',' ',' ',  1,'X'],
             ['X','X','X','X','X','X']]
+    # base = [['X','X','X','X'],
+    #         ['X','X',' ','X'],
+    #         ['X','1','X','X'],
+    #         ['X','X','X','X']]
+    # grid[1][2] = 'A'
 
     grid = copy.deepcopy(base)
-    grid[1][4] = 'A'
+    grid[4][1] = 'A'
     # trans = copy.deepcopy(base)
     # trans[2][4] = 'A'
     # walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
