@@ -157,9 +157,6 @@ def irl_wrapper(image, action_dists, start, config, verbose=False):
     """Generate max_causal_ent wrapper for generate_example"""
     horizon = config.horizon
     discount = config.gamma
-    print("--Action Dist--")
-    print(action_dists)
-
     return _irl_wrapper(image, action_dists, start, horizon, discount, verbose=verbose)
 
 
@@ -303,7 +300,6 @@ def test_irl(grid, agent):
 
     print("Start state for given mdp:", start_state)
     inferred = _irl_wrapper(walls, action_dists, start_state, 20, 1.0)
-    print(inferred)
     print("---true below---")
     print(rewards)
 
@@ -325,16 +321,17 @@ if __name__ == '__main__':
     #         ['X',  1,' ','X'],
     #         ['X','A',' ','X'],
     #         ['X','X','X','X']]
-    base = [['X','X','X','X','X'],
-            ['X',  1,'X',' ','X'],
-            ['X',' ',' ',' ','X'],
-            ['X',' ',' ',' ','X'],
-            ['X','X','X','X','X']]
+    base = [['X','X','X','X','X','X'],
+            ['X', 1,' ',' ',' ','X'],
+            ['X',' ',' ',' ',' ','X'],
+            ['X',' ',' ',' ',' ','X'],
+            ['X',' ',' ',' ',' ','X'],
+            ['X','X','X','X','X','X']]
 
     grid = copy.deepcopy(base)
     grid[3][3] = 'A'
     trans = copy.deepcopy(base)
-    trans[3][2] = 'A'
+    trans[3][4] = 'A'
     walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
 
     print("inferred:\n",inferred)
