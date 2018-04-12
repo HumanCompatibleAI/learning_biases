@@ -54,7 +54,7 @@ def max_causal_ent_policy(transition, reward, horizon, discount):
         V = sp_lse(Q, axis=1)
     return np.exp(Q - V.reshape(nS, 1))
 
-def expected_counts(policy, transition, initial_states, horizon, discount):
+def expected_counts(policy, transition, initial_states, horizon, discount, grid_shape):
     """Forward pass of algorithm 1 of Ziebart (2008).
     policy(array): 3D matrix of 2D grid, last channel is action prob channel
     transition(array): 2D array (number states, prob(s' | a) for all a)
@@ -69,6 +69,7 @@ def expected_counts(policy, transition, initial_states, horizon, discount):
     for i in range(1, horizon + 1):
         counts[:, i] = np.einsum('i,ij,ijk->k', counts[:, i-1],
                                  policy, transition) * discount
+        counts[:, i] = (counts[:,i].reshape(grid_shape).T).reshape(-1)
     if discount == 1:
         renorm = horizon + 1
     else:
@@ -122,11 +123,12 @@ def _irl(transition, policy, initial_states, horizon, discount, start_state,
     """
     assert len(start_state) == 2, "Only support start_states with len 2, of form [x, y]"
     # Assuming policy is of shape [imsize, imsize, num_actions]
+    gridshape = (len(policy), len(policy))
     start_idx = start_state[0]*len(policy) + start_state[1]
     nS, _, _ = transition.shape
 
     policy = flatten_policy(policy)
-    demo_counts = expected_counts(policy, transition, initial_states, horizon, discount)
+    demo_counts = expected_counts(policy, transition, initial_states, horizon, discount, gridshape)
 
     reward = Variable(torch.zeros(nS), requires_grad=True)
     if optimizer is None:
@@ -139,7 +141,8 @@ def _irl(transition, policy, initial_states, horizon, discount, start_state,
     start = time()
     for i in range(num_iter):
         pol = planner(transition, reward.data.numpy(), horizon, discount)
-        ec = expected_counts(pol, transition, initial_states, horizon, discount)
+        ec = expected_counts(pol, transition, initial_states, horizon, discount, gridshape)
+        ec = (ec.reshape(gridshape).T).reshape(-1)
         optimizer.zero_grad()
         reward.grad = Variable(torch.Tensor(ec - demo_counts))
         optimizer.step()
@@ -346,7 +349,8 @@ def test_visitations(grid, agent):
     initial_states = initial_states.reshape(-1)
     policy = flatten_policy(action_dists)
 
-    demo_counts = expected_counts(policy, trans, initial_states, 20, 0.9)
+    demo_counts = expected_counts(policy, trans, initial_states,
+                                  20, 0.9, (len(grid), len(grid)))
 
     import matplotlib.pyplot as plt
     plt.imsave("democounts",demo_counts.reshape((len(grid), len(grid))))
@@ -392,7 +396,22 @@ def test_coherence(grid, agent):
     initial_states = initial_states.reshape(-1)
     policy = flatten_policy(action_dists)
 
+    gshape = (len(grid), len(grid))
+    print("initial states")
+    print('-'*20)
+    print(initial_states.reshape(gshape))
     next_states = np.einsum("i,ij,ijk -> k", initial_states, policy, trans)
+    next_states = (next_states.reshape(gshape).T).reshape(-1)
+    print("first expected counts")
+    print('-'*20)
+    print(next_states.reshape(gshape))
+    next_states = np.einsum("i,ij,ijk -> k", next_states, policy, trans)
+    next_states = (next_states.reshape(gshape).T).reshape(-1)
+    # next_states = np.einsum("i,ij,ijk -> k", next_states, policy, trans)
+    print("second expected counts")
+    print('-'*20)
+    print(next_states.reshape(gshape))
+
     return next_states.reshape((len(grid), len(grid)))
 
 
@@ -411,9 +430,9 @@ if __name__ == '__main__':
     #         ['X','A',' ','X'],
     #         ['X','X','X','X']]
     base = [['X','X','X','X','X','X'],
-            ['X',' ',' ','X',' ','X'],
-            ['X',' ',' ',' ','X','X'],
             ['X',' ',' ',' ',' ','X'],
+            ['X',' ','X','X','X','X'],
+            ['X',' ','X','X',' ','X'],
             ['X',' ',' ',' ',  1,'X'],
             ['X','X','X','X','X','X']]
     # base = [['X','X','X','X'],
@@ -426,11 +445,11 @@ if __name__ == '__main__':
     grid[4][1] = 'A'
     # trans = copy.deepcopy(base)
     # trans[2][4] = 'A'
-    # walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
-    #
-    # print("inferred:\n",inferred)
-    # almostregret = evaluate_proxy(walls,start_state,inferred,rs,episode_length=20)
-    # print('Percent return:', almostregret)
+    walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
+
+    print("inferred:\n",inferred)
+    almostregret = evaluate_proxy(walls,start_state,inferred,rs,episode_length=20)
+    print('Percent return:', almostregret)
     #
     # print("")
     # walls, start_state, inferred, rs = test_irl(trans, OptimalAgent(beta=1.0))
@@ -439,5 +458,4 @@ if __name__ == '__main__':
     # print('Percent return:', almostregret)
     test_visitations(grid, agent=OptimalAgent(beta=1.0))
 
-    # out = test_coherence(grid, agent=OptimalAgent(beta=1.0))
-    # print(out)
+    # test_coherence(grid, agent=OptimalAgent(beta=1.0))
