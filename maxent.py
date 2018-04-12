@@ -143,7 +143,7 @@ def _irl(transition, policy, initial_states, horizon, discount, start_state,
 
         if i % log_every == 0 and verbose:
             end = time()
-            print("Time elapsed from trials {} to {}: {}".format(i, i+log_every, end-start))
+            print("Time elapsed from trials {} to {}: {:.3f}".format(i, i+log_every, end-start))
             start = time()
 
     return reward.data.numpy()
@@ -153,22 +153,34 @@ def irl_wrapper(image, action_dists, start, config, verbose=False):
     """Generate max_causal_ent wrapper for generate_example"""
     horizon = config.horizon
     discount = config.gamma
+    print("--Action Dist--")
+    print(action_dists)
 
     return _irl_wrapper(image, action_dists, start, horizon, discount, verbose=verbose)
 
+
 def _irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
+    """Takes in input that works with our codebase, and harnesses @AdamGleave's MaxEnt
+    implementation to do MaxCausalEnt IRL. Baseline algorithm. Feels harder than actual
+    alg's implementation."""
+
     imsize = len(image)
     transition = GridworldMdpNoR(image, [1, 1]).get_transition_matrix()
     policy = action_dists
 
+    # Initialize uniform over all non-wall states
     # initial_states = np.ones(image.shape) - image
     # initial_states = initial_states / np.sum(initial_states)
+
+    # Initialize the initial state prob distribution to only be the state
+    # that the MDP starts at.
     initial_states = np.zeros(image.shape)
     initial_states[start[1], start[0]] = 1
+    # Flatten initial_states array
     initial_states = np.reshape(initial_states, -1)
     flat_inferred = _irl(transition, policy, initial_states, horizon, discount,
                          start_state=start, verbose=verbose)
-    inferred_reward = np.reshape(flat_inferred, (imsize, imsize)).T
+    inferred_reward = np.reshape(flat_inferred, (imsize, imsize))
     return inferred_reward
 
 
@@ -178,15 +190,17 @@ def flatten_policy(policy):
     to
     (imsize**2, num_actions)
     """
-
+    init = policy
     policy = policy.reshape(len(policy)**2, -1)
     # print(np.sum(policy, axis=-1))
+    assert (policy.reshape(init.shape) == init).all(), "reshaping not consistent"
     assert (np.isclose(np.sum(policy, axis=-1), 1)).all(), "error while reshaping"
     return policy
 
 
-def test():
-    """tests creation of the mdpnor.get_transition_matrix() method, visually :)"""
+def testTransition():
+    """tests creation of the mdpNoR.get_transition_matrix() method, visually :)"""
+    from gridworld import Direction
     walls = [[1,1,1,1],
              [1,0,0,1],
              [1,0,0,1],
@@ -194,20 +208,73 @@ def test():
     walls = np.array(walls)
     start = (1,1)
     mdp = GridworldMdpNoR(walls, start)
-    print(mdp.get_transition_matrix()[4:])
+    trans = mdp.get_transition_matrix()
+    walk = Direction.EAST
+    start_grid = np.copy(walls)
+    start_grid[start] = 9
+    print("Original start grid: Moving East...")
+    print(start_grid)
 
-def test_irl():
-    from agents import OptimalAgent
+    # Should be
+    # walls = [[1,1,1,1],
+    #          [1,A,0,1],
+    #          [1,0,0,1],
+    #          [1,1,1,1]]
+    #
+    # walls = [[1,1,1,1],
+    #          [1,0,A,1],
+    #          [1,0,0,1],
+    #          [1,1,1,1]]
+    # And if the transition matrix works accurately for this, then it needs
+    # to be transposed to be consistent with the grid returned by generate_example
+    #
+    # vecend should be as marked above (2, 1)
+    assert (np.array(start) == recover(flatten_position(start, len(walls)), walls)).all(), "my methods to flatten/reshape broken"
+    vecend = recover(recoverDirectionTrans(start, walk, trans, len(walls)), walls)
+
+    print("Moving East took us:")
+    print(vecend)
+    end_grid = np.copy(walls)
+    end_grid[int(vecend[0]), int(vecend[1])] = 9
+    print(end_grid)
+
+    if end_grid[2, 1] == 9:
+        print("==> Transition matrix using y,x coords (gridworld)")
+    elif end_grid[1,2] == 9:
+        print("==> Transition matrix using x,y coords (non-gridworld)")
+
+
+def recover(position, arr):
+    size = len(arr)
+    i = position // size
+    j = position % size
+    return (i, j)
+
+
+def recoverDirectionTrans(position, direction, trans, size):
+    from gridworld import Direction
+    """Position is 2d, index into shape image grid
+    Direction of form Direction.EAST
+
+    Returns 1d index == state you end up in"""
+
+    start = flatten_position(position, size)
+    finish = flatten_position(np.array(position) + np.array(direction), size)
+    # print(trans[start, Direction.get_number_from_direction(direction)])
+    end_positions = trans[start, Direction.get_number_from_direction(direction)]
+    return np.argmax(end_positions)
+
+
+def flatten_position(position, size):
+    return position[0] * size + position[1]
+
+
+def test_irl(grid, agent):
     from gridworld import GridworldMdp, Direction
     from utils import Distribution
 
     num_actions = len(Direction.ALL_DIRECTIONS)
 
-    agent = OptimalAgent(beta=10.0)
-    grid = [['X','X','X','X'],
-             ['X','A',1,'X'],
-             ['X',' ',' ','X'],
-             ['X','X','X','X']]
     mdp = GridworldMdp(grid=grid)
     agent.set_mdp(mdp)
 
@@ -235,8 +302,25 @@ def test_irl():
     print("---true below---")
     print(rewards)
 
+    return inferred
+
 
 
 if __name__ == '__main__':
-    # test()
-    test_irl()
+    from agents import OptimalAgent
+
+    testTransition()
+    # grid = [['X','X','X','X'],
+    #         ['X','A',1,'X'],
+    #         ['X',' ',' ','X'],
+    #         ['X','X','X','X']]
+    # trans = [['X','X','X','X'],
+    #         ['X',' ',1,'X'],
+    #         ['X','A',' ','X'],
+    #         ['X','X','X','X']]
+    #
+    # reg = test_irl(grid, OptimalAgent(beta=1.0))
+    # print("")
+    # test = test_irl(trans, OptimalAgent(beta=1.0))
+    # print("--"*20)
+    # print(reg - test)
