@@ -5,6 +5,10 @@ Implements a tabular version of maximum entropy inverse reinforcement learning
 described in the paper:
   - We do not make use of features, which are not needed in the tabular setting.
   - We use Adam rather than exponentiated gradient descent.
+
+
+Note: all coordinates are expected to be (y,x) because that's how the Gridworld
+code is indexed
 """
 
 import functools
@@ -206,7 +210,7 @@ def testTransition():
              [1,0,0,1],
              [1,1,1,1]]
     walls = np.array(walls)
-    start = (1,1)
+    start = (3,1)
     mdp = GridworldMdpNoR(walls, start)
     trans = mdp.get_transition_matrix()
     walk = Direction.EAST
@@ -217,12 +221,12 @@ def testTransition():
 
     # Should be
     # walls = [[1,1,1,1],
-    #          [1,A,0,1],
+    #          [1,0,A,1],
     #          [1,0,0,1],
     #          [1,1,1,1]]
     #
     # walls = [[1,1,1,1],
-    #          [1,0,A,1],
+    #          [1,A,0,1],
     #          [1,0,0,1],
     #          [1,1,1,1]]
     # And if the transition matrix works accurately for this, then it needs
@@ -297,30 +301,48 @@ def test_irl(grid, agent):
 
     walls, rewards, start_state = mdp.convert_to_numpy_input()
 
+    print("Start state for given mdp:", start_state)
     inferred = _irl_wrapper(walls, action_dists, start_state, 20, 1.0)
     print(inferred)
     print("---true below---")
     print(rewards)
 
-    return inferred
+    return walls, start_state, inferred, rewards
 
 
 
 if __name__ == '__main__':
     from agents import OptimalAgent
+    from agent_runner import evaluate_proxy
+    import copy
 
-    testTransition()
+    # testTransition()
     # grid = [['X','X','X','X'],
-    #         ['X','A',1,'X'],
+    #         ['X',  1,'A','X'],
     #         ['X',' ',' ','X'],
     #         ['X','X','X','X']]
-    # trans = [['X','X','X','X'],
-    #         ['X',' ',1,'X'],
+    # trans =[['X','X','X','X'],
+    #         ['X',  1,' ','X'],
     #         ['X','A',' ','X'],
     #         ['X','X','X','X']]
-    #
-    # reg = test_irl(grid, OptimalAgent(beta=1.0))
-    # print("")
-    # test = test_irl(trans, OptimalAgent(beta=1.0))
-    # print("--"*20)
-    # print(reg - test)
+    base = [['X','X','X','X','X'],
+            ['X',  1,'X',' ','X'],
+            ['X',' ',' ',' ','X'],
+            ['X',' ',' ',' ','X'],
+            ['X','X','X','X','X']]
+
+    grid = copy.deepcopy(base)
+    grid[3][3] = 'A'
+    trans = copy.deepcopy(base)
+    trans[3][2] = 'A'
+    walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
+
+    print("inferred:\n",inferred)
+    almostregret = evaluate_proxy(walls,start_state,inferred,rs, episode_length=20)
+    print('Percent return:', almostregret)
+
+    print("")
+    walls, start_state, inferred, rs = test_irl(trans, OptimalAgent(beta=1.0))
+    print("inferred:\n",inferred)
+    almostregret = evaluate_proxy(walls,start_state,inferred,rs, episode_length=20)
+    print('Percent return:', almostregret)

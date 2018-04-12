@@ -47,11 +47,12 @@ def evaluate_proxy(walls, start_state, proxy_reward, true_reward, gamma=0.9, epi
     Creates a proxy mdp by overlaying walls onto proxy grid.
     True reward is summed if the reward grid's entry at the given state can be casted to a float
     
-    Returns trajectory, sum of proxy reward, sum of true reward.
+    Returns sum of proxy reward / sum of true reward. Which is related to regret.
     """
     proxy_mdp = GridworldMdp.from_numpy_input(walls, proxy_reward, start_state)
     true_mdp = GridworldMdp.from_numpy_input(walls, true_reward, start_state)
     env = Mdp(true_mdp)
+    print(proxy_mdp)
 
     proxy_agent = OptimalAgent()
     proxy_agent.set_mdp(true_mdp, proxy_mdp)
