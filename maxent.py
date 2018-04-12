@@ -437,7 +437,7 @@ if __name__ == '__main__':
     # print("inferred:\n",inferred)
     # almostregret = evaluate_proxy(walls,start_state,inferred,rs,episode_length=20)
     # print('Percent return:', almostregret)
-    # test_visitations(grid, agent=OptimalAgent(beta=1.0))
+    test_visitations(grid, agent=OptimalAgent(beta=1.0))
 
-    out = test_coherence(grid, agent=OptimalAgent(beta=1.0))
-    print(out)
+    # out = test_coherence(grid, agent=OptimalAgent(beta=1.0))
+    # print(out)

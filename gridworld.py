@@ -115,7 +115,7 @@ class GridworldMdpNoR(object):
                     if sa_transitions:
                         transition_matrix[flatOuter, idxA, flatOuter] = 0
                         for state, prob in sa_transitions:
-                            flatInner = state[0] * width + state[1]
+                            flatInner = state[1] * width + state[0]
                             transition_matrix[flatOuter, idxA, flatInner] = prob
 
         self.transition_matrix = transition_matrix
