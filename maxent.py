@@ -18,76 +18,14 @@ from tabular_maxent import irl, expected_counts
 from gridworld import GridworldMdpNoR
 #TODO: fully torchize?
 
-# def _irl(transition, policy, initial_states, horizon, discount, start_state,
-#         planner=max_causal_ent_policy, optimizer=None, scheduler=None,
-#         num_iter=5000, log_every=100, verbose=False):
-#     """
-#     Args:
-#         - mdp(TabularMdpEnv): MDP trajectories were drawn from.
-#         - trajectories(list): expert trajectories; exclusive with demo_counts.
-#             List containing one (states, actions) pair for each trajectory,
-#             where states and actions are lists containing all visited
-#             states/actions in that trajectory.
-#         - discount(float): between 0 and 1.
-#             Should match that of the agent generating the trajectories.
-#         - demo_counts(array): expert visitation frequency; exclusive with trajectories.
-#             The expected visitation frequency of the optimal policy.
-#             Must supply horizon with this argument.
-#         - horizon(int): optional, must be supplied if demo_counts used.
-#         - planner(callable): max_ent_policy or max_causal_ent_policy.
-#         - optimizer(callable): a callable returning a torch.optim object.
-#             The callable is called with an iterable of parameters to optimize.
-#         - scheduler(callable): a callable returning a torch.optim.lr_scheduler.
-#             The callable is called with a torch.optim optimizer object.
-#         - learning_rate(float): for Adam optimizer.
-#         - num_iter(int): number of iterations of optimization process.
-#     Returns (reward, info) where:
-#         reward(list): estimated reward for each state in the MDP.
-#         info(dict): log of extra info.
-#     """
-#     assert len(start_state) == 2, "Only support start_states with len 2, of form [x, y]"
-#     # Assuming policy is of shape [imsize, imsize, num_actions]
-#     gridshape = (len(policy), len(policy))
-#     start_idx = start_state[0]*len(policy) + start_state[1]
-#     nS, _, _ = transition.shape
-#
-#     policy = flatten_policy(policy)
-#     demo_counts = expected_counts(policy, transition, initial_states, horizon, discount, gridshape)
-#
-#     reward = Variable(torch.zeros(nS), requires_grad=True)
-#     if optimizer is None:
-#         optimizer = default_optimizer
-#     if scheduler is None:
-#         scheduler = default_scheduler[planner]
-#     optimizer = optimizer([reward])
-#     scheduler = scheduler(optimizer)
-#
-#     start = time()
-#     for i in range(num_iter):
-#         pol = planner(transition, reward.data.numpy(), horizon, discount)
-#         ec = expected_counts(pol, transition, initial_states, horizon, discount, gridshape)
-#         # ec = (ec.reshape(gridshape).T).reshape(-1)
-#         optimizer.zero_grad()
-#         reward.grad = Variable(torch.Tensor(ec - demo_counts))
-#         optimizer.step()
-#         scheduler.step()
-#
-#         if i % log_every == 0 and verbose:
-#             end = time()
-#             print("Time elapsed from trials {} to {}: {:.3f}".format(i, i+log_every, end-start))
-#             start = time()
-#
-#     print(ec)
-#
-#     return reward.data.numpy()
+# )
 
 def irl_with_config(image, action_dists, start, config, verbose=False):
     return irl_wrapper(image, action_dists, start, config.horizon, config.gamma, verbose)
 
 def irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
     """Takes in input that works with our codebase, and harnesses @AdamGleave's MaxEnt
-    implementation to do MaxCausalEnt IRL. Baseline algorithm. Feels harder than actual
-    alg's implementation."""
+    implementation to do MaxCausalEnt IRL. Baseline algorithm."""
 
     imsize = len(image)
     transition = GridworldMdpNoR(image, start).get_transition_matrix()
@@ -124,10 +62,9 @@ def flatten_policy(policy):
     (imsize**2, num_actions)
     """
     init = policy
-    policy = np.transpose(policy, (1, 0, 2))
+    # policy = np.transpose(policy, (1, 0, 2))
     policy = policy.reshape(len(policy)**2, -1)
-    # print(np.sum(policy, axis=-1))
-    # assert (policy.reshape(init.shape) == init).all(), "reshaping not consistent"
+    assert (policy.reshape(init.shape) == init).all(), "reshaping not consistent"
     assert (np.isclose(np.sum(policy, axis=-1), 1)).all(), "error while reshaping"
     return policy
 
@@ -234,8 +171,8 @@ def test_irl(grid, agent):
 
     print("Start state for given mdp:", start_state)
     inferred = irl_wrapper(walls, action_dists, start_state, 20, 0.9)
-    print("---true below---")
-    print(rewards)
+    # print("---true below---")
+    # print(rewards)
 
     return walls, start_state, inferred, rewards
 
@@ -280,7 +217,7 @@ def test_visitations(grid, agent):
     policy = flatten_policy(action_dists)
 
     demo_counts = expected_counts(policy, trans, initial_states,
-                                  90, 0.9)
+                                  20, 0.9)
 
     import matplotlib.pyplot as plt
     plt.imsave("democounts",demo_counts.reshape((len(grid), len(grid))))

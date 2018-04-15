@@ -384,8 +384,9 @@ def evaluate_inferred_reward(reward_irl, inferred_rewards, image_irl, start_stat
     for label, reward, wall, start_state, i in zip(reward_irl, inferred_rewards, image_irl, start_states_irl, range(len(reward_irl))):
         if i < 10:
             plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
-        reward_percents.append(
-            evaluate_proxy(wall, start_state, reward, label, episode_length=horizon))
+        percent = evaluate_proxy(wall, start_state, reward, label, episode_length=horizon)
+        print("Reward had: {}".format(percent))
+        reward_percents.append(percent)
 
     average_percent_reward = float(sum(reward_percents)) / len(reward_percents)
     print(reward_percents[:10])
@@ -533,6 +534,7 @@ def infer_with_max_causal_ent(config):
             verbose = True
 
         print("\nwall\n",wall)
+        print("start: {}\n".format(start))
         inferred = irl_with_config(wall, pol, start, config, verbose=verbose)
         inferred_rewards.append(inferred)
         verbose = False
