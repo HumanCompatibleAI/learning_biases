@@ -16,7 +16,6 @@ import torch
 from torch.autograd import Variable
 
 # from pirl.utils import getattr_unwrapped, TrainingIterator
-from maxent import getattr_unwrapped
 
 #TODO: fully torchize?
 
@@ -159,102 +158,107 @@ def irl(mdp, trajectories, discount, demo_counts=None, horizon=None,
     # return reward.data.numpy(), it.vals
     return reward.data.numpy()
 
-def population_irl(mdps, trajectories, discount, planner=max_causal_ent_policy,
-                   individual_reg=1e-2, optimizer=None, scheduler=None,
-                   num_iter=5000, log_every=100, log_expensive_every=1000):
-    """
-    Args:
-        - mdp(dict<TabularMdpEnv>): MDPs trajectories were drawn from.
-            Dictionary containing MDPs trajectories, of the same name, were
-            drawn from. MDPs must have the same state/action spaces, but may
-            have different dynamics and reward functions.
-        - trajectories(dict<list>): observed trajectories.
-            Dictionary of lists containing one (states, actions) pair for each
-            trajectory, where states and actions are lists containing all
-            visited states/actions in that trajectory.
-        - discount(float): between 0 and 1.
-            Should match that of the agent generating the trajectories.
-        - planner(callable): max_ent_policy or max_causal_ent_policy.
-        - individual_reg(float): regularization factor for per-agent reward.
-            Penalty factor applied to the l_2 norm of per-agent reward matrices,
-            divided by the number of trajectories.
-        - optimizer(callable): a callable returning a torch.optim object.
-            The callable is called with an iterable of parameters to optimize.
-        - scheduler(callable): a callable returning a torch.optim.lr_scheduler.
-            The callable is called with a torch.optim optimizer object.
-        - num_iter(int): number of iterations of optimization process.
-    Returns (reward, info) where:
-        reward(dict<list>): estimated reward for each state in the MDP.
-        info(dict): log of extra info.    """
-    assert mdps.keys() == trajectories.keys()
 
-    transitions = {}
-    initial_states = {}
-    rewards = {}
-    transition_shape = None
-    initial_shape = None
-    for name, mdp in mdps.items():
-        trans = getattr_unwrapped(mdp, 'transition')
-        assert transition_shape is None or transition_shape == trans.shape
-        transition_shape = trans.shape
-        transitions[name] = trans
+# def population_irl(mdps, trajectories, discount, planner=max_causal_ent_policy,
+#                    individual_reg=1e-2, optimizer=None, scheduler=None,
+#                    num_iter=5000, log_every=100, log_expensive_every=1000):
+#     """
+#     Args:
+#         - mdp(dict<TabularMdpEnv>): MDPs trajectories were drawn from.
+#             Dictionary containing MDPs trajectories, of the same name, were
+#             drawn from. MDPs must have the same state/action spaces, but may
+#             have different dynamics and reward functions.
+#         - trajectories(dict<list>): observed trajectories.
+#             Dictionary of lists containing one (states, actions) pair for each
+#             trajectory, where states and actions are lists containing all
+#             visited states/actions in that trajectory.
+#         - discount(float): between 0 and 1.
+#             Should match that of the agent generating the trajectories.
+#         - planner(callable): max_ent_policy or max_causal_ent_policy.
+#         - individual_reg(float): regularization factor for per-agent reward.
+#             Penalty factor applied to the l_2 norm of per-agent reward matrices,
+#             divided by the number of trajectories.
+#         - optimizer(callable): a callable returning a torch.optim object.
+#             The callable is called with an iterable of parameters to optimize.
+#         - scheduler(callable): a callable returning a torch.optim.lr_scheduler.
+#             The callable is called with a torch.optim optimizer object.
+#         - num_iter(int): number of iterations of optimization process.
+#     Returns (reward, info) where:
+#         reward(dict<list>): estimated reward for each state in the MDP.
+#         info(dict): log of extra info.    """
+#     assert mdps.keys() == trajectories.keys()
+#
+#     transitions = {}
+#     initial_states = {}
+#     rewards = {}
+#     transition_shape = None
+#     initial_shape = None
+#     for name, mdp in mdps.items():
+#         trans = getattr_unwrapped(mdp, 'transition')
+#         assert transition_shape is None or transition_shape == trans.shape
+#         transition_shape = trans.shape
+#         transitions[name] = trans
+#
+#         initial = getattr_unwrapped(mdp, 'initial_states')
+#         assert initial_shape is None or initial_shape == initial.shape
+#         initial_shape = initial.shape
+#         initial_states[name] = initial
+#
+#         nS, _, _ = trans.shape
+#         rewards[name] = Variable(torch.zeros(nS), requires_grad=True)
+#
+#     horizons = {}
+#     demo_counts = {}
+#     for name, trajectory in trajectories.items():
+#         horizons[name] = max([len(states) for states, actions in trajectory])
+#         demo_counts[name] = empirical_counts(nS, trajectory, discount)
+#
+#     if optimizer is None:
+#         optimizer = default_optimizer
+#     if scheduler is None:
+#         scheduler = default_scheduler[planner]
+#     optimizer = optimizer(rewards.values())
+#     scheduler = scheduler(optimizer)
+#     it = TrainingIterator(num_iter, 'population_irl', heartbeat_iters=100)
+#     for i in it:
+#         optimizer.zero_grad()
+#         pols = {name: planner(transitions[name],
+#                               reward.data.numpy(),
+#                               horizons[name],
+#                               discount)
+#                 for name, reward in rewards.items()}
+#         ecs = {name: expected_counts(pol,
+#                                      transitions[name],
+#                                      initial_states[name],
+#                                      horizons[name],
+#                                      discount)
+#                for name, pol in pols.items()}
+#         grads = {name: ec - demo_counts[name] for name, ec in ecs.items()}
+#         common_reward = np.mean([v.data.numpy() for v in rewards.values()], axis=0)
+#
+#         for name in mdps.keys():
+#             scale = individual_reg / len(trajectories[name])
+#             delta = rewards[name].data.numpy() - common_reward
+#             g = grads[name] + scale * delta
+#             rewards[name].grad = Variable(torch.Tensor(g))
+#
+#         optimizer.step()
+#         scheduler.step()
+#
+#         if i % log_expensive_every == 0:
+#             # loss is expensive to compute
+#             loss = {name: policy_loss(pol, trajectories[name])
+#                     for name, pol in pols.items()}
+#             it.record('loss', loss)
+#         if i % log_every == 0:
+#             it.record('expected_counts', ecs)
+#             it.record('grads', {k: v.grad.data.numpy() for k, v in rewards.items()})
+#             it.record('rewards', {k: v.data.numpy().copy() for k, v in rewards.items()})
+#
+#     res = {k: v.data.numpy() for k, v in rewards.items()}
+#
+#     return res, it.vals
 
-        initial = getattr_unwrapped(mdp, 'initial_states')
-        assert initial_shape is None or initial_shape == initial.shape
-        initial_shape = initial.shape
-        initial_states[name] = initial
 
-        nS, _, _ = trans.shape
-        rewards[name] = Variable(torch.zeros(nS), requires_grad=True)
-
-    horizons = {}
-    demo_counts = {}
-    for name, trajectory in trajectories.items():
-        horizons[name] = max([len(states) for states, actions in trajectory])
-        demo_counts[name] = empirical_counts(nS, trajectory, discount)
-
-    if optimizer is None:
-        optimizer = default_optimizer
-    if scheduler is None:
-        scheduler = default_scheduler[planner]
-    optimizer = optimizer(rewards.values())
-    scheduler = scheduler(optimizer)
-    it = TrainingIterator(num_iter, 'population_irl', heartbeat_iters=100)
-    for i in it:
-        optimizer.zero_grad()
-        pols = {name: planner(transitions[name],
-                              reward.data.numpy(),
-                              horizons[name],
-                              discount)
-                for name, reward in rewards.items()}
-        ecs = {name: expected_counts(pol,
-                                     transitions[name],
-                                     initial_states[name],
-                                     horizons[name],
-                                     discount)
-               for name, pol in pols.items()}
-        grads = {name: ec - demo_counts[name] for name, ec in ecs.items()}
-        common_reward = np.mean([v.data.numpy() for v in rewards.values()], axis=0)
-
-        for name in mdps.keys():
-            scale = individual_reg / len(trajectories[name])
-            delta = rewards[name].data.numpy() - common_reward
-            g = grads[name] + scale * delta
-            rewards[name].grad = Variable(torch.Tensor(g))
-
-        optimizer.step()
-        scheduler.step()
-
-        if i % log_expensive_every == 0:
-            # loss is expensive to compute
-            loss = {name: policy_loss(pol, trajectories[name])
-                    for name, pol in pols.items()}
-            it.record('loss', loss)
-        if i % log_every == 0:
-            it.record('expected_counts', ecs)
-            it.record('grads', {k: v.grad.data.numpy() for k, v in rewards.items()})
-            it.record('rewards', {k: v.data.numpy().copy() for k, v in rewards.items()})
-
-    res = {k: v.data.numpy() for k, v in rewards.items()}
-
-    return res, it.vals
+def getattr_unwrapped(irl_obj, key):
+    return irl_obj[key]

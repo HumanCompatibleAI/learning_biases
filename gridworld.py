@@ -108,7 +108,9 @@ class GridworldMdpNoR(object):
 
                     # Compute s,a -> s' transitions
                     try:
-                        sa_transitions = self.get_transition_states_and_probs((x, y), action)
+                        # self.get_actions(self, state) <-- takes state in non-gridworld format
+                        # of (x, y)
+                        sa_transitions = self.get_transition_states_and_probs((y, x), action)
                     except ValueError:
                         sa_transitions = None
 

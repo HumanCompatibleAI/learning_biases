@@ -11,158 +11,75 @@ Note: all coordinates are expected to be (y,x) because that's how the Gridworld
 code is indexed
 """
 
-import functools
-
 import numpy as np
-from scipy.special import logsumexp as sp_lse
-from time import time
-import torch
-from torch.autograd import Variable
-
+np.set_printoptions(2)
+import tabular_maxent
+from tabular_maxent import irl, expected_counts
 from gridworld import GridworldMdpNoR
-from gridworld_data import generate_example
 #TODO: fully torchize?
 
-def max_ent_policy(transition, reward, horizon, discount):
-    """Backward pass of algorithm 1 of Ziebart (2008).
-       This corresponds to maximum entropy.
-       WARNING: You probably want to use max_causal_ent_policy instead.
-       See discussion in section 6.2.2 of Ziebart's PhD thesis (2010)."""
-    nS = transition.shape[0]
-    logsc = np.zeros(nS)  # TODO: terminal states only?
-    with np.warnings.catch_warnings():
-        np.warnings.filterwarnings('ignore', 'divide by zero encountered in log')
-        logt = np.nan_to_num(np.log(transition))
-    reward = reward.reshape(nS, 1, 1)
-    for i in range(horizon):
-        # Ziebart (2008) never describes how to handle discounting. This is a
-        # backward pass: so on the i'th iteration, we are computing the
-        # frequency a state/action is visited at the (horizon-i-1)'th position.
-        # So we should multiply reward by discount ** (horizon - i - 1).
-        cur_discount = discount ** (horizon - i - 1)
-        x = logt + (cur_discount * reward) + logsc.reshape(1, 1, nS)
-        logac = sp_lse(x, axis=2)
-        logsc = sp_lse(logac, axis=1)
-    return np.exp(logac - logsc.reshape(nS, 1))
-
-def max_causal_ent_policy(transition, reward, horizon, discount):
-    """Soft Q-iteration, theorem 6.8 of Ziebart's PhD thesis (2010)."""
-    nS, nA, _ = transition.shape
-    V = np.zeros(nS)
-    for i in range(horizon):
-        Q = reward.reshape(nS, 1) + discount * (transition * V).sum(2)
-        V = sp_lse(Q, axis=1)
-    return np.exp(Q - V.reshape(nS, 1))
-
-def expected_counts(policy, transition, initial_states, horizon, discount, grid_shape):
-    """Forward pass of algorithm 1 of Ziebart (2008).
-    policy(array): 3D matrix of 2D grid, last channel is action prob channel
-    transition(array): 2D array (number states, prob(s' | a) for all a)
-    initial_states(array): 1D array of probability distribution over the initial states
-    """
-    sumtest = np.sum(initial_states)
-    assert np.isclose(sumtest, 1), "Initial states is a pdf over states. Should sum to 1. Currently: {}".format(sumtest)
-
-    nS = transition.shape[0]
-    counts = np.zeros((nS, horizon + 1))
-    counts[:, 0] = initial_states
-    for i in range(1, horizon + 1):
-        counts[:, i] = np.einsum('i,ij,ijk->k', counts[:, i-1],
-                                 policy, transition) * discount
-        # counts[:, i] = (counts[:,i].reshape(grid_shape).T).reshape(-1)
-    if discount == 1:
-        renorm = horizon + 1
-    else:
-        renorm = (1 - discount ** (horizon + 1)) / (1 - discount)
-    return np.sum(counts, axis=1) / renorm
-
-def policy_loss(policy, trajectories):
-    loss = 0
-    log_policy = np.log(policy)
-    for states, actions in trajectories:
-        loss += np.sum(log_policy[states, actions])
-    return loss
-
-default_optimizer = functools.partial(torch.optim.Adam, lr=1e-1)
-default_scheduler = {
-    max_ent_policy: functools.partial(
-        torch.optim.lr_scheduler.ExponentialLR, gamma=1.0
-    ),
-    max_causal_ent_policy: functools.partial(
-        torch.optim.lr_scheduler.ExponentialLR, gamma=0.999
-    ),
-}
-
-
-def _irl(transition, policy, initial_states, horizon, discount, start_state,
-        planner=max_causal_ent_policy, optimizer=None, scheduler=None,
-        num_iter=5000, log_every=100, verbose=False):
-    """
-    Args:
-        - mdp(TabularMdpEnv): MDP trajectories were drawn from.
-        - trajectories(list): expert trajectories; exclusive with demo_counts.
-            List containing one (states, actions) pair for each trajectory,
-            where states and actions are lists containing all visited
-            states/actions in that trajectory.
-        - discount(float): between 0 and 1.
-            Should match that of the agent generating the trajectories.
-        - demo_counts(array): expert visitation frequency; exclusive with trajectories.
-            The expected visitation frequency of the optimal policy.
-            Must supply horizon with this argument.
-        - horizon(int): optional, must be supplied if demo_counts used.
-        - planner(callable): max_ent_policy or max_causal_ent_policy.
-        - optimizer(callable): a callable returning a torch.optim object.
-            The callable is called with an iterable of parameters to optimize.
-        - scheduler(callable): a callable returning a torch.optim.lr_scheduler.
-            The callable is called with a torch.optim optimizer object.
-        - learning_rate(float): for Adam optimizer.
-        - num_iter(int): number of iterations of optimization process.
-    Returns (reward, info) where:
-        reward(list): estimated reward for each state in the MDP.
-        info(dict): log of extra info.
-    """
-    assert len(start_state) == 2, "Only support start_states with len 2, of form [x, y]"
-    # Assuming policy is of shape [imsize, imsize, num_actions]
-    gridshape = (len(policy), len(policy))
-    start_idx = start_state[0]*len(policy) + start_state[1]
-    nS, _, _ = transition.shape
-
-    policy = flatten_policy(policy)
-    demo_counts = expected_counts(policy, transition, initial_states, horizon, discount, gridshape)
-
-    reward = Variable(torch.zeros(nS), requires_grad=True)
-    if optimizer is None:
-        optimizer = default_optimizer
-    if scheduler is None:
-        scheduler = default_scheduler[planner]
-    optimizer = optimizer([reward])
-    scheduler = scheduler(optimizer)
-
-    start = time()
-    for i in range(num_iter):
-        pol = planner(transition, reward.data.numpy(), horizon, discount)
-        ec = expected_counts(pol, transition, initial_states, horizon, discount, gridshape)
-        # ec = (ec.reshape(gridshape).T).reshape(-1)
-        optimizer.zero_grad()
-        reward.grad = Variable(torch.Tensor(ec - demo_counts))
-        optimizer.step()
-        scheduler.step()
-
-        if i % log_every == 0 and verbose:
-            end = time()
-            print("Time elapsed from trials {} to {}: {:.3f}".format(i, i+log_every, end-start))
-            start = time()
-
-    print(ec)
-
-    return reward.data.numpy()
-
-
-def irl_wrapper(image, action_dists, start, config, verbose=False):
-    """Generate max_causal_ent wrapper for generate_example"""
-    horizon = config.horizon
-    discount = config.gamma
-    return _irl_wrapper(image, action_dists, start, horizon, discount, verbose=verbose)
+# def _irl(transition, policy, initial_states, horizon, discount, start_state,
+#         planner=max_causal_ent_policy, optimizer=None, scheduler=None,
+#         num_iter=5000, log_every=100, verbose=False):
+#     """
+#     Args:
+#         - mdp(TabularMdpEnv): MDP trajectories were drawn from.
+#         - trajectories(list): expert trajectories; exclusive with demo_counts.
+#             List containing one (states, actions) pair for each trajectory,
+#             where states and actions are lists containing all visited
+#             states/actions in that trajectory.
+#         - discount(float): between 0 and 1.
+#             Should match that of the agent generating the trajectories.
+#         - demo_counts(array): expert visitation frequency; exclusive with trajectories.
+#             The expected visitation frequency of the optimal policy.
+#             Must supply horizon with this argument.
+#         - horizon(int): optional, must be supplied if demo_counts used.
+#         - planner(callable): max_ent_policy or max_causal_ent_policy.
+#         - optimizer(callable): a callable returning a torch.optim object.
+#             The callable is called with an iterable of parameters to optimize.
+#         - scheduler(callable): a callable returning a torch.optim.lr_scheduler.
+#             The callable is called with a torch.optim optimizer object.
+#         - learning_rate(float): for Adam optimizer.
+#         - num_iter(int): number of iterations of optimization process.
+#     Returns (reward, info) where:
+#         reward(list): estimated reward for each state in the MDP.
+#         info(dict): log of extra info.
+#     """
+#     assert len(start_state) == 2, "Only support start_states with len 2, of form [x, y]"
+#     # Assuming policy is of shape [imsize, imsize, num_actions]
+#     gridshape = (len(policy), len(policy))
+#     start_idx = start_state[0]*len(policy) + start_state[1]
+#     nS, _, _ = transition.shape
+#
+#     policy = flatten_policy(policy)
+#     demo_counts = expected_counts(policy, transition, initial_states, horizon, discount, gridshape)
+#
+#     reward = Variable(torch.zeros(nS), requires_grad=True)
+#     if optimizer is None:
+#         optimizer = default_optimizer
+#     if scheduler is None:
+#         scheduler = default_scheduler[planner]
+#     optimizer = optimizer([reward])
+#     scheduler = scheduler(optimizer)
+#
+#     start = time()
+#     for i in range(num_iter):
+#         pol = planner(transition, reward.data.numpy(), horizon, discount)
+#         ec = expected_counts(pol, transition, initial_states, horizon, discount, gridshape)
+#         # ec = (ec.reshape(gridshape).T).reshape(-1)
+#         optimizer.zero_grad()
+#         reward.grad = Variable(torch.Tensor(ec - demo_counts))
+#         optimizer.step()
+#         scheduler.step()
+#
+#         if i % log_every == 0 and verbose:
+#             end = time()
+#             print("Time elapsed from trials {} to {}: {:.3f}".format(i, i+log_every, end-start))
+#             start = time()
+#
+#     print(ec)
+#
+#     return reward.data.numpy()
 
 
 def _irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
@@ -171,8 +88,10 @@ def _irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
     alg's implementation."""
 
     imsize = len(image)
-    transition = GridworldMdpNoR(image, [1, 1]).get_transition_matrix()
+    transition = GridworldMdpNoR(image, start).get_transition_matrix()
     policy = action_dists
+    # Flatten policy
+    policy = flatten_policy(policy)
 
     # Initialize uniform over all non-wall states
     # initial_states = np.ones(image.shape) - image
@@ -184,8 +103,14 @@ def _irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
     initial_states[start[1], start[0]] = 1
     # Flatten initial_states array
     initial_states = np.reshape(initial_states, -1)
-    flat_inferred = _irl(transition, policy, initial_states, horizon, discount,
-                         start_state=start, verbose=verbose)
+
+    demo_counts = expected_counts(policy, transition, initial_states, horizon, discount)
+
+    xplatform = {'transition': transition, 'initial_states': initial_states}
+
+    # flat_inferred = irl(transition, policy, initial_states, horizon, discount,
+    #                      start_state=start, verbose=verbose)
+    flat_inferred = irl(xplatform, None, discount, demo_counts, horizon)
     inferred_reward = np.reshape(flat_inferred, (imsize, imsize))
     return inferred_reward
 
@@ -352,11 +277,11 @@ def test_visitations(grid, agent):
     policy = flatten_policy(action_dists)
 
     demo_counts = expected_counts(policy, trans, initial_states,
-                                  20, 0.9, (len(grid), len(grid)))
+                                  20, 0.9)
 
     import matplotlib.pyplot as plt
     plt.imsave("democounts",demo_counts.reshape((len(grid), len(grid))))
-    print("demo counts:", demo_counts)
+    print("demo counts:", demo_counts.reshape((len(grid), len(grid))))
 
 
 def test_coherence(grid, agent):
@@ -447,19 +372,19 @@ if __name__ == '__main__':
             ['X',' ',' ',' ',  1,'X'],
             ['X','X','X','X','X','X']]
     # base = [['X','X','X','X'],
-    #         ['X','X',' ','X'],
+    #         ['X',' ',' ','X'],
     #         ['X','1','X','X'],
     #         ['X','X','X','X']]
     grid = copy.deepcopy(base)
     grid[1][4] = 'A'
-
+    # grid[1][2] = 'A'
     # grid[1][4] = 'A'
     # trans = copy.deepcopy(base)
     # trans[2][4] = 'A'
     walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
 
     print("inferred:\n",inferred)
-    almostregret = evaluate_proxy(walls,start_state,inferred,rs,episode_length=20)
+    almostregret = evaluate_proxy(walls, start_state, inferred, rs, episode_length=20)
     print('Percent return:', almostregret)
     #
     # print("")
