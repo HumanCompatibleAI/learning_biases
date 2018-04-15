@@ -98,9 +98,9 @@ class GridworldMdpNoR(object):
         transition_matrix = np.zeros(tran_shape)
 
         # Init the array to stay action, even if in wall
-        for col in range(width):
-            for row in range(height):
-                flatOuter = row * width + col
+        for x in range(width):
+            for y in range(height):
+                flatOuter = y * width + x
 
                 for idxA, action in enumerate(Direction.ALL_DIRECTIONS):
                     # Stay action is default for every state, even walls
@@ -108,7 +108,7 @@ class GridworldMdpNoR(object):
 
                     # Compute s,a -> s' transitions
                     try:
-                        sa_transitions = self.get_transition_states_and_probs((row, col), action)
+                        sa_transitions = self.get_transition_states_and_probs((x, y), action)
                     except ValueError:
                         sa_transitions = None
 

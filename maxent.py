@@ -69,7 +69,7 @@ def expected_counts(policy, transition, initial_states, horizon, discount, grid_
     for i in range(1, horizon + 1):
         counts[:, i] = np.einsum('i,ij,ijk->k', counts[:, i-1],
                                  policy, transition) * discount
-        counts[:, i] = (counts[:,i].reshape(grid_shape).T).reshape(-1)
+        # counts[:, i] = (counts[:,i].reshape(grid_shape).T).reshape(-1)
     if discount == 1:
         renorm = horizon + 1
     else:
@@ -142,7 +142,7 @@ def _irl(transition, policy, initial_states, horizon, discount, start_state,
     for i in range(num_iter):
         pol = planner(transition, reward.data.numpy(), horizon, discount)
         ec = expected_counts(pol, transition, initial_states, horizon, discount, gridshape)
-        ec = (ec.reshape(gridshape).T).reshape(-1)
+        # ec = (ec.reshape(gridshape).T).reshape(-1)
         optimizer.zero_grad()
         reward.grad = Variable(torch.Tensor(ec - demo_counts))
         optimizer.step()
@@ -152,6 +152,8 @@ def _irl(transition, policy, initial_states, horizon, discount, start_state,
             end = time()
             print("Time elapsed from trials {} to {}: {:.3f}".format(i, i+log_every, end-start))
             start = time()
+
+    print(ec)
 
     return reward.data.numpy()
 
@@ -401,17 +403,20 @@ def test_coherence(grid, agent):
     print('-'*20)
     print(initial_states.reshape(gshape))
     next_states = np.einsum("i,ij,ijk -> k", initial_states, policy, trans)
-    next_states = (next_states.reshape(gshape).T).reshape(-1)
+    # next_states = (next_states.reshape(gshape).T).reshape(-1)
     print("first expected counts")
     print('-'*20)
     print(next_states.reshape(gshape))
     next_states = np.einsum("i,ij,ijk -> k", next_states, policy, trans)
-    next_states = (next_states.reshape(gshape).T).reshape(-1)
-    # next_states = np.einsum("i,ij,ijk -> k", next_states, policy, trans)
     print("second expected counts")
     print('-'*20)
     print(next_states.reshape(gshape))
 
+    next_states = np.einsum("i,ij,ijk -> k", next_states, policy, trans)
+    # next_states = (next_states.reshape(gshape).T).reshape(-1)
+    print("third expected counts")
+    print('-'*20)
+    print(next_states.reshape(gshape))
     return next_states.reshape((len(grid), len(grid)))
 
 
@@ -429,20 +434,26 @@ if __name__ == '__main__':
     #         ['X',  1,' ','X'],
     #         ['X','A',' ','X'],
     #         ['X','X','X','X']]
+    # base = [['X','X','X','X','X','X'],
+    #         ['X',' ',' ',' ',' ','X'],
+    #         ['X',' ','X','X','X','X'],
+    #         ['X',' ','X','X',' ','X'],
+    #         ['X',' ',' ',' ',  1,'X'],
+    #         ['X','X','X','X','X','X']]
     base = [['X','X','X','X','X','X'],
-            ['X',' ',' ',' ',' ','X'],
-            ['X',' ','X','X','X','X'],
+            ['X',' ','X',' ',' ','X'],
             ['X',' ','X','X',' ','X'],
+            ['X',' ',' ',' ',' ','X'],
             ['X',' ',' ',' ',  1,'X'],
             ['X','X','X','X','X','X']]
     # base = [['X','X','X','X'],
     #         ['X','X',' ','X'],
     #         ['X','1','X','X'],
     #         ['X','X','X','X']]
-    # grid[1][2] = 'A'
-
     grid = copy.deepcopy(base)
-    grid[4][1] = 'A'
+    grid[1][4] = 'A'
+
+    # grid[1][4] = 'A'
     # trans = copy.deepcopy(base)
     # trans[2][4] = 'A'
     walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
@@ -456,6 +467,7 @@ if __name__ == '__main__':
     # print("inferred:\n",inferred)
     # almostregret = evaluate_proxy(walls,start_state,inferred,rs,episode_length=20)
     # print('Percent return:', almostregret)
-    test_visitations(grid, agent=OptimalAgent(beta=1.0))
+
+    # test_visitations(grid, agent=OptimalAgent(beta=1.0))
 
     # test_coherence(grid, agent=OptimalAgent(beta=1.0))
