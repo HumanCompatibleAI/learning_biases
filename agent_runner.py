@@ -52,6 +52,9 @@ def evaluate_proxy(walls, start_state, proxy_reward, true_reward, gamma=0.9, epi
     proxy_mdp = GridworldMdp.from_numpy_input(walls, proxy_reward, start_state)
     true_mdp = GridworldMdp.from_numpy_input(walls, true_reward, start_state)
     env = Mdp(true_mdp)
+    print("MDPs: true & proxy\n")
+    print(true_mdp)
+    print("\n")
     print(proxy_mdp)
 
     proxy_agent = OptimalAgent()
