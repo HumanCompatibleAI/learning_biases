@@ -233,7 +233,7 @@ def test_irl(grid, agent):
     walls, rewards, start_state = mdp.convert_to_numpy_input()
 
     print("Start state for given mdp:", start_state)
-    inferred = irl_wrapper(walls, action_dists, start_state, 20, 1.0)
+    inferred = irl_wrapper(walls, action_dists, start_state, 20, 0.9)
     print("---true below---")
     print(rewards)
 
@@ -377,10 +377,10 @@ if __name__ == '__main__':
     #         ['X',' ',' ',' ',  1,'X'],
     #         ['X','X','X','X','X','X']]
     base = [['X','X','X','X','X','X'],
-            ['X','X',' ',' ',' ','X'],
-            ['X',' ', 3,' ',' ','X'],
-            ['X','X',' ','X','X','X'],
-            ['X',' ',' ',  3,' ','X'],
+            ['X',' ',' ','X','X','X'],
+            ['X',' ',' ',' ','X','X'],
+            ['X',  3,' ',' ',' ','X'],
+            ['X',' ',' ',' ',' ','X'],
             ['X','X','X','X','X','X']]
     # base = [['X','X','X','X','X','X'],
     #         ['X',' ','X',' ',' ','X'],
@@ -393,7 +393,7 @@ if __name__ == '__main__':
     #         ['X','1','X','X'],
     #         ['X','X','X','X']]
     grid = copy.deepcopy(base)
-    grid[2][2]='A'
+    grid[3][4]='A'
     # grid[1][4] = 'A'
     # grid[1][2] = 'A'
     # grid[1][4] = 'A'
