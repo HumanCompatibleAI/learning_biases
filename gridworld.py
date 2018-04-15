@@ -110,7 +110,7 @@ class GridworldMdpNoR(object):
                     try:
                         # self.get_actions(self, state) <-- takes state in non-gridworld format
                         # of (x, y)
-                        sa_transitions = self.get_transition_states_and_probs((y, x), action)
+                        sa_transitions = self.get_transition_states_and_probs((x, y), action)
                     except ValueError:
                         sa_transitions = None
 

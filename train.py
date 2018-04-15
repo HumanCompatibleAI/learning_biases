@@ -518,7 +518,7 @@ def infer_with_value_iteration(config):
 def infer_with_max_causal_ent(config):
     """Uses Adam's code to implement Max Causal Entropy for our gridworld MDP."""
     # Importing only when used because PyTorch is dependency for maxent (as of 4/5)
-    from maxent import irl_wrapper
+    from maxent import irl_with_config
 
     print("Using Max Causal Entropy (source @AdamGleave)")
 
@@ -532,7 +532,7 @@ def infer_with_max_causal_ent(config):
             print("Running IRL on grid number: {} / {}".format(i, len(walls)))
             verbose = True
 
-        inferred = irl_wrapper(wall, pol, start, config, verbose=verbose)
+        inferred = irl_with_config(wall, pol, start, config, verbose=verbose)
         inferred_rewards.append(inferred)
         verbose = False
 

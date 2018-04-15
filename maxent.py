@@ -81,8 +81,10 @@ from gridworld import GridworldMdpNoR
 #
 #     return reward.data.numpy()
 
+def irl_with_config(image, action_dists, start, config, verbose=False):
+    return irl_wrapper(image, action_dists, start, config.horizon, config.gamma, verbose)
 
-def _irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
+def irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
     """Takes in input that works with our codebase, and harnesses @AdamGleave's MaxEnt
     implementation to do MaxCausalEnt IRL. Baseline algorithm. Feels harder than actual
     alg's implementation."""
@@ -122,9 +124,10 @@ def flatten_policy(policy):
     (imsize**2, num_actions)
     """
     init = policy
+    policy = np.transpose(policy, (1, 0, 2))
     policy = policy.reshape(len(policy)**2, -1)
     # print(np.sum(policy, axis=-1))
-    assert (policy.reshape(init.shape) == init).all(), "reshaping not consistent"
+    # assert (policy.reshape(init.shape) == init).all(), "reshaping not consistent"
     assert (np.isclose(np.sum(policy, axis=-1), 1)).all(), "error while reshaping"
     return policy
 
@@ -223,13 +226,14 @@ def test_irl(grid, agent):
 
     imsize = len(grid)
 
+    # I think it's this line that's wrong. Writing as (y, x) gives expected SVF vec
     action_dists = [[action((x, y)) for y in range(imsize)] for x in range(imsize)]
     action_dists = np.array(action_dists)
 
     walls, rewards, start_state = mdp.convert_to_numpy_input()
 
     print("Start state for given mdp:", start_state)
-    inferred = _irl_wrapper(walls, action_dists, start_state, 20, 1.0)
+    inferred = irl_wrapper(walls, action_dists, start_state, 20, 1.0)
     print("---true below---")
     print(rewards)
 
@@ -267,7 +271,6 @@ def test_visitations(grid, agent):
     walls, rewards, start_state = mdp.convert_to_numpy_input()
 
     print("Start state for given mdp:", start_state)
-    # inferred = _irl_wrapper(walls, action_dists, start_state, 20, 1.0)
 
     start = start_state
     trans = mdp.get_transition_matrix()
@@ -277,7 +280,7 @@ def test_visitations(grid, agent):
     policy = flatten_policy(action_dists)
 
     demo_counts = expected_counts(policy, trans, initial_states,
-                                  20, 0.9)
+                                  90, 0.9)
 
     import matplotlib.pyplot as plt
     plt.imsave("democounts",demo_counts.reshape((len(grid), len(grid))))
@@ -342,6 +345,14 @@ def test_coherence(grid, agent):
     print("third expected counts")
     print('-'*20)
     print(next_states.reshape(gshape))
+
+
+    # for i in range(5):
+    #     next_states = np.einsum("i,ij,ijk -> k", next_states, policy, trans)
+    #     # next_states = (next_states.reshape(gshape).T).reshape(-1)
+    #     print("{}th expected counts".format(4+i))
+    #     print('-'*20)
+    #     print(next_states.reshape(gshape))
     return next_states.reshape((len(grid), len(grid)))
 
 
@@ -359,18 +370,18 @@ if __name__ == '__main__':
     #         ['X',  1,' ','X'],
     #         ['X','A',' ','X'],
     #         ['X','X','X','X']]
-    # base = [['X','X','X','X','X','X'],
-    #         ['X',' ',' ',' ',' ','X'],
-    #         ['X',' ','X','X','X','X'],
-    #         ['X',' ','X','X',' ','X'],
-    #         ['X',' ',' ',' ',  1,'X'],
-    #         ['X','X','X','X','X','X']]
     base = [['X','X','X','X','X','X'],
-            ['X',' ','X',' ',' ','X'],
-            ['X',' ','X','X',' ','X'],
             ['X',' ',' ',' ',' ','X'],
+            ['X',' ','X','X','X','X'],
+            ['X',' ','X','X',' ','X'],
             ['X',' ',' ',' ',  1,'X'],
             ['X','X','X','X','X','X']]
+    # base = [['X','X','X','X','X','X'],
+    #         ['X',' ','X',' ',' ','X'],
+    #         ['X',' ','X','X',' ','X'],
+    #         ['X',' ',' ',' ',' ','X'],
+    #         ['X',' ',' ',' ',  1,'X'],
+    #         ['X','X','X','X','X','X']]
     # base = [['X','X','X','X'],
     #         ['X',' ',' ','X'],
     #         ['X','1','X','X'],
@@ -379,14 +390,12 @@ if __name__ == '__main__':
     grid[1][4] = 'A'
     # grid[1][2] = 'A'
     # grid[1][4] = 'A'
-    # trans = copy.deepcopy(base)
-    # trans[2][4] = 'A'
     walls, start_state, inferred, rs = test_irl(grid, OptimalAgent(beta=1.0))
 
     print("inferred:\n",inferred)
     almostregret = evaluate_proxy(walls, start_state, inferred, rs, episode_length=20)
     print('Percent return:', almostregret)
-    #
+
     # print("")
     # walls, start_state, inferred, rs = test_irl(trans, OptimalAgent(beta=1.0))
     # print("inferred:\n",inferred)
