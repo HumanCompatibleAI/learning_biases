@@ -516,6 +516,7 @@ def infer_with_value_iteration(config):
     reward_data = generate_data_for_reward(agent, config, other_agents)
     return run_inference(None, None, reward_data, vi_algorithm, config)
 
+
 def infer_with_max_causal_ent(config):
     """Uses Adam's code to implement Max Causal Entropy for our gridworld MDP."""
     # Importing only when used because PyTorch is dependency for maxent (as of 4/5)
@@ -529,12 +530,9 @@ def infer_with_max_causal_ent(config):
     inferred_rewards = []
     verbose = False
     for i, wall, pol, start in zip(range(len(walls)), walls, policies, starts):
-        if i % 100 == 0:
+        if i % 5 == 0:
             print("Running IRL on grid number: {} / {}".format(i, len(walls)))
             verbose = True
-
-        # print("\nwall\n",wall)
-        # print("start: {}\n".format(start))
         inferred = irl_with_config(wall, pol, start, config, verbose=verbose)
         inferred_rewards.append(inferred)
         verbose = False
