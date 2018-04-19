@@ -533,8 +533,8 @@ def infer_with_max_causal_ent(config):
             print("Running IRL on grid number: {} / {}".format(i, len(walls)))
             verbose = True
 
-        print("\nwall\n",wall)
-        print("start: {}\n".format(start))
+        # print("\nwall\n",wall)
+        # print("start: {}\n".format(start))
         inferred = irl_with_config(wall, pol, start, config, verbose=verbose)
         inferred_rewards.append(inferred)
         verbose = False

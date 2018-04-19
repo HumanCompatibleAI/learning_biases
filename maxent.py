@@ -169,7 +169,7 @@ def test_irl(grid, agent):
 
     walls, rewards, start_state = mdp.convert_to_numpy_input()
 
-    print("Start state for given mdp:", start_state)
+    # print("Start state for given mdp:", start_state)
     inferred = irl_wrapper(walls, action_dists, start_state, 20, 0.9)
     # print("---true below---")
     # print(rewards)
@@ -179,7 +179,7 @@ def test_irl(grid, agent):
 
 def test_visitations(grid, agent):
     """Tests the expected_counts calculation--might be einsum error"""
-    print("Testing expected_counts")
+    # print("Testing expected_counts")
     from gridworld import GridworldMdp, Direction
     from utils import Distribution
 
@@ -207,7 +207,7 @@ def test_visitations(grid, agent):
 
     walls, rewards, start_state = mdp.convert_to_numpy_input()
 
-    print("Start state for given mdp:", start_state)
+    # print("Start state for given mdp:", start_state)
 
     start = start_state
     trans = mdp.get_transition_matrix()
@@ -221,7 +221,7 @@ def test_visitations(grid, agent):
 
     import matplotlib.pyplot as plt
     plt.imsave("democounts",demo_counts.reshape((len(grid), len(grid))))
-    print("demo counts:", demo_counts.reshape((len(grid), len(grid))))
+    # print("demo counts:", demo_counts.reshape((len(grid), len(grid))))
 
 
 def test_coherence(grid, agent):
