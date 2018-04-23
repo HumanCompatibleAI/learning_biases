@@ -1,8 +1,12 @@
 *~
 *.swp
+data/
 
 # Numpy archive files (usually gridworlds)
 *.npz
+
+# Pickled objects
+#.pickle
 
 # prediction image will always be updating
 predictioneval.png

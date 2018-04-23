@@ -116,6 +116,7 @@ def VI_Block(X, config):
     k    = config.k    # Number of value iterations performed
     ch_i = 2           # Channels in input layer, hardcoded to 2 for now
     ch_h = config.ch_h # Channels in initial hidden layer
+    ch_p = config.ch_p # Channels in proxy reward layer
     ch_q = config.ch_q # Channels in q layer (~actions)
     num_actions = config.num_actions
     regularizer = tf.contrib.layers.l2_regularizer(scale=config.vin_regularizer_C)
@@ -130,10 +131,10 @@ def VI_Block(X, config):
             initializer=tf.truncated_normal([3, 3, ch_i, ch_h], stddev=0.01))
         w1 = tf.get_variable(
             name='w1',
-            initializer=tf.truncated_normal([1, 1, ch_h, 1], stddev=0.01))
+            initializer=tf.truncated_normal([1, 1, ch_h, ch_p], stddev=0.01))
         w = tf.get_variable(
             name='w',
-            initializer=tf.truncated_normal([3, 3, 1, ch_q], stddev=0.01))
+            initializer=tf.truncated_normal([3, 3, ch_p, ch_q], stddev=0.01))
         # feedback weights from v layer into q layer
         # (Similar to the transition probabilities in Bellman equation)
         w_fb = tf.get_variable(
@@ -144,20 +145,21 @@ def VI_Block(X, config):
             initializer=tf.truncated_normal([ch_q, num_actions], stddev=0.01))
 
     # initial conv layer over image+reward prior
-    h = conv2d(X, w0, name="h0") + bias
+    h = tf.nn.relu(conv2d(X, w0, name="h0") + bias)
 
     r = conv2d(h, w1, name="r")
     q = conv2d(r, w, name="q")
     v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
 
+    wwfb = tf.concat([w, w_fb], 2)
+
     for i in range(0, k-1):
         rv = tf.concat([r, v], 3)
-        wwfb = tf.concat([w, w_fb], 2)
         q = conv2d(rv, wwfb, name="q")
         v = tf.reduce_max(q, axis=3, keep_dims=True, name="v")
 
     # do one last convolution
-    q = conv2d(tf.concat([r, v], 3), tf.concat([w, w_fb], 2), name="q")
+    q = conv2d(tf.concat([r, v], 3), wwfb, name="q")
     q_out = tf.reshape(q, [-1, ch_q])
 
     # add logits

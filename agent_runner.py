@@ -1,6 +1,6 @@
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
-from agents import OptimalAgent
+from fast_agents import FastOptimalAgent
 import numpy as np
 
 def run_agent(agent, env, episode_length=float("inf")):
@@ -53,12 +53,12 @@ def evaluate_proxy(walls, start_state, proxy_reward, true_reward, gamma=0.9, epi
     true_mdp = GridworldMdp.from_numpy_input(walls, true_reward, start_state)
     env = Mdp(true_mdp)
 
-    proxy_agent = OptimalAgent()
+    proxy_agent = FastOptimalAgent()
     proxy_agent.set_mdp(true_mdp, proxy_mdp)
     proxy_trajectory = run_agent(proxy_agent, env, episode_length)
     reward_from_proxy_agent = get_reward_from_trajectory(proxy_trajectory, gamma)
 
-    true_agent = OptimalAgent()
+    true_agent = FastOptimalAgent()
     true_agent.set_mdp(true_mdp)
     true_trajectory = run_agent(true_agent, env, episode_length)
     reward_from_true_agent = get_reward_from_trajectory(true_trajectory, gamma)

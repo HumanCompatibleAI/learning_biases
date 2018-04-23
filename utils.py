@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import random
 import re
-import pdb
 import matplotlib
 matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
@@ -19,6 +19,11 @@ def fmt_item(x, l):
 def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
+
+def set_seeds(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.set_random_seed(seed)
 
 def softmax(v):
     return np.exp(v)/np.sum(np.exp(v))
@@ -75,23 +80,31 @@ def init_flags():
     #   Generate data
     tf.app.flags.DEFINE_boolean(
         'simple_mdp', False, 'Whether to use the simple random MDP generator')
-    tf.app.flags.DEFINE_integer('imsize', 8, 'Size of input image')
+    tf.app.flags.DEFINE_integer('imsize', 16, 'Size of input image')
     tf.app.flags.DEFINE_float(
         'wall_prob', 0.05,
         'Probability of having a wall at any particular space in the gridworld. '
         'Has no effect if --simple_mdp is False.')
     tf.app.flags.DEFINE_float(
         'reward_prob', 0.05,
-        'Probability of having a reward at any particular space in the gridworld')
+        'Probability of having a reward at any particular space in the gridworld. '
+        'Has no effect if --simple_mdp is False.')
+    tf.app.flags.DEFINE_integer(
+        'num_rewards', 5,
+        'Number of positions in the gridworld that should have reward. '
+        'Has no effect if --simple_mdp is True.')
     tf.app.flags.DEFINE_float(
         'action_distance_threshold', 0.5,
         'Minimum distance between two action distributions to be "different"')
     tf.app.flags.DEFINE_integer(
-        'num_train', 5000, 'Number of examples for training the planning module')
+        'num_human_trajectories', 8000, 'Number of human trajectories we see')
     tf.app.flags.DEFINE_integer(
-        'num_test', 2000, 'Number of examples for testing the planning module')
+        'num_validation', 2000,
+        'Number of extra trajectories to generate to validate the planning module')
     tf.app.flags.DEFINE_integer(
-        'num_mdps', 1000, 'Number of MDPs to infer the reward of')
+        'num_with_rewards', 0, 'Number of MDPs where reward info is known')
+    tf.app.flags.DEFINE_integer(
+        'num_simulated', 0, 'Number of MDPs with simulated trajectories')
 
     # Hyperparameters
     tf.app.flags.DEFINE_string(
@@ -99,17 +112,18 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'vin_regularizer_C', 0.0001, 'Regularization constant for the VIN')
     tf.app.flags.DEFINE_float(
-        'reward_regularizer_C', 0.0001, 'Regularization constant for the reward')
+        'reward_regularizer_C', 0, 'Regularization constant for the reward')
     tf.app.flags.DEFINE_float(
-        'lr', 0.025, 'Learning rate when training the planning module')
+        'lr', 0.01, 'Learning rate when training the planning module')
     tf.app.flags.DEFINE_float(
-        'reward_lr', 0.1, 'Learning rate when inferring a reward function')
+        'reward_lr', 1.0, 'Learning rate when inferring a reward function')
     tf.app.flags.DEFINE_integer(
-        'epochs', 30, 'Number of epochs to train the planning module for')
+        'epochs', 20, 'Number of epochs to train the planning module for')
     tf.app.flags.DEFINE_integer(
         'reward_epochs', 50, 'Number of epochs when inferring a reward function')
     tf.app.flags.DEFINE_integer('k', 10, 'Number of value iterations')
     tf.app.flags.DEFINE_integer('ch_h', 150, 'Channels in initial hidden layer')
+    tf.app.flags.DEFINE_integer('ch_p', 5, 'Channels in proxy reward layer')
     tf.app.flags.DEFINE_integer('ch_q', 5, 'Channels in q layer')
     tf.app.flags.DEFINE_integer('num_actions', 5, 'Number of actions')
     tf.app.flags.DEFINE_integer('batchsize', 20, 'Batch size')
@@ -117,15 +131,15 @@ def init_flags():
     # Agent
     tf.app.flags.DEFINE_string(
         'agent', 'optimal', 'Agent to generate training data with')
-    tf.app.flags.DEFINE_float('gamma', 0.9, 'Discount factor')
+    tf.app.flags.DEFINE_float('gamma', 0.95, 'Discount factor')
     tf.app.flags.DEFINE_float('beta', None, 'Noise when selecting actions')
     tf.app.flags.DEFINE_integer(
         'num_iters', 50,
         'Number of iterations of value iteration the agent should run.')
     tf.app.flags.DEFINE_integer(
-        'max_delay', 5,
+        'max_delay', 10,
         'Maximum delay that the agent should use. '
-        'Only affects naive/sophisticated and myopic agents.')
+        'Only affects naive, sophisticated and myopic agents.')
     tf.app.flags.DEFINE_float(
         'hyperbolic_constant', 1.0,
         'Discount for the future for hyperbolic time discounters')
@@ -148,25 +162,75 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'other_hyperbolic_constant', 1.0, 'Hyperbolic constant for other agent')
 
-    # Miscellaneous
+    # Output
     tf.app.flags.DEFINE_string(
-        'seeds', '1,2,3,5,8,13,21,34', 'Random seeds for both numpy and random')
+        'output_folder', 'data/', 'Folder to write statistics to')
     tf.app.flags.DEFINE_integer(
         'display_step', 1, 'Print summary output every n epochs')
     tf.app.flags.DEFINE_boolean('log', False, 'Enables tensorboard summary')
     tf.app.flags.DEFINE_string(
         'logdir', '/tmp/planner-vin/', 'Directory to store tensorboard summary')
+    tf.app.flags.DEFINE_integer(
+        'verbosity', 3,
+        """Level of output to terminal (higher means more output).
+        Level 0 suppresses all output.
+        Level 1 includes only output about key metrics.
+        Level 2 includes infrequent progress updates.
+        Level 3 provides detailed information on training progress.
+        """)
+    tf.app.flags.DEFINE_boolean(
+        'plot_rewards', True, 'Whether or not to plot rewards')
 
+    # Miscellaneous
+    tf.app.flags.DEFINE_string(
+        'seeds', '1,2,3,5,8,13,21,34', 'Random seeds for both numpy and random')
     tf.app.flags.DEFINE_bool('use_gpu', False, 'Enables GPU usage')
+    tf.app.flags.DEFINE_bool('strict', False, 'Disables permissive flags')
 
     config = tf.app.flags.FLAGS
-    # It is required that the number of unknown reward functions be divisible by
-    # the batch size, due to Tensorflow constraints.
-    if config.num_mdps % config.batchsize != 0:
-        config.num_mdps = config.num_mdps - (config.num_mdps % config.batchsize)
-        print('Reduced number of MDPs to {} to be divisible by the batch size'.format(config.num_mdps))
-
     config.seeds = list(map(int, config.seeds.split(',')))
+    alg = config.algorithm
+
+    def warn_or_error(message):
+        if config.strict:
+            raise ValueError(message)
+        else:
+            print(message)
+
+    def check_zero(flag):
+        if getattr(config, flag) != 0:
+            warn_or_error('{} > 0 is useless for algorithm {}'.format(flag, alg))
+
+    def check_nonzero(flag, default):
+        if getattr(config, flag) == 0:
+            warn_or_error('{} must be nonzero for algorithm {}'.format(flag, alg))
+            setattr(config, flag, default)
+            print('Setting it to ' + str(default))
+
+    check_nonzero('num_human_trajectories', 8000)
+    if alg == 'given_rewards':
+        check_zero('em_iterations')
+        check_zero('num_simulated')
+        check_nonzero('num_with_rewards', config.num_human_trajectories - 1000)
+        check_nonzero('num_validation', 2000)
+    elif alg == 'no_rewards':
+        check_zero('num_with_rewards')
+        check_nonzero('em_iterations', 2)
+        check_nonzero('num_simulated', 5000)
+        check_nonzero('num_validation', 2000)
+    elif alg in ['boltzmann_planner', 'optimal_planner']:
+        check_zero('em_iterations')
+        check_zero('num_with_rewards')
+        check_nonzero('num_simulated', 5000)
+        check_nonzero('num_validation', 2000)
+    elif alg in ['joint_no_rewards', 'vi_inference']:
+        check_zero('em_iterations')
+        check_zero('num_with_rewards')
+        check_zero('num_simulated')
+        check_zero('num_validation')
+    else:
+        raise ValueError('Unknown algorithm {}'.format(alg))
+
     return config
 
 class Distribution(object):
@@ -220,3 +284,10 @@ class Distribution(object):
 
     def __repr__(self):
         return 'Distribution(%s)' % repr(self.dist)
+
+
+def concat_folder(folder, element):
+    """folder and element are strings"""
+    if folder[-1] == '/':
+        return folder + element
+    return folder + '/' + element
