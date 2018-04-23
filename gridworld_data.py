@@ -158,10 +158,7 @@ def generate_data_for_planner(agent, config, other_agents=[]):
 def generate_data_for_reward(agent, config, other_agents=[]):
     """Generates an IRL problem for Gridworlds.
 
-    Returns 12 Numpy arrays, from 3 calls to generate_n_examples, corresponding
-    to train data, test data for step 1, and test data for step 2.
-
-    [Update 4/5 - Noah] Pretty sure this just produces test data for step 2
+    [4/5] Generates test data (reward data) for Step 2 of the algorithm
     """
     return generate_n_examples(config.num_mdps, agent, config, config.seeds.pop(0), other_agents)
 

@@ -16,12 +16,11 @@ np.set_printoptions(2)
 import tabular_maxent
 from tabular_maxent import irl, expected_counts
 from gridworld import GridworldMdpNoR
-#TODO: fully torchize?
 
-# )
 
 def irl_with_config(image, action_dists, start, config, verbose=False):
-    return irl_wrapper(image, action_dists, start, config.horizon, config.gamma, verbose)
+    return irl_wrapper(image, action_dists, start, config.eval_horizon, config.gamma, verbose)
+
 
 def irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
     """Takes in input that works with our codebase, and harnesses @AdamGleave's MaxEnt
@@ -48,8 +47,6 @@ def irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
 
     xplatform = {'transition': transition, 'initial_states': initial_states}
 
-    # flat_inferred = irl(transition, policy, initial_states, horizon, discount,
-    #                      start_state=start, verbose=verbose)
     flat_inferred = irl(xplatform, None, discount, demo_counts, horizon)
     inferred_reward = np.reshape(flat_inferred, (imsize, imsize))
     return inferred_reward
