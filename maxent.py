@@ -50,7 +50,7 @@ def irl_wrapper(image, action_dists, start, horizon, discount, verbose=False):
 
     # flat_inferred = irl(transition, policy, initial_states, horizon, discount,
     #                      start_state=start, verbose=verbose)
-    flat_inferred = irl(xplatform, None, discount, demo_counts, horizon)
+    flat_inferred = irl(xplatform, None, discount, demo_counts, horizon, num_iter=1000)
     inferred_reward = np.reshape(flat_inferred, (imsize, imsize))
     return inferred_reward
 
