@@ -69,6 +69,39 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     # saving to file
     fig.savefig(filename)
 
+def plot_trajectory(wall, reward, start, action_dist):
+    """Simulates a rollout of an optimal agent given an MDP specified
+    by the wall, reward, and start state. And plots it
+
+    Future implementation:
+    -   simulate rollout according to action_dist
+    -   plot trajectory on top of `Figure` mpl object, passed from plot_reward
+    [4/23] action_dist unused"""
+    from agents import OptimalAgent
+    from gridworld import GridworldMdp
+    from agent_runner import run_agent
+
+    # Arbitrary length of episode set
+    EPISODE_LENGTH = 15
+
+    mdp = GridworldMdp.from_numpy_input(wall, reward, start)
+    agent = OptimalAgent()
+
+    agent.set_mdp(mdp)
+    trajectory = run_agent(agent, mdp, episode_length=EPISODE_LENGTH)
+
+    if len(trajectory) <= 1:
+        raise ValueError("Trajectory rolled out unsucessfully")
+
+    # Tuples of (state, next) - to be used for plotting
+    state_trans = [(info[0], info[2]) for info in trajectory]
+
+    # Need to add code to represent the tuples as points on the canvas
+    # Then loop through an add them to the canvas, should wrap into function
+    # ... that way I can use this function to plot behavior on inferred rewards to.... return figure of plot..?
+
+
+
 def init_flags():
     # Algorithm
     tf.app.flags.DEFINE_string(
