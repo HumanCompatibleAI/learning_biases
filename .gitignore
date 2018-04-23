@@ -19,6 +19,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+*.ipynb
 env/
 build/
 develop-eggs/
