@@ -40,7 +40,7 @@ def visualizeReward(reward):
     neg_reward = squish(neg_reward)
     return pos_reward,neg_reward
 
-def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png', fig=None, axes=None):
+def plot_reward(label, inferred_reward, walls, fig=None, axes=None):
     """Plots rewards (true and predicted) and saves them to a file.
 
     Inferred_reward should be normalized before.
@@ -69,22 +69,15 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png',
         ax.set_yticks([])
         ax.set_xticks([])
 
-    # titleing
-    fig.suptitle("Comparison of Reward Functions")
-
-    # saving to file
-    fig.savefig(filename)
     return fig, axes
 
-def plot_trajectory(wall, reward, start, action_dist, fig=None, axes=None):
-    """Simulates a rollout of an optimal agent given an MDP specified
-    by the wall, reward, and start state. And plots it
+def plot_trajectory(wall, reward, start, agent_type=None, fig=None, ax=None):
+    """Simulates a rollout of an agent given an MDP specified
+    by the wall, reward, and start state. And plots it.
 
-    Future implementation:
-    -   simulate rollout according to action_dist
-    -   plot trajectory on top of `Figure` mpl object, passed from plot_reward
-    [4/23] action_dist unused"""
-    from agents import OptimalAgent
+    agent_type(Callable): usually a lambda that wraps the configuration of an agent.
+        e.g. lambda: OptimalAgent(beta=1.0)
+    """
     from gridworld import GridworldMdp
     from mdp_interface import Mdp
     from agent_runner import run_agent
@@ -93,7 +86,7 @@ def plot_trajectory(wall, reward, start, action_dist, fig=None, axes=None):
     EPISODE_LENGTH = 15
 
     mdp = GridworldMdp.from_numpy_input(wall, reward, start)
-    agent = OptimalAgent()
+    agent = agent_type()
 
     agent.set_mdp(mdp)
     env = Mdp(mdp)
@@ -104,36 +97,59 @@ def plot_trajectory(wall, reward, start, action_dist, fig=None, axes=None):
 
     # Tuples of (state, next) - to be used for plotting
     state_trans = [(info[0], info[2]) for info in trajectory]
+    count = 0
+    for trans in state_trans:
+        if trans[0] == trans[1]:
+            count+=1
+    if count == len(state_trans):
+        print("Yes, the agent given stayed in the same spot for {} iterations...".format(len(state_trans)))
 
     # Need to add code to represent the tuples as points on the canvas
     # Then loop through an add them to the canvas, should wrap into function
     # ... that way I can use this function to plot behavior on inferred rewards to.... return figure of plot..?
-    if not fig or not axes:
-        fig, axes = plt.subplots(1,1)
-    if axes and type(axes) is list:
+    if not fig or not ax:
+        fig, ax = plt.subplots(1,1)
+    if ax and type(ax) is list:
         raise ValueError("Given {} axes, but can only use 1 axes".format(len(axes)))
 
-    line_artists = plot_lines(axes, trans_list=state_trans, color='r', grid_size=len(wall))
-    axes.set_xticks([])
-    axes.set_yticks([])
-    fig.suptitle("Trajectory Visualization")
-    fig.savefig("trajectory")
-    return fig, axes
+    line_artists = plot_lines(ax, trans_list=state_trans, color='r', grid_size=len(wall))
+    ax.set_xticks([])
+    ax.set_yticks([])
+    return fig, ax
+
+def plot_all(true_reward, inferred_reward, walls, start, agent_type, filename='reward_comparison.png'):
+    """Plots all relevant info"""
+    from agents import OptimalAgent
+    fig, axes = plt.subplots(1, 2)
+
+    plot_reward(true_reward, inferred_reward, walls, fig=fig, axes=axes)
+    plot_trajectory(walls, true_reward, start, agent_type, fig=fig, ax=axes[0])
+    plot_trajectory(walls, inferred_reward, start, lambda: OptimalAgent(), fig=fig, ax=axes[1])
+    plot_pos(start, color='m', grid_size=len(walls), ax=axes[0])
+    plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])
+
+    # titleing
+    fig.suptitle("Comparison of Reward Functions")
+
+    # saving to file
+    fig.savefig(filename)
 
 def test_trajectory_plotting():
     """Tests trajectory plotting"""
     from gridworld import GridworldMdp
-    from agents import OptimalAgent
+    from agents import OptimalAgent, MyopicAgent
     agent = OptimalAgent()
     mdp = GridworldMdp.generate_random(12, 12, pr_wall=0.1, pr_reward=0.1)
     agent.set_mdp(mdp)
     walls, reward, start = mdp.convert_to_numpy_input()
-    fig, axes = plt.subplots(1, 2)
-    fig, axes = plot_reward(reward, reward, walls, filename='trajectory_test.png', fig=fig, axes=axes)
-    plot_start(start, color='m', grid_size=len(walls), ax=axes[1])
-    plot_trajectory(walls, reward, start, None, fig=fig, axes=axes[1])
 
-def plot_start(start, color=None, grid_size=None, ax=None):
+    plot_all(reward, reward, walls, start, lambda: MyopicAgent(horizon=5), filename="trajectory.png")
+    # fig, axes = plt.subplots(1, 2)
+    # fig, axes = plot_reward(reward, reward, walls, filename='trajectory_test.png', fig=fig, axes=axes)
+    # plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])
+    # plot_trajectory(walls, reward, start, agent_type=OptimalAgent, fig=fig, axes=axes[1])
+
+def plot_pos(start, color=None, grid_size=None, ax=None):
     """Plots a small dot on the start location"""
     if grid_size is None:
         raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
@@ -172,6 +188,7 @@ def plot_lines(ax, trans_list, color='r', grid_size=None):
         return col, row
 
     num_trans = len(trans_list)
+    # RGBA vals that go from pinkish to yellowish
     reds = [(1, 0, 1, 1), (1, 1, 0, 1)]
     cgrad = LinearSegmentedColormap.from_list(name="reds", colors=reds, N=num_trans)
     line_artists = []
