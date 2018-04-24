@@ -40,7 +40,7 @@ def visualizeReward(reward):
     neg_reward = squish(neg_reward)
     return pos_reward,neg_reward
 
-def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png'):
+def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png', fig=None, axes=None):
     """Plots rewards (true and predicted) and saves them to a file.
 
     Inferred_reward should be normalized before.
@@ -51,7 +51,8 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     pos_reward, neg_reward = visualizeReward(inferred_reward)
 
     # set up plot
-    fig, axes = plt.subplots(1,2)
+    if fig is None or axes is None:
+        fig, axes = plt.subplots(1,2)
     label = np.stack([pos_label, walls, neg_label],axis=-1).reshape(list(walls.shape)+[3])
 
     # truth plot
@@ -63,13 +64,19 @@ def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png')
     tensor = axes[1].imshow(rew)
     axes[1].set_title("Predicted")
 
+    # Remove xticks, yticks
+    for ax in axes:
+        ax.set_yticks([])
+        ax.set_xticks([])
+
     # titleing
     fig.suptitle("Comparison of Reward Functions")
 
     # saving to file
     fig.savefig(filename)
+    return fig, axes
 
-def plot_trajectory(wall, reward, start, action_dist):
+def plot_trajectory(wall, reward, start, action_dist, fig=None, axes=None):
     """Simulates a rollout of an optimal agent given an MDP specified
     by the wall, reward, and start state. And plots it
 
@@ -79,6 +86,7 @@ def plot_trajectory(wall, reward, start, action_dist):
     [4/23] action_dist unused"""
     from agents import OptimalAgent
     from gridworld import GridworldMdp
+    from mdp_interface import Mdp
     from agent_runner import run_agent
 
     # Arbitrary length of episode set
@@ -88,7 +96,8 @@ def plot_trajectory(wall, reward, start, action_dist):
     agent = OptimalAgent()
 
     agent.set_mdp(mdp)
-    trajectory = run_agent(agent, mdp, episode_length=EPISODE_LENGTH)
+    env = Mdp(mdp)
+    trajectory = run_agent(agent, env, episode_length=EPISODE_LENGTH)
 
     if len(trajectory) <= 1:
         raise ValueError("Trajectory rolled out unsucessfully")
@@ -99,7 +108,81 @@ def plot_trajectory(wall, reward, start, action_dist):
     # Need to add code to represent the tuples as points on the canvas
     # Then loop through an add them to the canvas, should wrap into function
     # ... that way I can use this function to plot behavior on inferred rewards to.... return figure of plot..?
+    if not fig or not axes:
+        fig, axes = plt.subplots(1,1)
+    if axes and type(axes) is list:
+        raise ValueError("Given {} axes, but can only use 1 axes".format(len(axes)))
 
+    line_artists = plot_lines(axes, trans_list=state_trans, color='r', grid_size=len(wall))
+    axes.set_xticks([])
+    axes.set_yticks([])
+    fig.suptitle("Trajectory Visualization")
+    fig.savefig("trajectory")
+    return fig, axes
+
+def test_trajectory_plotting():
+    """Tests trajectory plotting"""
+    from gridworld import GridworldMdp
+    from agents import OptimalAgent
+    agent = OptimalAgent()
+    mdp = GridworldMdp.generate_random(12, 12, pr_wall=0.1, pr_reward=0.1)
+    agent.set_mdp(mdp)
+    walls, reward, start = mdp.convert_to_numpy_input()
+    fig, axes = plt.subplots(1, 2)
+    fig, axes = plot_reward(reward, reward, walls, filename='trajectory_test.png', fig=fig, axes=axes)
+    plot_start(start, color='m', grid_size=len(walls), ax=axes[1])
+    plot_trajectory(walls, reward, start, None, fig=fig, axes=axes[1])
+
+def plot_start(start, color=None, grid_size=None, ax=None):
+    """Plots a small dot on the start location"""
+    if grid_size is None:
+        raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
+    if ax is None:
+        raise ValueError("Please pass MPL axes.")
+    # See `plot_lines` for why these factors were chosen
+    diff = 1/(2*grid_size + 1) * grid_size
+    col, row = start
+    offset = 0.3
+    col = (2*col) * diff + offset
+    row = (2*row) * diff + offset
+    if color is None:
+        color = 'r'
+    ax.scatter([col], [row], color=color)
+
+def plot_lines(ax, trans_list, color='r', grid_size=None):
+    """Plots transitions as lines on a grid (centered on grid points)"""
+    if grid_size is None:
+        raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
+    from matplotlib.colors import LinearSegmentedColormap
+    # Can imagine list of lines + centers = 2 * grid_size + 1. Choose only
+    # on indices \equiv 1 \pmod 2
+
+    # Number of lines in a grid of length=`grid_size`
+    # num_lines = grid_size + 1; num_centers = grid_size
+    num_spots = 2*grid_size + 1
+    diff = 1/num_spots * grid_size
+
+    def to_coords(pos):
+        """Indexes into positions as (y, x)"""
+        col, row = pos
+        # Center of grid spot i is (2i+1) * diff
+        offset = 0.30
+        col = (2*col) * diff + offset
+        row = (2*row) * diff + offset
+        return col, row
+
+    num_trans = len(trans_list)
+    reds = [(1, 0, 1, 1), (1, 1, 0, 1)]
+    cgrad = LinearSegmentedColormap.from_list(name="reds", colors=reds, N=num_trans)
+    line_artists = []
+    for i, trans in enumerate(trans_list):
+        start, end = trans
+        p1, p2 = to_coords(start), to_coords(end)
+        line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=cgrad(i), ls='--')
+        # For future matplotlib usage (just in case)
+        line_artists.append(line)
+
+    return line_artists
 
 
 def init_flags():
@@ -320,3 +403,7 @@ def concat_folder(folder, element):
     if folder[-1] == '/':
         return folder + element
     return folder + '/' + element
+
+
+if __name__ == '__main__':
+    test_trajectory_plotting()
