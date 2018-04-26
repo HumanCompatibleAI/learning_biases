@@ -71,12 +71,9 @@ def plot_reward(label, inferred_reward, walls, fig=None, axes=None):
 
     return fig, axes
 
-def plot_trajectory(wall, reward, start, agent_type=None, fig=None, ax=None):
+def plot_trajectory(wall, reward, start, agent, fig=None, ax=None):
     """Simulates a rollout of an agent given an MDP specified
     by the wall, reward, and start state. And plots it.
-
-    agent_type(Callable): usually a lambda that wraps the configuration of an agent.
-        e.g. lambda: OptimalAgent(beta=1.0)
     """
     from gridworld import GridworldMdp
     from mdp_interface import Mdp
@@ -86,7 +83,6 @@ def plot_trajectory(wall, reward, start, agent_type=None, fig=None, ax=None):
     EPISODE_LENGTH = 15
 
     mdp = GridworldMdp.from_numpy_input(wall, reward, start)
-    agent = agent_type()
 
     agent.set_mdp(mdp)
     env = Mdp(mdp)
@@ -110,21 +106,50 @@ def plot_trajectory(wall, reward, start, agent_type=None, fig=None, ax=None):
     if not fig or not ax:
         fig, ax = plt.subplots(1,1)
     if ax and type(ax) is list:
-        raise ValueError("Given {} axes, but can only use 1 axes".format(len(axes)))
+        raise ValueError("Given {} axes, but can only use 1 axes".format(len(ax)))
 
     line_artists = plot_lines(ax, trans_list=state_trans, color='r', grid_size=len(wall))
     ax.set_xticks([])
     ax.set_yticks([])
     return fig, ax
 
-def plot_all(true_reward, inferred_reward, walls, start, agent_type, filename='reward_comparison.png'):
-    """Plots all relevant info"""
+def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, config, filename='reward_comparison.png'):
+    """Plots reward vs inferred reward. On the true reward, plot the biased agent's trajectory. On the
+    inferred reward, plot the optimal agent's trajectory.
+
+    true_reward(ndarray): shape=(imsize x imsize)
+    inferred_reward(ndarray): same as above
+    walls(ndarray): shape=(imsize x imsize) of 0s and 1s, where 1s are walls
+    start(tuple): containing (row, col)
+    config(tf.config): config with agent params set
+    filename(string): pathname of saved figure
+    """
     from agents import OptimalAgent
+    from gridworld_data import create_agents_from_config
+
+    true_agent, other_agent = create_agents_from_config(config)
+    inferred_agent = OptimalAgent()
+
+    _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, start, true_agent, inferred_agent,
+                                         filename)
+
+
+def _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, start, true_agent, inferred_agent,
+                                          filename='reward_comparison.png'):
+    """Plots same thing as plot_reward_and_trajectories, but using only agents, no config"""
+    from agents import OptimalAgent
+    from gridworld_data import create_agents_from_config
+    # 1 Figure, 2 Plots (in a row)
+    # True reward on leftmost plot (axes[0])
+    # Inferred reward on rightmost plot (axes[1])
     fig, axes = plt.subplots(1, 2)
 
+    # Plot the rewards
     plot_reward(true_reward, inferred_reward, walls, fig=fig, axes=axes)
-    plot_trajectory(walls, true_reward, start, agent_type, fig=fig, ax=axes[0])
-    plot_trajectory(walls, inferred_reward, start, lambda: OptimalAgent(), fig=fig, ax=axes[1])
+    # Plot the agents' trajectories (will perform rollout)
+    plot_trajectory(walls, true_reward, start, true_agent, fig=fig, ax=axes[0])
+    plot_trajectory(walls, inferred_reward, start, inferred_agent, fig=fig, ax=axes[1])
+    # Plot starting positions for agents in both the true and inferred reward plots
     plot_pos(start, color='m', grid_size=len(walls), ax=axes[0])
     plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])
 
@@ -134,6 +159,7 @@ def plot_all(true_reward, inferred_reward, walls, start, agent_type, filename='r
     # saving to file
     fig.savefig(filename)
 
+
 def test_trajectory_plotting():
     """Tests trajectory plotting"""
     from gridworld import GridworldMdp
@@ -142,8 +168,8 @@ def test_trajectory_plotting():
     mdp = GridworldMdp.generate_random(12, 12, pr_wall=0.1, pr_reward=0.1)
     agent.set_mdp(mdp)
     walls, reward, start = mdp.convert_to_numpy_input()
-
-    plot_all(reward, reward, walls, start, lambda: MyopicAgent(horizon=5), filename="trajectory.png")
+    myopic = MyopicAgent(horizon=10)
+    _plot_reward_and_trajectories_helper(reward, reward, walls, start, myopic, OptimalAgent(), filename="trajectory.png")
     # fig, axes = plt.subplots(1, 2)
     # fig, axes = plot_reward(reward, reward, walls, filename='trajectory_test.png', fig=fig, axes=axes)
     # plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])

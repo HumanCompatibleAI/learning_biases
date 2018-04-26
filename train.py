@@ -12,7 +12,7 @@ import agents
 import fast_agents
 from gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
 from model import create_model, calculate_action_distribution
-from utils import fmt_row, init_flags, plot_reward, set_seeds, concat_folder
+from utils import fmt_row, init_flags, plot_reward_and_trajectories, set_seeds, concat_folder
 from agent_runner import evaluate_proxy
 import sys
 
@@ -413,7 +413,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         reward_percents = []
         for label, reward, wall, start_state, i in zip(reward_irl, inferred_rewards, image_irl, start_states_irl, range(len(reward_irl))):
             if config.plot_rewards and i < 10:
-                plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
+                plot_reward_and_trajectories(label, reward, wall, start_state, config, 'reward_pics/reward_{}'.format(i))
             reward_percents.append(
                 evaluate_proxy(wall, start_state, reward, label, episode_length=20))
 
