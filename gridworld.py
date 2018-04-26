@@ -23,6 +23,7 @@ class GridworldMdpNoR(object):
         self.walls = walls
         self.start_state = start_state
         self.noise = noise
+        self.transition_matrix = None
 
     def get_start_state(self):
         """Returns the start state."""
@@ -82,6 +83,46 @@ class GridworldMdpNoR(object):
 
         return successors.items()
 
+    def get_transition_matrix(self):
+        """Returns transition matrix. Very slow."""
+        if self.noise != 0:
+            raise AssertionError("Transition matrix does not have computations set when MDP has noise")
+        if self.transition_matrix != None:
+            return self.transition_matrix
+
+        height = self.height
+        width = self.width
+        num_actions = len(Direction.ALL_DIRECTIONS)
+
+        tran_shape = (width*height, num_actions, width*height)
+        transition_matrix = np.zeros(tran_shape)
+
+        # Init the array to stay action, even if in wall
+        for x in range(width):
+            for y in range(height):
+                flatOuter = y * width + x
+
+                for idxA, action in enumerate(Direction.ALL_DIRECTIONS):
+                    # Stay action is default for every state, even walls
+                    transition_matrix[flatOuter, idxA, flatOuter] = 1
+
+                    # Compute s,a -> s' transitions
+                    try:
+                        # self.get_actions(self, state) <-- takes state in non-gridworld format
+                        # of (x, y)
+                        sa_transitions = self.get_transition_states_and_probs((x, y), action)
+                    except ValueError:
+                        sa_transitions = None
+
+                    if sa_transitions:
+                        transition_matrix[flatOuter, idxA, flatOuter] = 0
+                        for state, prob in sa_transitions:
+                            flatInner = state[1] * width + state[0]
+                            transition_matrix[flatOuter, idxA, flatInner] = prob
+
+        self.transition_matrix = transition_matrix
+        return self.transition_matrix
+
     def _attempt_to_move_in_direction(self, state, action):
         """Return the new state an agent would be in if it took the action.
 
@@ -90,7 +131,6 @@ class GridworldMdpNoR(object):
         x, y = state
         newx, newy = Direction.move_in_direction(state, action)
         return state if self.walls[newy][newx] else (newx, newy)
-
 
 class GridworldMdp(GridworldMdpNoR):
     """A grid world where the objective is to navigate to one of many rewards.

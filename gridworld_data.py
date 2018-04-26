@@ -116,9 +116,11 @@ def load_dataset(filename):
 def generate_n_examples(n, agent, config, seed=0, other_agents=[], folder='datasets/'):
     """Calls generate_example n times to create a dataset of examples of size n.
 
-    Returns the same four Numpy arrays as generate_example, except that they
-    now have shape (n, *previous_shape). (The last Numpy array from
+    Returns the same four Numpy arrays as generate_example,
+    except that they now have shape (n, *previous_shape). (The last Numpy array, num_different, from
     generate_example is analyzed and printed out, and so is not returned.)
+
+    Returns n-tuple of (walls, rewards, start_state, action_dists)
     """
     filename = folder + get_filename(n, agent, config, seed)
     if os.path.exists(filename):
@@ -157,8 +159,7 @@ def generate_data_for_planner(num_train, num_validation, agent, config, other_ag
 def generate_data_for_reward(num_trajs, agent, config, other_agents=[]):
     """Generates an IRL problem for Gridworlds.
 
-    Returns 12 Numpy arrays, from 3 calls to generate_n_examples, corresponding
-    to train data, test data for step 1, and test data for step 2.
+    [4/5] Generates test data (reward data) for Step 2 of the algorithm
     """
     return generate_n_examples(num_trajs, agent, config, config.seeds.pop(0), other_agents)
 
