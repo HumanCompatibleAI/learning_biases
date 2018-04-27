@@ -40,47 +40,35 @@ def visualizeReward(reward):
     neg_reward = squish(neg_reward)
     return pos_reward,neg_reward
 
-def plot_reward(label, inferred_reward, walls, fig=None, axes=None):
-    """Plots rewards (true and predicted) and saves them to a file.
 
-    Inferred_reward should be normalized before.
+def plot_reward(reward, walls, ax_title, fig, ax):
+    """
+    Plots a single reward + wall combination on an axis of the figure given.
     """
 
     # Clean up the arrays (imshow only takes values in [0, 1])
-    pos_label, neg_label = visualizeReward(label)
-    pos_reward, neg_reward = visualizeReward(inferred_reward)
+    pos_label, neg_label = visualizeReward(reward)
 
     # set up plot
-    if fig is None or axes is None:
-        fig, axes = plt.subplots(1,2)
     label = np.stack([pos_label, walls, neg_label],axis=-1).reshape(list(walls.shape)+[3])
 
     # truth plot
-    true = axes[0].imshow(label)
-    axes[0].set_title("Truth")
-
-    # inferred plot
-    rew = np.stack([pos_reward, walls, neg_reward],axis=-1).reshape(list(walls.shape)+[3])
-    tensor = axes[1].imshow(rew)
-    axes[1].set_title("Predicted")
+    true = ax.imshow(label)
+    ax.set_title(ax_title)
 
     # Remove xticks, yticks
-    for ax in axes:
-        ax.set_yticks([])
-        ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xticks([])
 
-    return fig, axes
+    return fig, ax
 
-def plot_trajectory(wall, reward, start, agent, fig=None, ax=None):
+def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=20):
     """Simulates a rollout of an agent given an MDP specified
     by the wall, reward, and start state. And plots it.
     """
     from gridworld import GridworldMdp
     from mdp_interface import Mdp
     from agent_runner import run_agent
-
-    # Arbitrary length of episode set
-    EPISODE_LENGTH = 15
 
     mdp = GridworldMdp.from_numpy_input(wall, reward, start)
 
@@ -96,17 +84,14 @@ def plot_trajectory(wall, reward, start, agent, fig=None, ax=None):
     count = 0
     for trans in state_trans:
         if trans[0] == trans[1]:
-            count+=1
+            count += 1
     if count == len(state_trans):
         print("Yes, the agent given stayed in the same spot for {} iterations...".format(len(state_trans)))
 
-    # Need to add code to represent the tuples as points on the canvas
-    # Then loop through an add them to the canvas, should wrap into function
-    # ... that way I can use this function to plot behavior on inferred rewards to.... return figure of plot..?
     if not fig or not ax:
         fig, ax = plt.subplots(1,1)
     if ax and type(ax) is list:
-        raise ValueError("Given {} axes, but can only use 1 axes".format(len(ax)))
+        raise ValueError("Given {} axes, but can only use 1 axis".format(len(ax)))
 
     line_artists = plot_lines(ax, trans_list=state_trans, color='r', grid_size=len(wall))
     ax.set_xticks([])
@@ -145,7 +130,8 @@ def _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, st
     fig, axes = plt.subplots(1, 2)
 
     # Plot the rewards
-    plot_reward(true_reward, inferred_reward, walls, fig=fig, axes=axes)
+    plot_reward(true_reward, walls, 'True Reward', fig=fig, ax=axes[0])
+    plot_reward(inferred_reward, walls,'Inferred Reward', fig=fig, ax=axes[1])
     # Plot the agents' trajectories (will perform rollout)
     plot_trajectory(walls, true_reward, start, true_agent, fig=fig, ax=axes[0])
     plot_trajectory(walls, inferred_reward, start, inferred_agent, fig=fig, ax=axes[1])
