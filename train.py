@@ -430,6 +430,34 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
 
     return logs
 
+def evaluate_inferred_reward(reward_irl, inferred_rewards, image_irl, start_states_irl, horizon):
+    """
+    Calculates 1-%regret for each (reward, inferred_reward) pair. Regret is amt of reward
+    lost by planning with the inferred reward, rather than planning with the true reward.
+
+    reward_irl(list): list of true rewards (n, imsize, imsize)
+    inferred_rewards(list): list of inferred rewards (n, imsize, imsize)
+    image_irl(list): list of walls for each grid (n, imsize, imsize):
+    start_states_irl(list): list of start states (n, 2) where each entry of form [x,y]
+    horizon(integer): number of steps to evaluate inferred reward
+    Returns 1-%regret
+    """
+    reward_percents = []
+    for label, reward, wall, start_state, i in zip(reward_irl, inferred_rewards, image_irl, start_states_irl, range(len(reward_irl))):
+        if i < 10:
+            plot_reward(label, reward, wall, 'reward_pics/reward_{}'.format(i))
+        percent = evaluate_proxy(wall, start_state, reward, label, episode_length=horizon)
+        print("Reward had: {}".format(percent))
+        reward_percents.append(percent)
+
+    average_percent_reward = float(sum(reward_percents)) / len(reward_percents)
+    print(reward_percents[:10])
+    print('On average planning with the inferred rewards is '
+          + str(100 * average_percent_reward)
+          + '% as good as planning with the true rewards')
+    return average_percent_reward
+
+
 def two_phase_algorithm(architecture, sess, train_data, validation_data,
                         reward_data, config, logs):
     config.em_iterations = 0
@@ -562,6 +590,31 @@ def infer_with_value_iteration(config):
         num_without_reward, agent, config, other_agents)
     return run_inference(None, None, reward_data, vi_algorithm, config)
 
+def infer_with_max_causal_ent(config):
+    """Uses Adam's code to implement Max Causal Entropy for our gridworld MDP."""
+    # Importing only when used because PyTorch is dependency for maxent (as of 4/5)
+    from maxent import irl_with_config
+
+    print("Using Max Causal Entropy (source @AdamGleave)")
+
+    agent, other_agents = create_agents_from_config(config)
+    walls, rewards, starts, policies = generate_data_for_reward(agent, config, other_agents)
+
+    inferred_rewards = []
+    verbose = False
+    for i, wall, pol, start in zip(range(len(walls)), walls, policies, starts):
+        if i % 5 == 0:
+            print("Running IRL on grid number: {} / {}".format(i, len(walls)))
+            verbose = True
+        inferred = irl_with_config(wall, pol, start, config, verbose=verbose)
+        inferred_rewards.append(inferred)
+        verbose = False
+
+    avg_percent_reward = evaluate_inferred_reward(rewards, inferred_rewards, walls, starts, config.horizon)
+    return None, avg_percent_reward
+
+
+
 def run_algorithm(config):
     if config.algorithm == 'given_rewards':
         return infer_given_some_rewards(config)
@@ -576,6 +629,8 @@ def run_algorithm(config):
         return joint_infer_with_no_rewards(config)
     elif config.algorithm == 'vi_inference':
         return infer_with_value_iteration(config)
+    elif config.algorithm == 'max_entropy':
+        return infer_with_max_causal_ent(config)
     else:
         raise ValueError('Unknown algorithm: ' + str(config.algorithm))
 

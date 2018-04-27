@@ -288,6 +288,10 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'hyperbolic_constant', 1.0,
         'Discount for the future for hyperbolic time discounters')
+    tf.app.flags.DEFINE_integer(
+        'eval_horizon', 20,
+        'Number of steps after which to stop running the agent when evaluating final rewards'
+    )
 
     # Other Agent
     tf.app.flags.DEFINE_string(
