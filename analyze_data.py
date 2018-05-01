@@ -84,7 +84,6 @@ def load_experiment(folder):
         data = np.stack([result[key] for result in all_results], axis=0)
         means_data[key] = np.mean(data, axis=0)
         sterrs_data[key] = scipy.stats.sem(data, axis=0)
-    import pdb; pdb.set_trace()
     return means_data, sterrs_data
 
 def load_data(folder):
@@ -103,7 +102,10 @@ def load_data(folder):
 
         key, flags_dict = get_flag_vals(subfolder)
         means, sterrs = load_experiment(subfolder)
+        assert key not in experiments, '{}: {} and {}'.format(key, sha_hash, experiments[key].unique_id)
         experiments[key] = Experiment(sha_hash, flags_dict, means, sterrs)
+
+    print('Loaded {} experiments'.format(len(experiments.items())))
     return experiments
 
 
@@ -147,19 +149,6 @@ def fix_special_cases(experiments):
           Experiment objects
     Returns: None (mutates the given experiments)
     """
-    # query_sizes = set([exp.flags['qsize'] for exp in experiments.values()])
-    # full_exps = [(key, exp) for key, exp in experiments.items() if exp.flags['choosers'] == 'full']
-    # def replace(key_tuple, var, val):
-    #     return tuple(((k, (val if k == var else v)) for k, v in key_tuple))
-
-    # for key, exp in full_exps:
-    #     for qsize in query_sizes:
-    #         new_key = replace(key, 'qsize', qsize)
-    #         if new_key not in experiments:
-    #             new_flags = dict(exp.flags.items())
-    #             new_flags['qsize'] = qsize
-    #             experiments[new_key] = Experiment(
-    #                 new_flags, exp.means_data, exp.sterrs_data)
     pass
 
 def process_data(experiments):
@@ -196,6 +185,60 @@ def get_matching_experiments(experiments, flags_to_match):
     """
     check = lambda exp: all(exp.flags[k] == v for k, v in flags_to_match)
     return [exp for exp in experiments.values() if check(exp)]
+
+def write_table(experiments):
+    """Writes a table of final results with standard errors.
+
+    - experiments: Dictionary from keys of the form ((var, val), ...)
+          to Experiment objects
+    """
+    row_names = ['Optimal', 'Naive', 'Sophisticated', 'Myopic',
+                 'Boltzmann-Optimal', 'Boltzmann-Naive',
+                 'Boltzmann-Sophisticated', 'Boltzmann-Myopic']
+    col_names = ['Optimal VIN', 'Boltzmann VIN', 'VIN with rewards',
+                 'Coordinate ascent', 'Joint training', 'Differentiable VI']
+
+    def get_row_col_names(exp):
+        alg = exp.flags['algorithm']
+        if alg == 'given_rewards':
+            col = 'VIN with rewards'
+        elif alg == 'boltzmann_planner':
+            col = 'Boltzmann VIN'
+        elif alg == 'optimal_planner':
+            col = 'Optimal VIN'
+        elif alg == 'no_rewards':
+            col = 'Coordinate ascent'
+        elif alg == 'joint_no_rewards':
+            col = 'Joint training'
+        elif alg == 'vi_inference':
+            col = 'Differentiable VI'
+        else:
+            raise ValueError('Unknown algorithm')
+
+        agent, beta = exp.flags['agent'], exp.flags['beta']
+        row = agent[0:1].upper() + agent[1:]
+        if beta != None:
+            row = 'Boltzmann-' + row
+        return row, col
+
+    results = [['N/A'] * len(col_names) for _ in range(len(row_names))]
+    for exp in experiments.values():
+        mean = exp.means_data['Average %reward']
+        sterr = exp.sterrs_data['Average %reward']
+        row_name, col_name = get_row_col_names(exp)
+        row, col = row_names.index(row_name), col_names.index(col_name)
+        assert results[row][col] == 'N/A'
+        results[row][col] = [mean-sterr, mean+sterr]
+
+    def stringify(low, high):
+        return '%.1f' % (100 * (low + high) / 2.0)
+        #return '"[%.1f, %.1f]"' % (100*low, 100*high)
+
+    lines = []
+    lines.append(',' + ','.join(col_names))
+    for row in range(len(row_names)):
+        lines.append(row_names[row] + ',' + ','.join([stringify(*x) for x in results[row]]))
+    print('\n'.join(lines))
 
 def graph_all(experiments, all_vars, x_var, dependent_vars, independent_vars,
               controls, extra_experiment_flags, folder, args):
@@ -250,47 +293,46 @@ def graph(exps, x_var, dependent_vars, independent_vars, controls,
     """
     # Whole figure layout setting
     set_style()
-    num_rows = len(dependent_vars)
-    num_columns = 1
-    fig, axes = plt.subplots(num_rows, num_columns)
+    assert len(dependent_vars) == 1
+    y_var = dependent_vars[0]
+    fig, ax = plt.subplots()
     sns.set_context(rc={'lines.markeredgewidth': 1.0})   # Thickness or error bars
     capsize = 0.    # length of horizontal line on error bars
     spacing = 100.0
 
     # Draw all lines and labels
-    for row, y_var in enumerate(dependent_vars):
-        for experiment in exps:
-            col = 0
-            ax = get_ax(axes, row, num_rows, num_columns, col)
+    for experiment in exps:
+        flags = experiment.flags
+        means, sterrs = experiment.means_data, experiment.sterrs_data
+        var = ', '.join([str(flags[k]) for k in independent_vars])
+        label = var_to_label(var)   # name in legend
+        x_data = np.array(means[x_var]) + 1
+        color = var_to_color(var)
+        # TODO: The [0] hardcoding here is bad, fix it somehow. It currently
+        # is used to select the first instance that train_planner is called,
+        # so that we get the training curves for the one call to
+        # train_planner.
+        print(x_data)
+        print(means[y_var][0])
+        ax.errorbar(x_data, means[y_var][0], yerr=sterrs[y_var][0], color=color,
+                    capsize=capsize, capthick=1, label=label)#,
+        # marker='o', markerfacecolor='white', markeredgecolor=color,
+        # markersize=4)
 
-            flags = experiment.flags
-            means, sterrs = experiment.means_data, experiment.sterrs_data
-            var = ', '.join([str(flags[k]) for k in independent_vars])
-            label = var_to_label(var)   # name in legend
-            x_data = np.array(means[x_var]) + 1
-            # TODO: The [0] hardcoding here is bad, fix it somehow
-            ax.errorbar(x_data, means[y_var][0], yerr=sterrs[y_var][0], color=var_to_color(var),
-                         capsize=capsize, capthick=1, label=label)#,
-                         # marker='o', markerfacecolor='white', markeredgecolor=var_to_color(var),
-                         # markersize=4)
+        ax.set_xlim([0,21])
+        ax.set_ylim(-0.2)
 
-            ax.set_xlim([0,21])
-            ax.set_ylim(-0.2)
+        # Set ylabel
+        ax.set_ylabel(var_to_label(y_var), fontsize=15)
 
-            # Set ylabel
-            ax_left = get_ax(axes, row, num_rows, num_columns, 0)
-            ax_left.set_ylabel(var_to_label(y_var), fontsize=15)
-
-            # Set title
-            # title = 'Data for {0}'.format(', '.join(independent_vars))
-            title = get_title(col)
-            ax_top = get_ax(axes, 0, num_rows, num_columns, col)
-            ax_top.set_title(title, fontsize=16, fontweight='normal')
+        # Set title
+        title = 'Data for {0}'.format(', '.join(independent_vars))
+        ax.set_title(title, fontsize=16, fontweight='normal')
 
 
     'Make legend'
     plt.sca(ax)
-    plt.legend(fontsize=12)
+    # plt.legend(fontsize=12)
 
 
     'Change global layout'
@@ -315,49 +357,6 @@ def graph(exps, x_var, dependent_vars, independent_vars, controls,
     plt.show()
 
 
-def get_ax(axes, row, num_rows, num_columns, col):
-    onecol = num_columns == 1
-    onerow = num_rows == 1
-
-    # col = 0 if experiment.flags['mdp'] == 'bandits' or num_columns == 1 else 1
-
-    if not onerow and not onecol:
-        ax = axes[row, col]
-    elif onecol and not onerow:
-        ax = axes[row]
-    elif not onecol and onerow:
-        ax = axes[col]
-    elif onecol and onerow:
-        ax = axes
-    else:
-        raise ValueError('Number of dependent vars and envs each must be 1 or 2')
-    return ax
-
-
-def get_title(axnum):
-    return str(axnum)
-
-def create_legend(ax):
-    lines = [
-        ('nominal', {'color': '#f79646', 'linestyle': 'solid'}),
-        ('risk-averse', {'color': '#f79646', 'linestyle': 'dashed'}),
-        ('nominal', {'color': '#cccccc', 'linestyle': 'solid'}),
-        ('IRD-augmented', {'color': '#cccccc', 'linestyle': 'dotted'}),
-        ('risk-averse', {'color': '#cccccc', 'linestyle': 'dashed'})
-    ]
-
-    def create_dummy_line(**kwds):
-        return mpl.lines.Line2D([], [], **kwds)
-
-    ax.legend([create_dummy_line(**l[1]) for l in lines],
-    [l[0] for l in lines],
-    loc='upper right',
-    ncol=1,
-    fontsize=10,
-    bbox_to_anchor=(1.1, 1.0))  # adjust horizontal and vertical legend position
-
-
-
 def set_style():
     mpl.rcParams['text.usetex'] = True
     mpl.rc('font', family='serif', serif=['Palatino'])  # Makes font thinner
@@ -374,21 +373,12 @@ def set_style():
         # 'lines.markeredgewidth': 1})
 
 
-def plot_sig_line(ax, x1, x2, y1, h, padding=0.3):
-    '''
-    Plots the bracket thing denoting significance in plots. h controls how tall vertically the bracket is.
-    Only need one y coordinate (y1) since the bracket is parallel to the x-axis.
-    '''
-    ax.plot([x1, x1, x2, x2], [y1, y1 + h, y1 + h, y1], linewidth=1, color='k')
-    ax.text(0.5*(x1 + x2), y1 + h + padding * h, '*', color='k', fontsize=16, fontweight='normal')
-
-
 def var_to_label(var):
     return str(var).replace('_', '\_')
 
 def var_to_color(var):
-    import random
-    return random.choice(['darkorange', 'lightblue', 'crimson', 'grey'])
+    colors = ['darkorange', 'lightblue', 'crimson', 'grey']
+    return colors[0]  # Placeholder
 
 
 ##########################
@@ -398,9 +388,9 @@ def var_to_color(var):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--folder', required=True)
-    parser.add_argument('-x', '--x_var', required=True)
-    parser.add_argument('-d', '--dependent_var', action='append', required=True)
-    parser.add_argument('-i', '--independent_var', action='append', required=True)
+    parser.add_argument('-x', '--x_var')
+    parser.add_argument('-d', '--dependent_var', action='append')
+    parser.add_argument('-i', '--independent_var', action='append')
     parser.add_argument('-c', '--control_var_val', action='append', default=[])
     parser.add_argument('-e', '--experiment', action='append', default=[])
     return parser.parse_args()
@@ -423,5 +413,6 @@ if __name__ == '__main__':
     experiments, all_vars, _ = process_data(experiments)
     controls = parse_kv_pairs(args.control_var_val)
     extra_experiments = [parse_kv_pairs(x.split(',')) for x in args.experiment]
-    graph_all(experiments, all_vars, args.x_var, args.dependent_var,
-              args.independent_var, controls, extra_experiments, args.folder, args)
+    write_table(experiments)
+    # graph_all(experiments, all_vars, args.x_var, args.dependent_var,
+    #           args.independent_var, controls, extra_experiments, args.folder, args)
