@@ -1,5 +1,6 @@
 import argparse
 import matplotlib as mpl
+mpl.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -231,8 +232,14 @@ def write_table(experiments):
         results[row][col] = [mean-sterr, mean+sterr]
 
     def stringify(low, high):
+        """
+        low  = mean - stderr
+        high = mean + stderr
+        """
+        # Gives mean
         return '%.1f' % (100 * (low + high) / 2.0)
-        #return '"[%.1f, %.1f]"' % (100*low, 100*high)
+        # Gives intervals (error bars)
+        # return '"[%.1f, %.1f]"' % (100*low, 100*high)
 
     lines = []
     lines.append(',' + ','.join(col_names))

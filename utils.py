@@ -1,10 +1,13 @@
 import tensorflow as tf
 import numpy as np
 import random
-import re
 import matplotlib
-matplotlib.use("tkagg")
+import seaborn as sns
 import matplotlib.pyplot as plt
+
+# Comment this line out to return to matplotlib plot defaults
+# I just thought this looked a tiny bit cleaner
+sns.set()
 
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 # helper methods to print nice table (taken from CGT code)
@@ -30,16 +33,16 @@ def softmax(v):
 
 def squish(v):
     if v.any():
-        return (v - np.min(v)) / np.max(v-np.min(v))
+        return v / np.max(v)
     return v
 
 def visualizeReward(reward):
     pos_reward = np.where(reward > 0, reward,  0)
     neg_reward = -1*np.where(reward < 0, reward, 0)
+    no_reward = 1 - np.where(reward == 0, reward, 1)
     pos_reward = squish(pos_reward)
     neg_reward = squish(neg_reward)
-    return pos_reward,neg_reward
-
+    return pos_reward, neg_reward
 
 def plot_reward(reward, walls, ax_title, fig, ax):
     """
@@ -49,8 +52,9 @@ def plot_reward(reward, walls, ax_title, fig, ax):
     # Clean up the arrays (imshow only takes values in [0, 1])
     pos_label, neg_label = visualizeReward(reward)
 
+
     # set up plot
-    label = np.stack([pos_label, walls, neg_label],axis=-1).reshape(list(walls.shape)+[3])
+    label = np.stack([pos_label, 0.5*walls, neg_label],axis=-1).reshape(list(walls.shape)+[3])
 
     # truth plot
     true = ax.imshow(label)
@@ -93,6 +97,11 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=20):
     if ax and type(ax) is list:
         raise ValueError("Given {} axes, but can only use 1 axis".format(len(ax)))
 
+    # Plot starting point
+    plot_pos(start, ax=ax, color='m', grid_size=len(wall))
+    # Plot ending trajectory point
+    finish = state_trans[-1][0]
+    plot_pos(finish, ax=ax, color='m', grid_size=len(wall))
     line_artists = plot_lines(ax, trans_list=state_trans, color='r', grid_size=len(wall))
     ax.set_xticks([])
     ax.set_yticks([])
