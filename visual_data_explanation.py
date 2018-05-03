@@ -34,11 +34,11 @@ grids = [
      ['X','X','X','X','X','X','X','X'],
     ],
     [['X','X','X','X','X','X','X','X'],
-     ['X',0.1,' ',' ',' ',' ', 10,'X'],
-     ['X',' ','X','X','X','X','X','X'],
+     ['X',10,' ',' ',0.9,0.9, 10,'X'],
+     ['X',-9,'X','X','X','X','X','X'],
      ['X',' ','X',' ',' ',' ',' ','X'],
-     ['X',' ','X',' ',' ',' ',' ','X'],
-     ['X',' ','X',' ',' ',' ',' ','X'],
+     ['X',' ','X',' ',8,  8,' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ','X'],
      ['X','A','X',' ',' ',' ',' ','X'],
      ['X','X','X','X','X','X','X','X'],
      ],
@@ -117,7 +117,8 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
 if __name__ == "__main__":
     # config = init_flags()
     # agent, _ = create_agents_from_config(config)
-    from fast_agents import FastMyopicAgent as Myopic, FastNaiveTimeDiscountingAgent as Naive,\
+    from fast_agents import FastMyopicAgent as Myopic, \
+        FastNaiveTimeDiscountingAgent as Naive,\
         FastSophisticatedTimeDiscountingAgent as Sophisticated
     kwargs = {'max_delay': 10,
               'discount_constant': 0.9}

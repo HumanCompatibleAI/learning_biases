@@ -56,15 +56,31 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
 
     # Clean up the arrays (imshow only takes values in [0, 1])
     pos_label, neg_label = visualizeReward(reward)
-    alphas = np.ones(pos_label.shape)
-    alphas[pos_label > 0] = alpha
-    alphas[neg_label > 0] = alpha
 
     # set up plot
-    label = np.stack([pos_label, 0.5*walls, neg_label, alphas],axis=-1).reshape(list(walls.shape)+[4])
+    def make_pic(pos_label, walls, neg_label):
+        """Combine colors to make the walls + rewards achieve desired color"""
+        alphas = np.ones(pos_label.shape)
+        alphas[pos_label > 0] = alpha
+        alphas[neg_label > 0] = alpha
+
+        # Coloring the walls brown
+        BROWN = np.array((133, 87, 35, 0)) / 255.0
+        wall_color = np.einsum("ij,k->ijk", walls, BROWN)
+
+        # to get our true reward (blue) values on the right scale, we'll create our own color scale
+        small = np.array((45, 100, 245, 0)) / 255.0
+        big = np.array((82, 219, 255, 0)) / 255.0
+        diff = small - big
+        blue = np.stack([np.zeros(neg_label.shape), np.zeros(neg_label.shape), pos_label.copy(), np.zeros(neg_label.shape)], axis=-1)
+        blue[pos_label > 0, :] = np.einsum('i,j->ij', pos_label[pos_label > 0], diff) + big
+
+        label = np.stack([neg_label, np.zeros(pos_label.shape), np.zeros(pos_label.shape), alphas], axis=-1)
+        label = label + blue + wall_color
+        return label.reshape(list(walls.shape)+[4])
 
     # truth plot
-    true = ax.imshow(label)
+    true = ax.imshow(make_pic(pos_label, walls, neg_label))
     ax.set_title(ax_title)
 
     # Remove xticks, yticks
