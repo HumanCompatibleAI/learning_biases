@@ -53,38 +53,87 @@ grids = [
      ]
 ]
 
-if __name__ == "__main__":
-    config = init_flags()
-    agent, _ = create_agents_from_config(config)
 
-    num_ex = len(grids)
-    fig, axes = plt.subplots(3, num_ex)
-    axes = axes.T
+def problem_description():
+# for i, ax in enumerate(axes[idx]):
+#     if i == 0:
+#         # Set agent title
+#         ax.set_title(agent_names[idx])
+#     elif i == 1:
+#         plot_reward(reward, walls, '', fig=fig, ax=ax)
+#     elif i == 2:
+#         plot_reward(np.zeros(reward.shape), walls, '', fig=fig, ax=ax)
+#         plot_trajectory(walls, reward, start, OptimalAgent(), fig=fig, ax=ax)
+# fig.subplots_adjust(hspace=0.5)
+    pass
 
-    fname = 'biasedtrajectories'
 
-    for i, grid in enumerate(grids):
+def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentComparison', figtitle=''):
+    """Shows how agents perform on a gridworld
+
+    grid - list of gridworlds (see examples in earlier part of file)
+    agent_list - list of agent (objects)
+    agent_names - names of agents (strings)
+    """
+    num_ex = len(agent_list)
+    num_grids = len(grids)
+    fig, axes_grid = plt.subplots(num_grids, num_ex + 1)
+
+    if num_grids == 1:
+        axes_grid = [axes_grid]
+
+    for i, axes in enumerate(axes_grid):
+        # Plot reward on first ax
+        ax = axes[0]
+        ax.set_aspect('equal')
+        ax.set_ylabel(grid_names[i])
+        # Generate MDP
+        grid = grids[i]
         mdp = GridworldMdp(grid)
         walls, reward, start = mdp.convert_to_numpy_input()
-        for i, ax in enumerate(axes[i]):
+        plot_reward(reward, walls, '', fig=fig, ax=ax)
+        # Only write Agent names if it's the first row
+        if i == 0:
+            ax.set_title("Reward")
+
+        # Plot agents on remaining axes
+        axes = axes[1:]
+        for idx, agent in enumerate(agent_list):
+            ax = axes[idx]
             ax.set_aspect('equal')
+
+            plot_reward(reward, walls, '', fig=fig, ax=ax)
+            plot_trajectory(walls, reward, start, agent, fig=fig, ax=ax)
+            # Only write Agent names if it's the first row
             if i == 0:
-                plot_trajectory(walls, reward, start, agent, fig=fig, ax=ax)
-                plot_reward(np.zeros(reward.shape), walls, '', fig=fig, ax=ax)
-            elif i == 1:
-                plot_reward(reward, walls, '', fig=fig, ax=ax)
-            elif i == 2:
-                plot_trajectory(walls, reward, start, OptimalAgent(), fig=fig, ax=ax)
-                plot_reward(np.zeros(reward.shape), walls, '', fig=fig, ax=ax)
+                ax.set_title(agent_names[idx])
 
-    # Set agent title
-    agent_name = config.agent
-    axes[0,0].set_ylabel(agent_name)
-    axes[0,1].set_ylabel("Reward")
-    axes[0,2].set_ylabel("Optimal")
+        # Increase vertical space btwn subplots
+    fig.subplots_adjust(hspace=0.1)
+    fig.suptitle(figtitle)
+    fig.savefig(filename)
+    print("Saved figure to {}.png".format(filename))
 
-    # Increase vertical space btwn subplots
-    fig.subplots_adjust(hspace=0.5)
-    fig.suptitle("Biased Trajectories")
-    fig.savefig(fname)
-    print("Saved figure to {}.png".format(fname))
+if __name__ == "__main__":
+    # config = init_flags()
+    # agent, _ = create_agents_from_config(config)
+    from fast_agents import FastMyopicAgent as Myopic, FastNaiveTimeDiscountingAgent as Naive,\
+        FastSophisticatedTimeDiscountingAgent as Sophisticated
+    kwargs = {'max_delay': 10,
+              'discount_constant': 0.9}
+    agent_list = [OptimalAgent(),
+                  Naive(**kwargs),
+                  Sophisticated(**kwargs),
+                  Myopic(horizon=10),
+                  ]
+    agent_names = ['Optimal',
+                   'Naive',
+                   'Sophisticated',
+                   'Myopic',
+                   ]
+
+    # Choose grid
+    grid = grids[1]
+    grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
+    # Show how agents perform on that grid
+    show_agents(grids, agent_list, agent_names, grid_titles)

@@ -31,30 +31,37 @@ def set_seeds(seed):
 def softmax(v):
     return np.exp(v)/np.sum(np.exp(v))
 
-def squish(v):
+def squish(v, reward=False):
     if v.any():
+        if reward:
+            cons = 10
+            v = v.copy()
+            v[v > 0] += cons
         return v / np.max(v)
     return v
 
 def visualizeReward(reward):
     pos_reward = np.where(reward > 0, reward,  0)
     neg_reward = -1*np.where(reward < 0, reward, 0)
-    no_reward = 1 - np.where(reward == 0, reward, 1)
-    pos_reward = squish(pos_reward)
-    neg_reward = squish(neg_reward)
+    pos_reward = squish(pos_reward, reward=True)
+    neg_reward = squish(neg_reward, reward=True)
     return pos_reward, neg_reward
 
-def plot_reward(reward, walls, ax_title, fig, ax):
+def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
     """
     Plots a single reward + wall combination on an axis of the figure given.
+
+    Alpha argument creates alpha values for the reward squares \alpha \in [0, 1]
     """
 
     # Clean up the arrays (imshow only takes values in [0, 1])
     pos_label, neg_label = visualizeReward(reward)
-
+    alphas = np.ones(pos_label.shape)
+    alphas[pos_label > 0] = alpha
+    alphas[neg_label > 0] = alpha
 
     # set up plot
-    label = np.stack([pos_label, 0.5*walls, neg_label],axis=-1).reshape(list(walls.shape)+[3])
+    label = np.stack([pos_label, 0.5*walls, neg_label, alphas],axis=-1).reshape(list(walls.shape)+[4])
 
     # truth plot
     true = ax.imshow(label)
@@ -81,7 +88,7 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=20):
     trajectory = run_agent(agent, env, episode_length=EPISODE_LENGTH)
 
     if len(trajectory) <= 1:
-        raise ValueError("Trajectory rolled out unsucessfully")
+        raise ValueError("Trajectory rolled out unsuccessfully")
 
     # Tuples of (state, next) - to be used for plotting
     state_trans = [(info[0], info[2]) for info in trajectory]
@@ -98,11 +105,11 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=20):
         raise ValueError("Given {} axes, but can only use 1 axis".format(len(ax)))
 
     # Plot starting point
-    plot_pos(start, ax=ax, color='m', grid_size=len(wall))
+    plot_pos(start, ax=ax, color='w', marker='o', grid_size=len(wall))
     # Plot ending trajectory point
     finish = state_trans[-1][0]
-    plot_pos(finish, ax=ax, color='m', grid_size=len(wall))
-    line_artists = plot_lines(ax, trans_list=state_trans, color='r', grid_size=len(wall))
+    plot_pos(finish, ax=ax, color='w', marker='*', grid_size=len(wall))
+    line_artists = plot_lines(ax, trans_list=state_trans, color='w', grid_size=len(wall))
     ax.set_xticks([])
     ax.set_yticks([])
     return fig, ax
@@ -170,53 +177,34 @@ def test_trajectory_plotting():
     # plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])
     # plot_trajectory(walls, reward, start, agent_type=OptimalAgent, fig=fig, axes=axes[1])
 
-def plot_pos(start, color=None, grid_size=None, ax=None):
+def plot_pos(start, color=None, marker='*', grid_size=None, ax=None):
     """Plots a small dot on the start location"""
     if grid_size is None:
         raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
     if ax is None:
         raise ValueError("Please pass MPL axes.")
-    # See `plot_lines` for why these factors were chosen
-    diff = 1/(2*grid_size + 1) * grid_size
     col, row = start
-    offset = 0.3
-    col = (2*col) * diff + offset
-    row = (2*row) * diff + offset
     if color is None:
         color = 'r'
-    ax.scatter([col], [row], color=color)
+    ax.scatter([col], [row], color=color, s=30, marker=marker)
 
-def plot_lines(ax, trans_list, color='r', grid_size=None):
+def plot_lines(ax, trans_list, color='w', grid_size=None):
     """Plots transitions as lines on a grid (centered on grid points)"""
     if grid_size is None:
         raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
-    from matplotlib.colors import LinearSegmentedColormap
-    # Can imagine list of lines + centers = 2 * grid_size + 1. Choose only
-    # on indices \equiv 1 \pmod 2
-
-    # Number of lines in a grid of length=`grid_size`
-    # num_lines = grid_size + 1; num_centers = grid_size
-    num_spots = 2*grid_size + 1
-    diff = 1/num_spots * grid_size
-
-    def to_coords(pos):
-        """Indexes into positions as (y, x)"""
-        col, row = pos
-        # Center of grid spot i is (2i+1) * diff
-        offset = 0.30
-        col = (2*col) * diff + offset
-        row = (2*row) * diff + offset
-        return col, row
+    # from matplotlib.colors import LinearSegmentedColormap
 
     num_trans = len(trans_list)
-    # RGBA vals that go from pinkish to yellowish
-    reds = [(1, 0, 1, 1), (1, 1, 0, 1)]
-    cgrad = LinearSegmentedColormap.from_list(name="reds", colors=reds, N=num_trans)
+    # RGBA vals that go from pinkish to yellowish -- for dynamic coloring
+    # reds = [(1, 0, 1, 1), (1, 1, 0, 1)]
+    # cgrad = LinearSegmentedColormap.from_list(name="reds", colors=reds, N=num_trans)
     line_artists = []
     for i, trans in enumerate(trans_list):
         start, end = trans
-        p1, p2 = to_coords(start), to_coords(end)
-        line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=cgrad(i), ls='--')
+        p1, p2 = start, end
+        line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=color, ls='--')
+        # For dynamic coloring
+        # line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=cgrad(i), ls='--')
         # For future matplotlib usage (just in case)
         line_artists.append(line)
 
