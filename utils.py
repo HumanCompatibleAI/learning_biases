@@ -34,7 +34,7 @@ def softmax(v):
 def squish(v, reward=False):
     if v.any():
         if reward:
-            cons = 10
+            cons = 0
             v = v.copy()
             v[v > 0] += cons
         return v / np.max(v)
