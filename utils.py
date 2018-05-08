@@ -89,7 +89,7 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
 
     return fig, ax
 
-def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=20):
+def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
     """Simulates a rollout of an agent given an MDP specified
     by the wall, reward, and start state. And plots it.
     """

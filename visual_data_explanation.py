@@ -9,48 +9,101 @@ import numpy as np
 import utils
 from utils import plot_trajectory, plot_reward, init_flags
 from agents import OptimalAgent
-from gridworld_data import create_agents_from_config
 from gridworld import GridworldMdp
 
 import matplotlib.pyplot as plt
 
 grids = [
-    [['X','X','X','X','X','X','X','X'],
-     ['X','X','X',' ',' ', 10,' ','X'],
-     ['X','X',  5,' ','X','X',' ','X'],
-     ['X','X','X',' ','X','X',' ','X'],
-     ['X','X','X',' ','X','X',' ','X'],
-     ['X',  5,' ',' ',' ',' ',' ','X'],
-     ['X','X','X','A',' ',' ',  5,'X'],
-     ['X','X','X','X','X','X','X','X'],
-    ],
-    [['X','X','X','X','X','X','X','X'],
-     ['X',' ',' ',' ',' ','X',  5,'X'],
-     ['X',' ','X',' ',' ',' ',' ','X'],
-     ['X',  3,' ',' ','X','X','X','X'],
-     ['X',' ','X',' ','X',' ',  1,'X'],
-     ['X','X','X',' ','X',' ',' ','X'],
-     ['X','A',' ',' ',' ',' ',' ','X'],
-     ['X','X','X','X','X','X','X','X'],
-    ],
-    [['X','X','X','X','X','X','X','X'],
-     ['X','X','X', 10,'X','X','X','X'],
-     ['X','X',' ',' ',' ',' ','X','X'],
-     ['X',  7,' ','X','X',' ',  4,'X'],
-     ['X','X',' ','X',  3,' ','X','X'],
-     ['X','X',' ','X','X',' ','X','X'],
-     ['X','X',' ',' ',' ','A','X','X'],
-     ['X','X','X','X','X','X','X','X'],
+    [['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
+     ['X',' ',' ','A',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -1,' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',  5,' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
      ],
-    [['X','X','X','X','X','X','X','X'],
-     ['X', 10,  1,' ',' ','X',  1,'X'],
-     ['X',' ',  1,' ',' ',' ',' ','X'],
-     ['X','X','X',' ','X','X','X','X'],
-     ['X',' ',' ',' ','X',' ',' ','X'],
-     ['X',  2,' ',' ','X',' ',' ','X'],
-     ['X','A',' ',' ',' ',' ',' ','X'],
-     ['X','X','X','X','X','X','X','X'],
-     ]
+    [['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
+     ['X',' ',' ',' ',' ',' ','A',' ',' ',' ',' ','X',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ',' ',' ',' ',' ',' ',' ','X',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X','X','X','X','X',' ','X',' ',' ',' ','X'],
+     ['X',' ',' ',  1,' ','X',' ',' ',' ',' ',' ','X',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ','X','X','X','X','X',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ','X',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X',' ',' ',' ',' ', 10,' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ','X','X','X','X','X','X',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
+     ],
+    [['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X','A',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ','X','X','X','X','X',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -5, -5,'X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -5,' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', -5,  1,'X'],
+     ['X',' ',' ',' ',' ',' ',' ','X','X','X','X','X','X',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ', 10,' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
+     ['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
+     ],
+    # [['X','X','X','X','X','X','X','X'],
+    #  ['X','X','X',' ',' ', 10,' ','X'],
+    #  ['X','X',  5,' ','X','X',' ','X'],
+    #  ['X','X','X',' ','X','X',' ','X'],
+    #  ['X','X','X',' ','X','X',' ','X'],
+    #  ['X',  5,' ',' ',' ',' ',' ','X'],
+    #  ['X','X','X','A',' ',' ',  5,'X'],
+    #  ['X','X','X','X','X','X','X','X'],
+    # ],
+    # [['X','X','X','X','X','X','X','X'],
+    #  ['X',' ',' ',' ',' ','X',  5,'X'],
+    #  ['X',' ','X',' ',' ',' ',' ','X'],
+    #  ['X',  3,' ',' ','X','X','X','X'],
+    #  ['X',' ','X',' ','X',' ',  1,'X'],
+    #  ['X','X','X',' ','X',' ',' ','X'],
+    #  ['X','A',' ',' ',' ',' ',' ','X'],
+    #  ['X','X','X','X','X','X','X','X'],
+    # ],
+    # [['X','X','X','X','X','X','X','X'],
+    #  ['X','X','X', 10,'X','X','X','X'],
+    #  ['X','X',' ',' ',' ',' ','X','X'],
+    #  ['X',  7,' ','X','X',' ',  4,'X'],
+    #  ['X','X',' ','X',  3,' ','X','X'],
+    #  ['X','X',' ','X','X',' ','X','X'],
+    #  ['X','X',' ',' ',' ','A','X','X'],
+    #  ['X','X','X','X','X','X','X','X'],
+    #  ],
+    # [['X','X','X','X','X','X','X','X'],
+    #  ['X', 10,  1,' ',' ','X',  1,'X'],
+    #  ['X',' ',  1,' ',' ',' ',' ','X'],
+    #  ['X','X','X',' ','X','X','X','X'],
+    #  ['X',' ',' ',' ','X',' ',' ','X'],
+    #  ['X',  2,' ',' ','X',' ',' ','X'],
+    #  ['X','A',' ',' ',' ',' ',' ','X'],
+    #  ['X','X','X','X','X','X','X','X'],
+    #  ]
 ]
 
 
@@ -114,27 +167,60 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
     fig.savefig(filename)
     print("Saved figure to {}.png".format(filename))
 
+
+def random_gridworld_plot(agent, size, filename='RandomGrid'):
+    """Plots random gridworld"""
+    if agent is None:
+        raise ValueError("agent cannot be None")
+
+    pr_R = 0.01
+    pr_W = 0.2
+    grid = GridworldMdp.generate_random(size, size, pr_reward=pr_R, pr_wall=pr_W)
+
+    walls, reward, start = grid.convert_to_numpy_input()
+
+    fig, axes = plt.subplots(1, 1)
+    fig.set_size_inches(5, 5)
+
+    # Walls only
+    plot_reward(np.zeros_like(reward), walls, fig=fig, ax=axes, ax_title='')
+    fig.savefig(filename+'W', dpi=100)
+
+    # Reward only
+    plot_reward(reward, np.zeros_like(walls), fig=fig, ax=axes, ax_title='')
+    fig.savefig(filename+'R', dpi=100)
+
+    # Trajectory + Walls + Rewards
+    plot_reward(reward, walls, fig=fig, ax=axes, ax_title='')
+    plot_trajectory(walls, reward, start, agent, fig=fig, ax=axes)
+    fig.savefig(filename+'T', dpi=100)
+
+
+
 if __name__ == "__main__":
     # config = init_flags()
     # agent, _ = create_agents_from_config(config)
     from fast_agents import FastMyopicAgent as Myopic, \
         FastNaiveTimeDiscountingAgent as Naive,\
         FastSophisticatedTimeDiscountingAgent as Sophisticated
-    kwargs = {'max_delay': 10,
-              'discount_constant': 0.9}
-    agent_list = [OptimalAgent(),
-                  Naive(**kwargs),
-                  Sophisticated(**kwargs),
-                  Myopic(horizon=10),
-                  ]
-    agent_names = ['Optimal',
-                   'Naive',
-                   'Sophisticated',
-                   'Myopic',
-                   ]
+    # kwargs = {'max_delay': 10,
+    #           'discount_constant': 0.9}
+    # agent_list = [OptimalAgent(),
+    #               Naive(**kwargs),
+    #               Sophisticated(**kwargs),
+    #               Myopic(horizon=10),
+    #               ]
+    # agent_names = ['Optimal',
+    #                'Naive',
+    #                'Sophisticated',
+    #                'Myopic',
+    #                ]
+    #
+    # # Choose grid
+    # # grid = grids[1]
+    # grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
+    # # Show how agents perform on that grid
+    # show_agents(grids, agent_list, agent_names, grid_titles)
 
-    # Choose grid
-    grid = grids[1]
-    grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
-    # Show how agents perform on that grid
-    show_agents(grids, agent_list, agent_names, grid_titles)
+    for i in range(3):
+        random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))
