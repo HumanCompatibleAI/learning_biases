@@ -146,6 +146,9 @@ def parse_args():
         args.bias = ALL_BIASES[:]
     if args.algorithm is None:
         args.algorithm = ALL_ALGORITHMS[:]
+
+    assert all((bias in ALL_BIASES for bias in args.bias)), 'Bad bias'
+    assert all((alg in ALL_ALGORITHMS for alg in args.algorithm)), 'Bad algorithm'
     return args
 
 if __name__ == '__main__':
