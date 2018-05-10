@@ -60,8 +60,8 @@ def generate_example(agent, config, other_agents=[]):
         pr_wall, pr_reward = config.wall_prob, config.reward_prob
         mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
     else:
-        num_rewards = config.num_rewards
-        mdp = GridworldMdp.generate_random_connected(imsize, imsize, num_rewards)
+        num_rewards, noise = config.num_rewards, config.noise
+        mdp = GridworldMdp.generate_random_connected(imsize, imsize, num_rewards, noise)
 
     def dist_to_numpy(dist):
         return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)

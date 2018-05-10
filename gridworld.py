@@ -41,10 +41,10 @@ class GridworldMdpNoR(object):
     def get_actions(self, state):
         """Returns the list of valid actions for 'state'.
 
-        Note that you can request moves into walls, which are
-        equivalent to STAY. The order in which actions are returned is
-        guaranteed to be deterministic, in order to allow agents to
-        implement deterministic behavior.
+        Note that you can request moves into walls, which are equivalent to
+        STAY. The order in which actions are returned is guaranteed to be
+        deterministic, in order to allow agents to implement deterministic
+        behavior.
         """
         x, y = state
         if self.walls[y][x]:
@@ -340,7 +340,7 @@ class GridworldMdp(GridworldMdpNoR):
         return GridworldMdp(grid)
 
     @staticmethod
-    def generate_random_connected(height, width, num_rewards):
+    def generate_random_connected(height, width, num_rewards, noise):
         """Generates a random instance of a Gridworld.
 
         Unlike with generate_random, it is guaranteed that the agent
@@ -387,7 +387,7 @@ class GridworldMdp(GridworldMdpNoR):
             while grid[y][x] == 0:
                 grid[y][x] = random.randint(-9, 9)
 
-        return GridworldMdp(grid)
+        return GridworldMdp(grid, noise=noise)
 
     def __str__(self):
         """Returns a string representation of this grid world.

@@ -1,12 +1,15 @@
 import unittest
 import numpy as np
+import tensorflow as tf
 import time
 import agents
 import fast_agents
+
 from agent_interface import Agent
 from agent_runner import run_agent, get_reward_from_trajectory
 from gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
+from model import tf_value_iter_no_config
 from utils import Distribution, set_seeds
 
 class TestAgents(unittest.TestCase):
@@ -171,19 +174,19 @@ class TestAgents(unittest.TestCase):
         actions, _ = self.run_on_env(myopic_agent, env, gamma=0.9, episode_length=10)
         self.assertEqual(actions, [s, s, e, e, e, e, e, n, stay, stay])
 
-    def compare_agents(self, name, agent1, agent2, print_mdp=False):
+    def compare_agents(self, name, agent1, agent2, places=7, print_mdp=False):
         print('Comparing {0} agents'.format(name))
         set_seeds(314159)
-        mdp = GridworldMdp.generate_random_connected(16, 16, 5)
+        mdp = GridworldMdp.generate_random_connected(16, 16, 5, 0.2)
         if print_mdp: print(mdp)
         env = Mdp(mdp)
         self.time(lambda: agent1.set_mdp(mdp), "Python planner")
-        self.time(lambda: agent2.set_mdp(mdp), "Numpy planner")
+        self.time(lambda: agent2.set_mdp(mdp), "Numpy/Tensorflow planner")
         for s in mdp.get_states():
             for a in mdp.get_actions(s):
                 mu = agent1.extend_state_to_mu(s)
                 qval1, qval2 = agent1.qvalue(mu, a), agent2.qvalue(mu, a)
-                self.assertAlmostEqual(qval1, qval2, places=7)
+                self.assertAlmostEqual(qval1, qval2, places=places)
 
     def test_compare_optimal_agents(self):
         agent1 = agents.OptimalAgent(gamma=0.95, num_iters=20)
@@ -204,6 +207,49 @@ class TestAgents(unittest.TestCase):
         agent1 = agents.MyopicAgent(6, gamma=0.95, num_iters=20)
         agent2 = fast_agents.FastMyopicAgent(6, gamma=0.95, num_iters=20)
         self.compare_agents('myopic', agent1, agent2)
+
+    def test_value_iteration(self):
+        agent1 = agents.OptimalAgent(gamma=0.95, num_iters=20)
+        agent2 = ValueIterationAgent(gamma=0.95, num_iters=20)
+        self.compare_agents('soft value iteration', agent1, agent2, places=2)
+
+
+class ValueIterationAgent(Agent):
+    def __init__(self, gamma=0.9, num_iters=50):
+        super(ValueIterationAgent, self).__init__(gamma)
+        self.num_iters = num_iters
+
+    def create_tf_graph(self, imsize, noise):
+        self.wall_tf = tf.placeholder(tf.float32, shape=(imsize, imsize))
+        self.reward_tf = tf.placeholder(tf.float32, shape=(imsize, imsize))
+        a = tf.reshape(self.wall_tf, [1, imsize, imsize])
+        b = tf.reshape(self.reward_tf, [1, imsize, imsize])
+        X = tf.stack([a, b],axis=-1)
+        qvals_vector = tf_value_iter_no_config(
+            X, ch_q=5, imsize=imsize, bsize=1, num_iters=self.num_iters,
+            discount=self.gamma, noise=noise, vi_beta=1000).logits
+        self.qvals_tensor = tf.reshape(qvals_vector, (imsize, imsize, 5))
+
+    def set_mdp(self, mdp, reward_mdp=None):
+        assert reward_mdp is None
+        super(ValueIterationAgent, self).set_mdp(mdp)
+        sess = tf.InteractiveSession()
+        walls, reward, _ = mdp.convert_to_numpy_input()
+        height, width = len(walls), len(walls[0])
+        assert height == width
+        self.create_tf_graph(height, mdp.noise)
+        with tf.Session() as sess:
+            fd = {
+                self.wall_tf: walls,
+                self.reward_tf: reward,
+            }
+            self.qvals = sess.run(self.qvals_tensor, feed_dict=fd)
+
+    def qvalue(self, s, a, values=None):
+        assert values is None
+        x, y = s
+        a_idx = Direction.get_number_from_direction(a)
+        return self.qvals[y][x][a_idx]
 
 if __name__ == '__main__':
     unittest.main()

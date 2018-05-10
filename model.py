@@ -192,10 +192,10 @@ def calculate_action_distribution(nn, bsize, ch_q, name=None):
     return distributions
 
 def tf_value_iter(X, config):
-    return tf_value_iter_no_config(X, config.ch_q, config.imsize, config.batchsize, config.num_iters, config.gamma)
+    return tf_value_iter_no_config(X, config.ch_q, config.imsize, config.batchsize, config.num_iters, config.gamma, config.noise)
 
 # Helper Functions for tf_value_iter
-def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount):
+def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount, noise, vi_beta=1):
     """
     Note: this algorithm may need additional attention to the way rewards are inferred
             Meaning, that batch updates may be especially important, or simultaneous updates
@@ -210,29 +210,36 @@ def tf_value_iter_no_config(X, ch_q, imsize, bsize, num_iters, discount):
     :return: Q-value table
     """
     print("VI is being performed with {} iterations.".format(num_iters))
-    print("VI is assuming the MDP is deterministic.")
     print("VI is assuming there are 5 actions: up, down, left, right, stay (ordered)")
 
+    # TODO(rohinmshah): Make the living reward a flag
+    living_reward = -0.01
+    p1, p2 = 1 - noise, noise / 2
     # Unpack X tensor
-    reward = tf.expand_dims(X[:,:,:,1],-1)
-    walls = tf.expand_dims(X[:,:,:,0],-1)
-    kernel = tf.constant(np.load("convkernel.npy"), dtype=tf.float32)
+    reward_for_stay = X[:,1:-1,1:-1,1]
+    reward = reward_for_stay + living_reward
+    reward = tf.stack([reward, reward, reward, reward, reward_for_stay], axis=-1)
+    walls = tf.cast(X[:,:,:,0], tf.bool)
+    values = tf.zeros([bsize, imsize, imsize])
+    for _ in range(num_iters + 1):
+        vals = discount * values
+        stay_vals = vals[:, 1:-1, 1:-1]
+        n_vals = tf.where(walls[:,:-2,1:-1], stay_vals, vals[:,:-2,1:-1])
+        s_vals = tf.where(walls[:,2:,1:-1], stay_vals, vals[:,2:,1:-1])
+        e_vals = tf.where(walls[:,1:-1,2:], stay_vals, vals[:,1:-1,2:])
+        w_vals = tf.where(walls[:,1:-1,:-2], stay_vals, vals[:,1:-1,:-2])
+        n_qvals = p1 * n_vals + p2 * (e_vals + w_vals)
+        s_qvals = p1 * s_vals + p2 * (e_vals + w_vals)
+        e_qvals = p1 * e_vals + p2 * (n_vals + s_vals)
+        w_qvals = p1 * w_vals + p2 * (n_vals + s_vals)
+        qvalues = tf.stack([n_qvals, s_qvals, e_qvals, w_qvals, stay_vals], axis=-1)
+        qvalues += reward
+        values = tf.reduce_logsumexp(vi_beta * qvalues, axis=-1, name="v") / vi_beta
+        paddings = tf.constant([[0, 0], [1, 1], [1, 1]])
+        values = tf.pad(values, paddings, "CONSTANT")
 
-    assert kernel.shape[-1] == ch_q, "config.ch_q != number of actions hard coded in convkernel.npy"
-
-    wall_mask = activation(walls)
-    masked_reward = mask(reward, wall_mask)
-    masked_values = np.zeros((bsize,imsize,imsize,1),dtype=np.float32)
-    qvalues = discount*convolve(masked_values, kernel) + masked_reward
-    for i in range(num_iters-1):
-        # compute values
-        values = tf.reduce_max(qvalues, axis=3, keep_dims=True, name="v")
-        # mask values
-        masked_values = negative_mask_values(values, wall_mask)
-        # compute qvalues
-        qvalues = discount*convolve(masked_values, kernel) + masked_reward
-        # mask qvalues
-        qvalues = mask(qvalues, wall_mask)
+    paddings = tf.constant([[0, 0], [1, 1], [1, 1], [0, 0]])
+    qvalues = tf.pad(qvalues, paddings, "CONSTANT")
     qvalues = tf.reshape(qvalues, [-1,ch_q])
     return Model(qvalues, tf.nn.softmax(qvalues,name='output'))
 
