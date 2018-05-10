@@ -9,14 +9,16 @@ INTERPRETER="/home/ngundotra/.conda/envs/IRL/bin/python"
 FLAGS = [
     ('agent', ['naive', 'optimal', 'sophisticated', 'myopic']),
     ('algorithm', [
-        'given_rewards', 'no_rewards', 'boltzmann_planner',
-        'vi_inference', 'joint_no_rewards', 'optimal_planner'
+        'given_rewards', 'em_with_init', 'boltzmann_planner', 'vi_inference',
+        'optimal_planner', 'joint_with_init', 'em_without_init',
+        'joint_without_init'
     ]),
 ]
 
 CONSTANT_FLAGS = [
     ('simple_mdp', False),
     ('imsize', 16),
+    ('noise', 0.2),
     ('num_rewards', 5),
     ('num_human_trajectories', 8000),
     ('vin_regularizer_C', 1e-4),
@@ -48,11 +50,15 @@ def get_algorithm_specific_flags(flags):
     flag_names = ['em_iterations', 'num_simulated', 'num_with_rewards', 'num_validation', 'model']
     if alg == 'given_rewards':
         flag_values = [0, 0, 7000, 2000, 'VIN']
-    elif alg == 'no_rewards':
-        flag_values = [2, 5000, 0, 2000, 'VIN']
     elif alg in ['boltzmann_planner', 'optimal_planner']:
         flag_values = [0, 5000, 0, 2000, 'VIN']
-    elif alg == 'joint_no_rewards':
+    elif alg == 'em_with_init':
+        flag_values = [2, 5000, 0, 2000, 'VIN']
+    elif alg == 'joint_with_init':
+        flag_values = [0, 5000, 0, 2000, 'VIN']
+    elif alg == 'em_without_init':
+        flag_values = [2, 0, 0, 0, 'VIN']
+    elif alg == 'joint_without_init':
         flag_values = [0, 0, 0, 0, 'VIN']
     elif alg == 'vi_inference':
         flag_values = [0, 0, 0, 0, 'VI']

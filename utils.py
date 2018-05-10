@@ -94,6 +94,8 @@ def init_flags():
         'Number of positions in the gridworld that should have reward. '
         'Has no effect if --simple_mdp is True.')
     tf.app.flags.DEFINE_float(
+        'noise', 0.0, 'Probability that the intended action fails')
+    tf.app.flags.DEFINE_float(
         'action_distance_threshold', 0.5,
         'Minimum distance between two action distributions to be "different"')
     tf.app.flags.DEFINE_integer(
@@ -132,7 +134,8 @@ def init_flags():
     tf.app.flags.DEFINE_string(
         'agent', 'optimal', 'Agent to generate training data with')
     tf.app.flags.DEFINE_float('gamma', 0.95, 'Discount factor')
-    tf.app.flags.DEFINE_float('beta', None, 'Noise when selecting actions')
+    tf.app.flags.DEFINE_float(
+        'beta', None, 'Noise for the agent when selecting actions')
     tf.app.flags.DEFINE_integer(
         'num_iters', 50,
         'Number of iterations of value iteration the agent should run.')
@@ -164,7 +167,7 @@ def init_flags():
 
     # Output
     tf.app.flags.DEFINE_string(
-        'output_folder', 'data/', 'Folder to write statistics to')
+        'output_folder', 'data/scratch_data/', 'Folder to write statistics to')
     tf.app.flags.DEFINE_integer(
         'display_step', 1, 'Print summary output every n epochs')
     tf.app.flags.DEFINE_boolean('log', False, 'Enables tensorboard summary')
@@ -213,17 +216,27 @@ def init_flags():
         check_zero('num_simulated')
         check_nonzero('num_with_rewards', config.num_human_trajectories - 1000)
         check_nonzero('num_validation', 2000)
-    elif alg == 'no_rewards':
-        check_zero('num_with_rewards')
-        check_nonzero('em_iterations', 2)
-        check_nonzero('num_simulated', 5000)
-        check_nonzero('num_validation', 2000)
     elif alg in ['boltzmann_planner', 'optimal_planner']:
         check_zero('em_iterations')
         check_zero('num_with_rewards')
         check_nonzero('num_simulated', 5000)
         check_nonzero('num_validation', 2000)
-    elif alg in ['joint_no_rewards', 'vi_inference']:
+    elif alg == 'em_with_init':
+        check_zero('num_with_rewards')
+        check_nonzero('em_iterations', 2)
+        check_nonzero('num_simulated', 5000)
+        check_nonzero('num_validation', 2000)
+    elif alg == 'em_without_init':
+        check_zero('num_with_rewards')
+        check_zero('num_simulated')
+        check_zero('num_validation')
+        check_nonzero('em_iterations', 2)
+    elif alg == 'joint_with_init':
+        check_zero('em_iterations')
+        check_zero('num_with_rewards')
+        check_nonzero('num_simulated', 5000)
+        check_nonzero('num_validation', 2000)
+    elif alg in ['joint_without_init', 'vi_inference']:
         check_zero('em_iterations')
         check_zero('num_with_rewards')
         check_zero('num_simulated')
@@ -241,7 +254,6 @@ class Distribution(object):
     probabilities sum to 1).
     """
     def __init__(self, probability_mapping):
-        Z = float(sum(probability_mapping.values()))
         # Convert to a list so that we aren't iterating over the dictionary and
         # removing at the same time
         for key in list(probability_mapping.keys()):
@@ -250,11 +262,21 @@ class Distribution(object):
                 del probability_mapping[key]
             elif prob < 0:
                 raise ValueError('Cannot have negative probability!')
-            else:
-                probability_mapping[key] = prob / Z
 
         assert len(probability_mapping) > 0
         self.dist = probability_mapping
+        self.normalize()
+
+    def factor(self, key, factor):
+        """Updates the probability distribution as though we see evidence that
+        is `factor` times more likely for `key` than for any other key."""
+        self.dist[key] *= factor
+        self.normalize()
+
+    def normalize(self):
+        Z = float(sum(self.dist.values()))
+        for key in list(self.dist.keys()):
+            self.dist[key] /= Z
 
     def sample(self):
         keys, probabilities = zip(*self.dist.items())

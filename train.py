@@ -472,10 +472,11 @@ def iterative_algorithm(architecture, sess, train_data, validation_data,
     tuning of both the reward and the planner are done with reward_data.
     """
     image_irl, y_irl = reward_data
-    run_interruptibly(
-        lambda: architecture.train_planner(
-            sess, train_data, validation_data, config.epochs, logs),
-        'planner training')
+    if train_data and validation_data:
+        run_interruptibly(
+            lambda: architecture.train_planner(
+                sess, train_data, validation_data, config.epochs, logs),
+            'planner training')
 
     rewards = architecture.train_reward(
         sess, image_irl, None, y_irl, config.reward_epochs, logs)
@@ -498,10 +499,18 @@ def joint_algorithm(architecture, sess, train_data, validation_data,
     Then infers reward. Currently, does not pretrain the model.
     In the future, probably worth looking into how to pretrain jointly.
     """
-    assert not train_data and not validation_data, "Can't pretrain for joint"
     image_irl, y_irl = reward_data
+    rewards = None
+    if train_data and validation_data:
+        run_interruptibly(
+            lambda: architecture.train_planner(
+                sess, train_data, validation_data, config.epochs, logs),
+            'planner training')
+        rewards = architecture.train_reward(
+            sess, image_irl, rewards, y_irl, config.reward_epochs, logs)
+
     rewards = architecture.train_joint(
-        sess, image_irl, None, y_irl, config.epochs, logs)
+        sess, image_irl, rewards, y_irl, config.epochs, logs)
     return rewards
 
 def vi_algorithm(architecture, sess, train_data, validation_data, reward_data,
@@ -550,34 +559,25 @@ def infer_with_rational_planner(config, beta=None):
     return run_inference(train_data, validation_data, reward_data,
                          two_phase_algorithm, config)
 
-def infer_with_no_rewards(config):
+def infer_with_no_rewards(config, train_jointly, initialize):
     if config.verbosity >= 2:
-        print('No rewards given, using the iterative EM-like algorithm')
+        s1 = 'jointly' if train_jointly else 'iteratively'
+        s2 = 'with' if initialize else 'without'
+        print('No rewards given, training planner and reward {} {} initialization'.format(s1, s2))
     agent, other_agents = create_agents_from_config(config)
-    num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
     num_simulated, num_validation = config.num_simulated, config.num_validation
-
-    optimal_agent = fast_agents.FastOptimalAgent(
-        gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
-    train_data, validation_data = generate_data_for_planner(
-        num_simulated, num_validation, optimal_agent, config, other_agents)
-    reward_data = generate_data_for_reward(
-        num_without_reward, agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data,
-                         iterative_algorithm, config)
-
-def joint_infer_with_no_rewards(config):
-    """Performs inference of reward by learning a trajectory.
-
-    Backpropagation of reward and planner module performed jointly.
-    """
-
-    print("No rewards given, updating planner and inferred reward jointly")
-    agent, other_agents = create_agents_from_config(config)
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
-    return run_inference(None, None, reward_data, joint_algorithm, config)
+    alg = joint_algorithm if train_jointly else iterative_algorithm
+
+    train_data, validation_data = None, None
+    if initialize:
+        optimal_agent = fast_agents.FastOptimalAgent(
+            gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
+        train_data, validation_data = generate_data_for_planner(
+            num_simulated, num_validation, optimal_agent, config, other_agents)
+    return run_inference(train_data, validation_data, reward_data, alg, config)
 
 def infer_with_value_iteration(config):
     """ This uses a differentiable value iteration algorithm to infer rewards.
@@ -623,10 +623,14 @@ def run_algorithm(config):
         return infer_with_rational_planner(config, beta)
     elif config.algorithm == 'optimal_planner':
         return infer_with_rational_planner(config, None)
-    elif config.algorithm == 'no_rewards':
-        return infer_with_no_rewards(config)
-    elif config.algorithm == 'joint_no_rewards':
-        return joint_infer_with_no_rewards(config)
+    elif config.algorithm == 'joint_with_init':
+        return infer_with_no_rewards(config, train_jointly=True, initialize=True)
+    elif config.algorithm == 'joint_without_init':
+        return infer_with_no_rewards(config, train_jointly=True, initialize=False)
+    elif config.algorithm == 'em_with_init':
+        return infer_with_no_rewards(config, train_jointly=False, initialize=True)
+    elif config.algorithm == 'em_without_init':
+        return infer_with_no_rewards(config, train_jointly=False, initialize=False)
     elif config.algorithm == 'vi_inference':
         return infer_with_value_iteration(config)
     elif config.algorithm == 'max_entropy':
