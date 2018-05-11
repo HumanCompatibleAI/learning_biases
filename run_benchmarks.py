@@ -7,7 +7,10 @@ from utils import concat_folder
 INTERPRETER="/home/ngundotra/.conda/envs/IRL/bin/python"
 
 FLAGS = [
-    ('agent', ['naive', 'optimal', 'sophisticated', 'myopic']),
+    ('agent', [
+        'naive', 'optimal', 'sophisticated', 'myopic', 'underconfident',
+        'overconfident'
+    ]),
     ('algorithm', [
         'given_rewards', 'em_with_init', 'boltzmann_planner', 'vi_inference',
         'optimal_planner', 'joint_with_init', 'em_without_init',
@@ -67,11 +70,22 @@ def get_algorithm_specific_flags(flags):
 
     return list(zip(flag_names, flag_values))
 
+def get_agent_specific_flags(flags):
+    [agent] = [val for name, val in flags if name == 'agent']
+    if agent == 'overconfident':
+        return [('calibration_factor', 5)]
+    elif agent == 'underconfident':
+        return [('calibration_factor', 0.5)]
+    elif agent in ['optimal', 'naive', 'sophisticated', 'myopic']:
+        return [('calibration_factor', 1)]
+    else:
+        raise ValueError('Unknown agent {}'.format(agent)
+
 def get_beta_flag(flags):
     [agent] = [val for name, val in flags if name == 'agent']
-    if agent == 'optimal':
+    if agent in ['optimal', 'overconfident']:
         return ('beta', 0.1)
-    elif agent in ['naive', 'sophisticated', 'myopic']:
+    elif agent in ['naive', 'sophisticated', 'myopic', 'underconfident']:
         return ('beta', 1.0)
     else:
         raise ValueError('Unknown agent {}'.format(agent))

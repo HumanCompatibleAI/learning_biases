@@ -189,9 +189,10 @@ def write_table(experiments, output_file):
     - experiments: Dictionary from keys of the form ((var, val), ...)
           to Experiment objects
     """
-    row_names = ['Optimal', 'Naive', 'Sophisticated', 'Myopic',
-                 'Boltzmann-Optimal', 'Boltzmann-Naive',
-                 'Boltzmann-Sophisticated', 'Boltzmann-Myopic']
+    row_names = ['Optimal', 'Naive', 'Sophisticated', 'Myopic', 'Overconfident',
+                 'Underconfident', 'Boltzmann-Optimal', 'Boltzmann-Naive',
+                 'Boltzmann-Sophisticated', 'Boltzmann-Myopic',
+                 'Boltzmann-Overconfident', 'Boltzmann-Underconfident']
     col_names = ['optimal_planner', 'boltzmann_planner', 'given_rewards',
                  'em_with_init', 'joint_with_init', 'em_without_init',
                  'joint_without_init', 'vi_inference']

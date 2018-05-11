@@ -146,6 +146,9 @@ def init_flags():
     tf.app.flags.DEFINE_float(
         'hyperbolic_constant', 1.0,
         'Discount for the future for hyperbolic time discounters')
+    tf.app.flags.DEFINE_float(
+        'calibration_factor', 1.0,
+        'Calibration factor for uncalibrated agents.')
     tf.app.flags.DEFINE_integer(
         'eval_horizon', 20,
         'Number of steps after which to stop running the agent when evaluating final rewards'
@@ -164,6 +167,8 @@ def init_flags():
     tf.app.flags.DEFINE_integer('other_max_delay', 5, 'Max delay for other agent')
     tf.app.flags.DEFINE_float(
         'other_hyperbolic_constant', 1.0, 'Hyperbolic constant for other agent')
+    tf.app.flags.DEFINE_float(
+        'other_calibration_factor', 1.0, 'Calibration factor for other agent')
 
     # Output
     tf.app.flags.DEFINE_string(
@@ -243,6 +248,11 @@ def init_flags():
         check_zero('num_validation')
     else:
         raise ValueError('Unknown algorithm {}'.format(alg))
+
+    if config.agent == 'overconfident':
+        assert config.calibration_factor > 1.0
+    elif config.agent == 'underconfident':
+        assert config.calibration_factor < 1.0
 
     return config
 

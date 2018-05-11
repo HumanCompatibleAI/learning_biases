@@ -5,8 +5,10 @@ import pandas as pd
 import seaborn as sns
 
 ALL_BIASES = [
-    'Optimal', 'Naive', 'Sophisticated', 'Myopic', 'Boltzmann-Optimal',
-    'Boltzmann-Naive', 'Boltzmann-Sophisticated', 'Boltzmann-Myopic'
+    'Optimal', 'Naive', 'Sophisticated', 'Myopic', 'Overconfident',
+    'Underconfident', 'Boltzmann-Optimal', 'Boltzmann-Naive',
+    'Boltzmann-Sophisticated', 'Boltzmann-Myopic', 'Boltzmann-Overconfident',
+    'Boltzmann-Underconfident'
 ]
 ALL_ALGORITHMS = [
     'optimal_planner', 'boltzmann_planner', 'given_rewards', 'em_with_init',

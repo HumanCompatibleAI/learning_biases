@@ -168,6 +168,37 @@ class FastMyopicAgent(agents.MyopicAgent):
         return pattern.format(self)
 
 
+class FastUncalibratedAgent(agents.UncalibratedAgent):
+    def compute_values(self):
+        """Computes the values for self.mdp using value iteration.
+
+        Populates self.values, which is a Numpy array of size height x width.
+        self.values[x,y] is the value of the state (x, y).
+        """
+        rewards, height, width, living_reward, gamma, (p1, p2), wall_info = preprocess(self)
+        p1 *= self.calibration_factor
+        Z = p1 + 2 * p2
+        noise_info = p1 / Z, p2 / Z
+
+        self.values = np.zeros([width, height])
+        for _ in range(self.num_iters):
+            # Q(s, a) = R(s, a) + gamma V(s')
+            vals = gamma * self.values
+            qvalues = get_next_state_values(vals, noise_info, wall_info)
+            qvalues += rewards
+            qvalues[:-1,:,:] += living_reward
+
+            old_values = self.values
+            self.values = np.zeros([width, height])
+            self.values[1:-1,1:-1] = qvalues.max(axis=0)
+            if converged(old_values, self.values):
+                break
+
+    def __str__(self):
+        pattern = 'FastUncalibrated-calibration-{0.calibration_factor}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
+        return pattern.format(self)
+
+
 def converged(values, new_values, tolerance=1e-3):
     """Returns True if value iteration has converged.
 

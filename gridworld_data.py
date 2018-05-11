@@ -102,7 +102,7 @@ def generate_example(agent, config, other_agents=[]):
     return walls, rewards, start_state, action_dists, num_different
 
 def get_filename(n, agent, config, seed):
-    pattern = 'gridworlds-v1-seed-{0}-num-{1}-agent-{2}-imsize-{3.imsize}-wallprob-{3.wall_prob}-rewardprob-{3.reward_prob}-simplemdp-{3.simple_mdp}.npz'
+    pattern = 'gridworlds-v1-seed-{0}-num-{1}-agent-{2}-imsize-{3.imsize}-wallprob-{3.wall_prob}-rewardprob-{3.reward_prob}-simplemdp-{3.simple_mdp}-noise-{3.noise}.npz'
     return pattern.format(seed, n, agent, config)
 
 def save_dataset(filename, dataset):
@@ -167,18 +167,19 @@ def create_agents_from_config(config):
     agent = create_agent(
         config.agent, config.gamma, config.beta,
         config.num_iters, config.max_delay,
-        config.hyperbolic_constant)
+        config.hyperbolic_constant, config.calibration_factor)
     other_agents = []
     if config.other_agent is not None:
         other_agent = create_agent(
             config.other_agent, config.other_gamma, config.other_beta,
             config.other_num_iters, config.other_max_delay,
-            config.other_hyperbolic_constant)
+            config.other_hyperbolic_constant, config.other_calibration_factor)
         other_agents.append(other_agent)
 
     return agent, other_agents
 
-def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
+def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant,
+                 calibration):
     """Creates the agent specified in config."""
     if agent == 'optimal':
         return fast_agents.FastOptimalAgent(
@@ -205,6 +206,13 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)
+    elif agent in ['overconfident', 'underconfident']:
+        assert calibration > 1 if agent == 'overconfident' else calibration < 1
+        return fast_agents.FastUncalibratedAgent(
+            gamma=gamma,
+            beta=beta,
+            num_iters=num_iters,
+            calibration_factor=calibration)
     raise ValueError('Invalid agent: ' + agent)
 
 

@@ -17,7 +17,7 @@ class TestAgents(unittest.TestCase):
         self.all_actions = Direction.ALL_DIRECTIONS
 
     def run_on_env(self, agent, env, gamma=0.9, episode_length=10):
-        trajectory = run_agent(agent, env, episode_length)
+        trajectory = run_agent(agent, env, episode_length, determinism=True)
         actions = [action for _, action, _, _ in trajectory]
         return actions, get_reward_from_trajectory(trajectory, gamma)
         
@@ -174,6 +174,34 @@ class TestAgents(unittest.TestCase):
         actions, _ = self.run_on_env(myopic_agent, env, gamma=0.9, episode_length=10)
         self.assertEqual(actions, [s, s, e, e, e, e, e, n, stay, stay])
 
+    def test_uncalibrated_agents(self):
+        grid = [['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X'],
+                ['X',  -9, ' ', 'X', ' ', ' ', ' ', ' ', ' ', ' ', 'X'],
+                ['X', 'A', ' ', ' ', ' ', ' ', ' ', ' ', ' ',  3 , 'X'],
+                ['X', ' ', ' ', 'X',  -9,  -9,  -9,  -9,  -9, ' ', 'X'],
+                ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X']]
+        n, s, e, w, stay = self.all_actions
+
+        mdp = GridworldMdp(grid, living_reward=-0.1, noise=0.2)
+        env = Mdp(mdp)
+
+        agent1 = agents.OptimalAgent(gamma=0.9, num_iters=50)
+        agent1.set_mdp(mdp)
+        actions, _ = self.run_on_env(agent1, env, gamma=0.9, episode_length=13)
+        self.assertEqual(actions, [e, e, e, n, e, e, e, e, e, s, stay, stay, stay])
+
+        agent2 = agents.UncalibratedAgent(
+            gamma=0.9, num_iters=20, calibration_factor=5)
+        agent2.set_mdp(mdp)
+        actions, _ = self.run_on_env(agent2, env, gamma=0.9, episode_length=13)
+        self.assertEqual(actions, [e, e, e, e, e, e, e, e, stay, stay, stay, stay, stay])
+
+        agent3 = agents.UncalibratedAgent(
+            gamma=0.9, num_iters=20, calibration_factor=0.5)
+        agent3.set_mdp(mdp)
+        actions, _ = self.run_on_env(agent3, env, gamma=0.9, episode_length=13)
+        self.assertEqual(actions, [s, e, n, e, e, n, e, e, e, e, e, s, stay])
+
     def compare_agents(self, name, agent1, agent2, places=7, print_mdp=False):
         print('Comparing {0} agents'.format(name))
         set_seeds(314159)
@@ -207,6 +235,16 @@ class TestAgents(unittest.TestCase):
         agent1 = agents.MyopicAgent(6, gamma=0.95, num_iters=20)
         agent2 = fast_agents.FastMyopicAgent(6, gamma=0.95, num_iters=20)
         self.compare_agents('myopic', agent1, agent2)
+
+    def test_compare_overconfident_agents(self):
+        agent1 = agents.UncalibratedAgent(gamma=0.95, num_iters=20, calibration_factor=5)
+        agent2 = fast_agents.FastUncalibratedAgent(gamma=0.95, num_iters=20, calibration_factor=5)
+        self.compare_agents('overconfident', agent1, agent2)
+
+    def test_compare_underconfident_agents(self):
+        agent1 = agents.UncalibratedAgent(gamma=0.95, num_iters=20, calibration_factor=0.5)
+        agent2 = fast_agents.FastUncalibratedAgent(gamma=0.95, num_iters=20, calibration_factor=0.5)
+        self.compare_agents('underconfident', agent1, agent2)
 
     def test_value_iteration(self):
         agent1 = agents.OptimalAgent(gamma=0.95, num_iters=20)
