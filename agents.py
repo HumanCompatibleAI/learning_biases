@@ -123,6 +123,7 @@ class ValueIterationLikeAgent(Agent):
             elif action_value == best_value:
                 best_actions.append(a)
         return Distribution({a : 1 for a in best_actions})
+        # For more determinism, you can break ties deterministically:
         # return Distribution({best_actions[0] : 1})
 
     def get_mus(self):
@@ -300,4 +301,38 @@ class MyopicAgent(DelayDependentAgent):
 
     def __str__(self):
         pattern = 'Myopic-horizon-{0.horizon}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
+        return pattern.format(self)
+
+
+class UncalibratedAgent(ValueIterationLikeAgent):
+    """An agent that expects the most likely action to happen more or less often
+    than it actually does."""
+
+    def __init__(self, gamma=0.9, beta=None, num_iters=50, calibration_factor=5):
+        """Initializes the agent, setting any relevant hyperparameters.
+
+        calibration_factor: The odds by which the most likely state is
+        upweighted. If this is 1, then we get the optimal agent. If it is >1, we
+        get an overconfident agent, that is too sure that the most likely state
+        will happen. If it is <1, we get an underconfident agent.
+        """
+        super(UncalibratedAgent, self).__init__(gamma, beta, num_iters)
+        self.calibration_factor = calibration_factor
+
+    def get_transition_mus_and_probs(self, mu, a):
+        """Gets information about possible transitions for the action.
+
+        This is the equivalent of self.mdp.get_transition_states_and_probs() for
+        generalized states. So, it returns a list of (next_mu, prob) pairs,
+        where next_mu must be a generalized state.
+        """
+        s = self.extract_state_from_mu(mu)
+        base_result = self.mdp.get_transition_states_and_probs(s, a)
+        most_likely_state, _ = max(base_result, key=lambda tup: tup[1])
+        dist = Distribution(dict(base_result))
+        dist.factor(most_likely_state, self.calibration_factor)
+        return list(dist.get_dict().items())
+
+    def __str__(self):
+        pattern = 'Uncalibrated-calibration-{0.calibration_factor}-gamma-{0.gamma}-beta-{0.beta}-numiters-{0.num_iters}'
         return pattern.format(self)

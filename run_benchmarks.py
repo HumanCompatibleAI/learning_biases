@@ -4,19 +4,24 @@ import subprocess as sp
 import sys
 from utils import concat_folder
 
-INTERPRETER="/home/ngundotra/.conda/envs/IRL/bin/python"
+INTERPRETER="python"
 
 FLAGS = [
-    ('agent', ['naive', 'optimal', 'sophisticated', 'myopic']),
+    ('agent', [
+        'naive', 'optimal', 'sophisticated', 'myopic', 'underconfident',
+        'overconfident'
+    ]),
     ('algorithm', [
-        'given_rewards', 'no_rewards', 'boltzmann_planner',
-        'vi_inference', 'joint_no_rewards', 'optimal_planner'
+        'given_rewards', 'em_with_init', 'boltzmann_planner', 'vi_inference',
+        'optimal_planner', 'joint_with_init', 'em_without_init',
+        'joint_without_init'
     ]),
 ]
 
 CONSTANT_FLAGS = [
     ('simple_mdp', False),
     ('imsize', 16),
+    ('noise', 0.2),
     ('num_rewards', 5),
     ('num_human_trajectories', 8000),
     ('vin_regularizer_C', 1e-4),
@@ -48,11 +53,15 @@ def get_algorithm_specific_flags(flags):
     flag_names = ['em_iterations', 'num_simulated', 'num_with_rewards', 'num_validation', 'model']
     if alg == 'given_rewards':
         flag_values = [0, 0, 7000, 2000, 'VIN']
-    elif alg == 'no_rewards':
-        flag_values = [2, 5000, 0, 2000, 'VIN']
     elif alg in ['boltzmann_planner', 'optimal_planner']:
         flag_values = [0, 5000, 0, 2000, 'VIN']
-    elif alg == 'joint_no_rewards':
+    elif alg == 'em_with_init':
+        flag_values = [2, 5000, 0, 2000, 'VIN']
+    elif alg == 'joint_with_init':
+        flag_values = [0, 5000, 0, 2000, 'VIN']
+    elif alg == 'em_without_init':
+        flag_values = [2, 0, 0, 0, 'VIN']
+    elif alg == 'joint_without_init':
         flag_values = [0, 0, 0, 0, 'VIN']
     elif alg == 'vi_inference':
         flag_values = [0, 0, 0, 0, 'VI']
@@ -61,11 +70,22 @@ def get_algorithm_specific_flags(flags):
 
     return list(zip(flag_names, flag_values))
 
+def get_agent_specific_flags(flags):
+    [agent] = [val for name, val in flags if name == 'agent']
+    if agent == 'overconfident':
+        return [('calibration_factor', 5)]
+    elif agent == 'underconfident':
+        return [('calibration_factor', 0.5)]
+    elif agent in ['optimal', 'naive', 'sophisticated', 'myopic']:
+        return [('calibration_factor', 1)]
+    else:
+        raise ValueError('Unknown agent {}'.format(agent))
+
 def get_beta_flag(flags):
     [agent] = [val for name, val in flags if name == 'agent']
-    if agent == 'optimal':
+    if agent in ['optimal', 'overconfident']:
         return ('beta', 0.1)
-    elif agent in ['naive', 'sophisticated', 'myopic']:
+    elif agent in ['naive', 'sophisticated', 'myopic', 'underconfident']:
         return ('beta', 1.0)
     else:
         raise ValueError('Unknown agent {}'.format(agent))
@@ -112,13 +132,15 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
         seed_flag = ('seeds', ','.join([str(seed) for seed in seeds]))
         for flags in flag_generator(flag_parameters):
             algorithm_flags = get_algorithm_specific_flags(flags)
+            agent_flags = get_agent_specific_flags(flags)
             beta_flag = get_beta_flag(flags)
-            all_flags = [seed_flag] + flags + constant_flags + algorithm_flags
+            all_flags = [seed_flag] + flags + constant_flags + algorithm_flags + agent_flags
             if run_command(interpreter, all_flags, dest):
                 success += 1
             if run_command(interpreter, [beta_flag] + all_flags, dest):
                 success += 1
             count_calls += 2
+            print('{} successful commands run!'.format(success))
 
         # Delete the generated gridworld data, since it is quite large
         for seed in seeds:

@@ -3,7 +3,7 @@ from mdp_interface import Mdp
 from fast_agents import FastOptimalAgent
 import numpy as np
 
-def run_agent(agent, env, episode_length=float("inf")):
+def run_agent(agent, env, episode_length=float("inf"), determinism=False):
     """Runs the agent on the environment for one episode.
 
     The agent will keep being asked for actions until the environment says the
@@ -18,12 +18,19 @@ def run_agent(agent, env, episode_length=float("inf")):
     Returns the trajectory that the agent took, which is a list of (s, a, s', r)
     tuples.
     """
+    noise = env.gridworld.noise
+
     env.reset()
     trajectory = []
     while len(trajectory) < episode_length and not env.is_done():
         curr_state = env.get_current_state()
         action = agent.get_action(curr_state)
-        next_state, reward = env.perform_action(action)
+        if determinism:
+            env.gridworld.noise = 0
+            next_state, reward = env.perform_action(action)
+            env.gridworld.noise = noise
+        else:
+            next_state, reward = env.perform_action(action)
         minibatch = (curr_state, action, next_state, reward)
         agent.inform_minibatch(*minibatch)
         trajectory.append(minibatch)
