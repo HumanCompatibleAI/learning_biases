@@ -89,6 +89,27 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
 
     return fig, ax
 
+
+def plot_policy(walls, policy, fig, ax):
+    """Plots arrows in direction of arg max policy"""
+    from gridworld import Direction
+    w = walls.length
+    h = walls[0].length
+    dir2mark = {
+        Direction.NORTH: '^',
+        Direction.SOUTH: 'V',
+        Direction.EAST: '<',
+        Direction.WEST: '>',
+        Direction.STAY: '*',
+    }
+    for col in walls.length:
+        for row in walls[0].length:
+            if walls[col][row] != 1:
+                dist = policy[col][row]
+                direction = D
+                plot_pos((col, row), marker=dir2mark[move], grid_size=walls.length, fig=fig, ax=ax)
+
+
 def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
     """Simulates a rollout of an agent given an MDP specified
     by the wall, reward, and start state. And plots it.

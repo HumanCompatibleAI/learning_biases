@@ -12,7 +12,8 @@ from agents import OptimalAgent
 from gridworld import GridworldMdp
 
 import matplotlib.pyplot as plt
-
+import seaborn as sns
+sns.set(rc={'text.usetex' : True})
 grids = [
     [['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
      ['X',' ',' ','A',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
@@ -121,6 +122,36 @@ def problem_description():
     pass
 
 
+def get_policy(self, agent, grid):
+    """Returns the policy of the agent given"""
+    from gridworld import GridworldMdp, Direction
+    from utils import Distribution
+
+    num_actions = len(Direction.ALL_DIRECTIONS)
+
+    mdp = GridworldMdp(grid=grid)
+    agent.set_mdp(mdp)
+
+    def dist_to_numpy(dist):
+        return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
+
+    def action(state):
+        # Walls are invalid states and the MDP will refuse to give an action for
+        # them. However, the VIN's architecture requires it to provide an action
+        # distribution for walls too, so hardcode it to always be STAY.
+        x, y = state
+        if mdp.walls[y][x]:
+            return dist_to_numpy(Distribution({Direction.STAY : 1}))
+        return dist_to_numpy(agent.get_action_distribution(state))
+
+    imsize = len(grid)
+
+    # I think it's this line that's wrong. Writing as (y, x) gives expected SVF vec
+    action_dists = [[action((x, y)) for y in range(imsize)] for x in range(imsize)]
+    action_dists = np.array(action_dists)
+    return action_dists
+
+
 def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentComparison', figtitle=''):
     """Shows how agents perform on a gridworld
 
@@ -139,7 +170,8 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
         # Plot reward on first ax
         ax = axes[0]
         ax.set_aspect('equal')
-        ax.set_ylabel(grid_names[i])
+        # Give each gridworld a name (uncomment to do so)
+        # ax.set_ylabel(grid_names[i])
         # Generate MDP
         grid = grids[i]
         mdp = GridworldMdp(grid)
@@ -162,7 +194,7 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
                 ax.set_title(agent_names[idx])
 
         # Increase vertical space btwn subplots
-    fig.subplots_adjust(hspace=0.1)
+    fig.subplots_adjust(hspace=-0.3)
     fig.suptitle(figtitle)
     fig.savefig(filename)
     print("Saved figure to {}.png".format(filename))
@@ -196,31 +228,30 @@ def random_gridworld_plot(agent, size, filename='RandomGrid'):
     fig.savefig(filename+'T', dpi=100)
 
 
-
 if __name__ == "__main__":
     # config = init_flags()
     # agent, _ = create_agents_from_config(config)
     from fast_agents import FastMyopicAgent as Myopic, \
         FastNaiveTimeDiscountingAgent as Naive,\
         FastSophisticatedTimeDiscountingAgent as Sophisticated
-    # kwargs = {'max_delay': 10,
-    #           'discount_constant': 0.9}
-    # agent_list = [OptimalAgent(),
-    #               Naive(**kwargs),
-    #               Sophisticated(**kwargs),
-    #               Myopic(horizon=10),
-    #               ]
-    # agent_names = ['Optimal',
-    #                'Naive',
-    #                'Sophisticated',
-    #                'Myopic',
-    #                ]
-    #
-    # # Choose grid
-    # # grid = grids[1]
-    # grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
-    # # Show how agents perform on that grid
-    # show_agents(grids, agent_list, agent_names, grid_titles)
+    kwargs = {'max_delay': 10,
+              'discount_constant': 0.9}
+    agent_list = [OptimalAgent(),
+                  Naive(**kwargs),
+                  Sophisticated(**kwargs),
+                  Myopic(horizon=10),
+                  ]
+    agent_names = ['Optimal',
+                   'Naive',
+                   'Sophisticated',
+                   'Myopic',
+                   ]
+    
+    # Choose grid
+    # grid = grids[1]
+    grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
+    # Show how agents perform on that grid
+    show_agents(grids, agent_list, agent_names, grid_titles, figtitle='Agent Comparison')
 
-    for i in range(3):
-        random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))
+    # for i in range(3):
+    #     random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))
