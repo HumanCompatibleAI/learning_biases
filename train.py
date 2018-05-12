@@ -70,7 +70,7 @@ class PlannerArchitecture(object):
             cross_entropy, name='cross_entropy_mean')
         tf.add_to_collection('losses', cross_entropy_mean)
 
-        logits_cost = tf.add_n(tf.get_collection('losses'), name='logits_loss')
+        self.logits_cost = tf.add_n(tf.get_collection('losses'), name='logits_loss')
     
         if config.model == 'VIN' and config.vin_regularizer_C > 0:
             # TODO(rohinmshah): This assumes that no regularization has been
@@ -81,17 +81,17 @@ class PlannerArchitecture(object):
                 tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES),
                 name='vin_loss')
             # TODO(rohinmshah): Rename step1_cost and step2_cost
-            self.step1_cost = logits_cost + vin_regularizer_cost
+            self.step1_cost = self.logits_cost + vin_regularizer_cost
         else:
-            self.step1_cost = logits_cost
+            self.step1_cost = self.logits_cost
 
         if config.reward_regularizer_C > 0:
             l1_regularizer = tf.contrib.layers.l1_regularizer(config.reward_regularizer_C)
             reward_regularizer_cost = tf.contrib.layers.apply_regularization(
                 l1_regularizer, [self.reward])
-            self.step2_cost = logits_cost + reward_regularizer_cost
+            self.step2_cost = self.logits_cost + reward_regularizer_cost
         else:
-            self.step2_cost = logits_cost
+            self.step2_cost = self.logits_cost
 
         # Define optimizers
         if config.model != 'VI':
@@ -126,6 +126,32 @@ class PlannerArchitecture(object):
         # if self.config.log:
         #     self.builder.add_meta_graph_and_variables(
         #         sess, [tf.saved_model.tag_constants.SERVING])
+
+    def evaluate_loss_and_err(self, sess, image_data, reward_data, y_data, logs):
+        """Infers the reward using backprop, holding the planner fixed.
+
+        Due to Tensorflow constraints, image_data must contain exactly
+        batch_size number of MDPs on which the reward should be inferred.
+
+        The rewards are initialized to the values in reward_data. If reward_data
+        is None, the rewards are initialized to all zeroes.
+        """
+        batch_size = self.config.batchsize
+        num_batches = int(image_data.shape[0] / batch_size)
+        total_loss, total_err, num_samples = 0, 0, 0
+        for batch_num in range(num_batches):
+            start, end = batch_num * batch_size, (batch_num + 1) * batch_size
+            images, rewards = image_data[start:end], reward_data[start:end]
+            fd = {
+                "image:0": images,
+                "reward_input:0": rewards,
+                "y:0": y_data[start:end]
+            }
+            loss, err = sess.run([self.logits_cost, self.err], feed_dict=fd)
+            total_loss += (loss * len(images))
+            total_err += (err * len(images))
+            num_samples += len(images)
+        return total_loss / num_samples, total_err / num_samples
 
     def run_epoch(self, sess, data, ops_to_run, ops_to_average, distributions=[]):
         batch_size = self.config.batchsize
@@ -389,7 +415,7 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         train_data = None
         validation_data = None
 
-    image_irl, reward_irl, start_states_irl, y_irl = reward_data
+    image_irl, reward_irl, start_states_irl, y_irl, image_test, start_states_test, y_test = reward_data
     reward_data = (image_irl, y_irl)
 
     # Launch the graph
@@ -422,11 +448,19 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         logs['Average %regret'] = 1 - average_percent_reward
         logs['%rewards'] = reward_percents
 
+        avg_loss, err = architecture.evaluate_loss_and_err(
+            sess, image_test, inferred_rewards, y_test, logs)
+        logs['Average loss on test walls'] = avg_loss
+        logs['Error on test walls'] = err
+        logs['Accuracy on test walls'] = 1 - err
+
         if config.verbosity >= 1:
             print(reward_percents[:10])
             print('On average planning with the inferred rewards is '
                   + str(100 * average_percent_reward)
                   + '% as good as planning with the true rewards')
+            print('Average loss on test walls: {}'.format(avg_loss))
+            print('Accuracy on test walls: {}%'.format(100 * (1 - err)))
 
     return logs
 

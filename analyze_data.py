@@ -40,7 +40,6 @@ def load_experiment_run(filename):
 
     Returns a dictionary mapping keys to lists of numbers.
     """
-    # TODO: Is this a dictionary?
     result = dict(np.load(filename).items())
     if not result: # TODO: Check for failures
         return None
@@ -54,7 +53,7 @@ def load_experiment_run(filename):
         result['reward_iterations'] = np.arange(1, len(reward_costs[0]) + 1)
     if len(planner_costs) > 0:
         # If we have planner costs, we must also have reward costs.
-        assert result['em_iterations'][-1] == len(planner_costs)
+        assert len(planner_costs) <= len(reward_costs) <= len(planner_costs) + 1
         result['planner_iterations'] = np.arange(1, len(planner_costs[0]) + 1)
     if len(joint_costs) > 0:
        result['joint_iterations'] = np.arange(1, len(joint_costs[0]) + 1)
@@ -183,7 +182,7 @@ def get_matching_experiments(experiments, flags_to_match):
     check = lambda exp: all(exp.flags[k] == v for k, v in flags_to_match)
     return [exp for exp in experiments.values() if check(exp)]
 
-def write_table(experiments, output_file):
+def write_table(experiments, dependent_var, output_file):
     """Writes a table of final results with standard errors.
 
     - experiments: Dictionary from keys of the form ((var, val), ...)
@@ -197,6 +196,16 @@ def write_table(experiments, output_file):
                  'em_with_init', 'joint_with_init', 'em_without_init',
                  'joint_without_init', 'vi_inference']
 
+    key = dependent_var
+    if key == 'reward':
+        key, factor = 'Average %reward', 100
+    elif key == 'loss':
+        key, factor = 'Average loss on test walls', 1
+    elif key == 'error':
+        key, factor = 'Error on test walls', 100
+    elif key == 'accuracy':
+        key, factor = 'Accuracy on test walls', 100
+
     def get_row_col_names(exp):
         col = exp.flags['algorithm']
         if col == 'no_rewards': col = 'em_with_init'
@@ -209,8 +218,8 @@ def write_table(experiments, output_file):
 
     results = [[(None, None)] * len(col_names) for _ in range(len(row_names))]
     for exp in experiments.values():
-        mean = exp.means_data['Average %reward']
-        sterr = exp.sterrs_data['Average %reward']
+        mean = exp.means_data[key]
+        sterr = exp.sterrs_data[key]
         row_name, col_name = get_row_col_names(exp)
         row, col = row_names.index(row_name), col_names.index(col_name)
         assert results[row][col] == (None, None)
@@ -218,11 +227,13 @@ def write_table(experiments, output_file):
 
     def stringify(mean, sterr):
         if output_file.endswith('means.csv'):
-            return 'N/A' if mean is None else '%.1f' % (100 * mean)
+            return 'N/A' if mean is None else '%.1f' % (factor * mean)
         elif output_file.endswith('sterrs.csv'):
-            return 'N/A' if sterr is None else '%.1f' % (100 * sterr)
+            return 'N/A' if sterr is None else '%.1f' % (factor * sterr)
+        elif output_file.endswith('intervals.csv'):
+            return 'N/A' if mean is None else '"[%.1f, %.1f]"' % (factor*(mean-sterr), factor*(mean+sterr))
         else:
-            return 'N/A' if mean is None else '"[%.1f, %.1f]"' % (100*(mean-sterr), 100*(mean+sterr))
+            raise ValueError('Unknown type of output')
 
     with open(output_file, 'w') as f:
         f.write('Agent,' + ','.join(col_names) + '\n')
@@ -239,9 +250,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--folder', required=True)
     parser.add_argument('-o', '--output_file', required=True)
-    parser.add_argument('-x', '--x_var')
-    parser.add_argument('-d', '--dependent_var', action='append')
-    parser.add_argument('-i', '--independent_var', action='append')
+    parser.add_argument('-d', '--dependent_var', required=True)
     parser.add_argument('-c', '--control_var_val', action='append', default=[])
     parser.add_argument('-e', '--experiment', action='append', default=[])
     return parser.parse_args()
@@ -263,7 +272,5 @@ if __name__ == '__main__':
     experiments = load_data(args.folder)
     experiments, all_vars, _ = process_data(experiments)
     controls = parse_kv_pairs(args.control_var_val)
-    extra_experiments = [parse_kv_pairs(x.split(',')) for x in args.experiment]
-    write_table(experiments, args.output_file)
-    # graph_all(experiments, all_vars, args.x_var, args.dependent_var,
-    #           args.independent_var, controls, extra_experiments, args.folder, args)
+    # extra_experiments = [parse_kv_pairs(x.split(',')) for x in args.experiment]
+    write_table(experiments, args.dependent_var, args.output_file)

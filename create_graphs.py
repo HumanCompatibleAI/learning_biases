@@ -85,7 +85,9 @@ def read_csv(filename, args):
     return df
 
 def graph(args):
-    means, sterrs = read_csv('means.csv', args), read_csv('sterrs.csv', args)
+    var = args.dependent_var
+    means_file, sterrs_file = var + '-means.csv', var + '-sterrs.csv'
+    means, sterrs = read_csv(means_file, args), read_csv(sterrs_file, args)
     matplotlib.rcParams['text.usetex'] = True
     matplotlib.rc('font',family='serif', serif=['Palatino'])
     sns.set_style('white')
@@ -141,6 +143,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--folder', required=True)
     parser.add_argument('-o', '--output_file', required=True)
+    parser.add_argument('-d', '--dependent_var', required=True)
     parser.add_argument('-b', '--bias', action='append')
     parser.add_argument('-a', '--algorithm', action='append')
     args = parser.parse_args()

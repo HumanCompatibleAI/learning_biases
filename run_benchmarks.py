@@ -4,7 +4,7 @@ import subprocess as sp
 import sys
 from utils import concat_folder
 
-INTERPRETER="/home/ngundotra/.conda/envs/IRL/bin/python"
+INTERPRETER="python"
 
 FLAGS = [
     ('agent', [
@@ -79,7 +79,7 @@ def get_agent_specific_flags(flags):
     elif agent in ['optimal', 'naive', 'sophisticated', 'myopic']:
         return [('calibration_factor', 1)]
     else:
-        raise ValueError('Unknown agent {}'.format(agent)
+        raise ValueError('Unknown agent {}'.format(agent))
 
 def get_beta_flag(flags):
     [agent] = [val for name, val in flags if name == 'agent']
@@ -132,13 +132,15 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
         seed_flag = ('seeds', ','.join([str(seed) for seed in seeds]))
         for flags in flag_generator(flag_parameters):
             algorithm_flags = get_algorithm_specific_flags(flags)
+            agent_flags = get_agent_specific_flags(flags)
             beta_flag = get_beta_flag(flags)
-            all_flags = [seed_flag] + flags + constant_flags + algorithm_flags
+            all_flags = [seed_flag] + flags + constant_flags + algorithm_flags + agent_flags
             if run_command(interpreter, all_flags, dest):
                 success += 1
             if run_command(interpreter, [beta_flag] + all_flags, dest):
                 success += 1
             count_calls += 2
+            print('{} successful commands run!'.format(success))
 
         # Delete the generated gridworld data, since it is quite large
         for seed in seeds:
