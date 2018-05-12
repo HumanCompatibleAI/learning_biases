@@ -41,10 +41,10 @@ class GridworldMdpNoR(object):
     def get_actions(self, state):
         """Returns the list of valid actions for 'state'.
 
-        Note that you can request moves into walls, which are
-        equivalent to STAY. The order in which actions are returned is
-        guaranteed to be deterministic, in order to allow agents to
-        implement deterministic behavior.
+        Note that you can request moves into walls, which are equivalent to
+        STAY. The order in which actions are returned is guaranteed to be
+        deterministic, in order to allow agents to implement deterministic
+        behavior.
         """
         x, y = state
         if self.walls[y][x]:
@@ -340,23 +340,31 @@ class GridworldMdp(GridworldMdpNoR):
         return GridworldMdp(grid)
 
     @staticmethod
-    def generate_random_connected(height, width, num_rewards):
+    def generate_random_connected(height, width, num_rewards, noise, goals=None):
         """Generates a random instance of a Gridworld.
 
         Unlike with generate_random, it is guaranteed that the agent
         can reach a reward. However, that reward might be negative.
-        """
 
-        def generate_start_and_goals():
-            start_state = (width // 2, height // 2)
+        goals: If not None, dictionary mapping (x, y) positions to rewards.
+        """
+        def get_random_reward():
+            result = random.randint(-9, 9)
+            while result == 0:
+                result = random.randint(-9, 9)
+            return result
+
+        def generate_goals(start_state):
             states = [(x, y) for x in range(1, width-1) for y in range(1, height-1)]
             states.remove(start_state)
             indices = np.random.choice(len(states), num_rewards, replace=False)
-            return start_state, [states[i] for i in indices]
+            return {states[i] : get_random_reward() for i in indices}
 
-        (start_x, start_y), goals = generate_start_and_goals()
-        required_nonwalls = list(goals)
-        required_nonwalls.append((start_x, start_y))
+        start_state = (width // 2, height // 2)
+        if goals is None:
+            goals = generate_goals(start_state)
+        required_nonwalls = list(goals.keys())
+        required_nonwalls.append(start_state)
 
         directions = [
             Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]
@@ -382,12 +390,10 @@ class GridworldMdp(GridworldMdpNoR):
                     dsets.union((x, y), (newx, newy))
 
         grid[height // 2][width // 2] = 'A'
-        for x, y in goals:
-            grid[y][x] = random.randint(-9, 9)
-            while grid[y][x] == 0:
-                grid[y][x] = random.randint(-9, 9)
+        for x, y in goals.keys():
+            grid[y][x] = goals[(x, y)]
 
-        return GridworldMdp(grid)
+        return GridworldMdp(grid, noise=noise)
 
     def __str__(self):
         """Returns a string representation of this grid world.

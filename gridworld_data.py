@@ -28,7 +28,7 @@ def print_training_example(mdp, trajectory):
     mdp_string_with_trajectory = '\n'.join([''.join(row) for row in mdp_grid])
     print(mdp_string_with_trajectory)
 
-def generate_example(agent, config, other_agents=[]):
+def generate_example(agent, config, other_agents=[], goals=None):
     """Generates an example Gridworld and corresponding agent actions.
 
     agent: The agent that acts in the generated MDP.
@@ -57,11 +57,13 @@ def generate_example(agent, config, other_agents=[]):
     imsize = config.imsize
     num_actions = config.num_actions
     if config.simple_mdp:
-        pr_wall, pr_reward = config.wall_prob, config.reward_prob
-        mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
+        assert False, 'simple_mdp no longer supported'
+        # pr_wall, pr_reward = config.wall_prob, config.reward_prob
+        # mdp = GridworldMdp.generate_random(imsize, imsize, pr_wall, pr_reward)
     else:
-        num_rewards = config.num_rewards
-        mdp = GridworldMdp.generate_random_connected(imsize, imsize, num_rewards)
+        num_rewards, noise = config.num_rewards, config.noise
+        mdp = GridworldMdp.generate_random_connected(
+            imsize, imsize, num_rewards, noise, goals)
 
     def dist_to_numpy(dist):
         return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
@@ -102,7 +104,7 @@ def generate_example(agent, config, other_agents=[]):
     return walls, rewards, start_state, action_dists, num_different
 
 def get_filename(n, agent, config, seed):
-    pattern = 'gridworlds-v1-seed-{0}-num-{1}-agent-{2}-imsize-{3.imsize}-wallprob-{3.wall_prob}-rewardprob-{3.reward_prob}-simplemdp-{3.simple_mdp}.npz'
+    pattern = 'gridworlds-v1-seed-{0}-num-{1}-agent-{2}-imsize-{3.imsize}-wallprob-{3.wall_prob}-rewardprob-{3.reward_prob}-simplemdp-{3.simple_mdp}-noise-{3.noise}.npz'
     return pattern.format(seed, n, agent, config)
 
 def save_dataset(filename, dataset):
@@ -113,11 +115,11 @@ def load_dataset(filename):
     data = np.load(filename)
     return tuple([data['arr_{}'.format(i)] for i in range(4)])
 
-def generate_n_examples(n, agent, config, seed=0, other_agents=[], folder='datasets/'):
+def generate_n_examples(n, agent, config, seed=0, other_agents=[], goals=None, folder='datasets/'):
     """Calls generate_example n times to create a dataset of examples of size n.
 
-    Returns the same four Numpy arrays as generate_example,
-    except that they now have shape (n, *previous_shape). (The last Numpy array, num_different, from
+    Returns the same four Numpy arrays as generate_example, except that they now
+    have shape (n, *previous_shape). (The last Numpy array, num_different, from
     generate_example is analyzed and printed out, and so is not returned.)
 
     Returns n-tuple of (walls, rewards, start_state, action_dists)
@@ -132,7 +134,12 @@ def generate_n_examples(n, agent, config, seed=0, other_agents=[], folder='datas
     print('Generating {} examples'.format(n))
     np.random.seed(seed)
     random.seed(seed)
-    data = [generate_example(agent, config, other_agents) for _ in range(n)]
+    if goals is None:
+        data = [generate_example(agent, config, other_agents) for _ in range(n)]
+    else:
+        assert len(goals) == n
+        data = [generate_example(agent, config, other_agents, r) for r in goals]
+
     walls, rewards, start_states, labels, num_different = map(np.array, zip(*data))
     if other_agents:
         num_different = np.array(num_different)
@@ -161,24 +168,41 @@ def generate_data_for_reward(num_trajs, agent, config, other_agents=[]):
 
     [4/5] Generates test data (reward data) for Step 2 of the algorithm
     """
-    return generate_n_examples(num_trajs, agent, config, config.seeds.pop(0), other_agents)
+    walls, rewards, start_states, labels = generate_n_examples(
+        num_trajs, agent, config, config.seeds.pop(0), other_agents)
+    goals = parse_rewards_into_goals(rewards)
+    walls2, rewards2, start_states2, labels2 = generate_n_examples(
+        num_trajs, agent, config, config.seeds.pop(0), other_agents, goals)
+    assert np.array_equal(rewards, rewards2)
+    return (walls, rewards, start_states, labels, walls2, start_states2, labels2)
+
+def parse_rewards_into_goals(rewards):
+    num_mdps, height, width = len(rewards), len(rewards[0]), len(rewards[0][0])
+    goals = [{} for _ in range(num_mdps)]
+    for i in range(num_mdps):
+        for y in range(height):
+            for x in range(width):
+                if rewards[i,y,x] != 0:
+                    goals[i][(x, y)] = rewards[i,y,x]
+    return goals
 
 def create_agents_from_config(config):
     agent = create_agent(
         config.agent, config.gamma, config.beta,
         config.num_iters, config.max_delay,
-        config.hyperbolic_constant)
+        config.hyperbolic_constant, config.calibration_factor)
     other_agents = []
     if config.other_agent is not None:
         other_agent = create_agent(
             config.other_agent, config.other_gamma, config.other_beta,
             config.other_num_iters, config.other_max_delay,
-            config.other_hyperbolic_constant)
+            config.other_hyperbolic_constant, config.other_calibration_factor)
         other_agents.append(other_agent)
 
     return agent, other_agents
 
-def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
+def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant,
+                 calibration):
     """Creates the agent specified in config."""
     if agent == 'optimal':
         return fast_agents.FastOptimalAgent(
@@ -205,10 +229,17 @@ def create_agent(agent, gamma, beta, num_iters, max_delay, hyperbolic_constant):
             gamma=gamma,
             beta=beta,
             num_iters=num_iters)
+    elif agent in ['overconfident', 'underconfident']:
+        assert calibration > 1 if agent == 'overconfident' else calibration < 1
+        return fast_agents.FastUncalibratedAgent(
+            gamma=gamma,
+            beta=beta,
+            num_iters=num_iters,
+            calibration_factor=calibration)
     raise ValueError('Invalid agent: ' + agent)
 
 
 if __name__ == '__main__':
     config = init_flags()
     agent, other_agents = create_agents_from_config(config)
-    generate_data_for_reward(agent, config, other_agents)
+    generate_data_for_reward(10, agent, config, other_agents)
