@@ -1,4 +1,7 @@
 import argparse
+import matplotlib as mpl
+mpl.use("TkAgg")
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle
@@ -222,8 +225,6 @@ def write_table(experiments, dependent_var, output_file):
         sterr = exp.sterrs_data[key]
         row_name, col_name = get_row_col_names(exp)
         row, col = row_names.index(row_name), col_names.index(col_name)
-        assert results[row][col] == (None, None)
-        results[row][col] = [mean, sterr]
 
     def stringify(mean, sterr):
         if output_file.endswith('means.csv'):

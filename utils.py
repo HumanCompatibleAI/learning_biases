@@ -1,10 +1,13 @@
 import tensorflow as tf
 import numpy as np
 import random
-import re
 import matplotlib
-matplotlib.use("tkagg")
+import seaborn as sns
 import matplotlib.pyplot as plt
+
+# Comment this line out to return to matplotlib plot defaults
+# I just thought this looked a tiny bit cleaner
+sns.set()
 
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 # helper methods to print nice table (taken from CGT code)
@@ -28,46 +31,222 @@ def set_seeds(seed):
 def softmax(v):
     return np.exp(v)/np.sum(np.exp(v))
 
-def squish(v):
+def squish(v, reward=False):
     if v.any():
-        return (v - np.min(v)) / np.max(v-np.min(v))
+        if reward:
+            cons = 0
+            v = v.copy()
+            v[v > 0] += cons
+        return v / np.max(v)
     return v
 
 def visualizeReward(reward):
     pos_reward = np.where(reward > 0, reward,  0)
     neg_reward = -1*np.where(reward < 0, reward, 0)
-    pos_reward = squish(pos_reward)
-    neg_reward = squish(neg_reward)
-    return pos_reward,neg_reward
+    pos_reward = squish(pos_reward, reward=True)
+    neg_reward = squish(neg_reward, reward=True)
+    return pos_reward, neg_reward
 
-def plot_reward(label, inferred_reward, walls, filename='reward_comparison.png'):
-    """Plots rewards (true and predicted) and saves them to a file.
+def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
+    """
+    Plots a single reward + wall combination on an axis of the figure given.
 
-    Inferred_reward should be normalized before.
+    Alpha argument creates alpha values for the reward squares \alpha \in [0, 1]
     """
 
     # Clean up the arrays (imshow only takes values in [0, 1])
-    pos_label, neg_label = visualizeReward(label)
-    pos_reward, neg_reward = visualizeReward(inferred_reward)
+    pos_label, neg_label = visualizeReward(reward)
 
     # set up plot
-    fig, axes = plt.subplots(1,2)
-    label = np.stack([pos_label, walls, neg_label],axis=-1).reshape(list(walls.shape)+[3])
+    def make_pic(pos_label, walls, neg_label):
+        """Combine colors to make the walls + rewards achieve desired color"""
+        alphas = np.ones(pos_label.shape)
+        alphas[pos_label > 0] = alpha
+        alphas[neg_label > 0] = alpha
+
+        # Coloring the walls brown
+        BROWN = np.array((133, 87, 35, 0)) / 255.0
+        wall_color = np.einsum("ij,k->ijk", walls, BROWN)
+
+        # to get our true reward (blue) values on the right scale, we'll create our own color scale
+        small = np.array((45, 100, 245, 0)) / 255.0
+        big = np.array((82, 219, 255, 0)) / 255.0
+        diff = small - big
+        blue = np.stack([np.zeros(neg_label.shape), np.zeros(neg_label.shape), pos_label.copy(), np.zeros(neg_label.shape)], axis=-1)
+        blue[pos_label > 0, :] = np.einsum('i,j->ij', pos_label[pos_label > 0], diff) + big
+
+        label = np.stack([neg_label, np.zeros(pos_label.shape), np.zeros(pos_label.shape), alphas], axis=-1)
+        label = label + blue + wall_color
+        return label.reshape(list(walls.shape)+[4])
 
     # truth plot
-    true = axes[0].imshow(label)
-    axes[0].set_title("Truth")
+    true = ax.imshow(make_pic(pos_label, walls, neg_label))
+    ax.set_title(ax_title)
 
-    # inferred plot
-    rew = np.stack([pos_reward, walls, neg_reward],axis=-1).reshape(list(walls.shape)+[3])
-    tensor = axes[1].imshow(rew)
-    axes[1].set_title("Predicted")
+    # Remove xticks, yticks
+    ax.set_yticks([])
+    ax.set_xticks([])
+
+    return fig, ax
+
+
+def plot_policy(walls, policy, fig, ax):
+    """Plots arrows in direction of arg max policy"""
+    from gridworld import Direction
+    w = walls.length
+    h = walls[0].length
+    dir2mark = {
+        Direction.NORTH: '^',
+        Direction.SOUTH: 'V',
+        Direction.EAST: '<',
+        Direction.WEST: '>',
+        Direction.STAY: '*',
+    }
+    for col in walls.length:
+        for row in walls[0].length:
+            if walls[col][row] != 1:
+                dist = policy[col][row]
+                direction = D
+                plot_pos((col, row), marker=dir2mark[move], grid_size=walls.length, fig=fig, ax=ax)
+
+
+def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
+    """Simulates a rollout of an agent given an MDP specified
+    by the wall, reward, and start state. And plots it.
+    """
+    from gridworld import GridworldMdp
+    from mdp_interface import Mdp
+    from agent_runner import run_agent
+
+    mdp = GridworldMdp.from_numpy_input(wall, reward, start)
+
+    agent.set_mdp(mdp)
+    env = Mdp(mdp)
+    trajectory = run_agent(agent, env, episode_length=EPISODE_LENGTH)
+
+    if len(trajectory) <= 1:
+        raise ValueError("Trajectory rolled out unsuccessfully")
+
+    # Tuples of (state, next) - to be used for plotting
+    state_trans = [(info[0], info[2]) for info in trajectory]
+    count = 0
+    for trans in state_trans:
+        if trans[0] == trans[1]:
+            count += 1
+    if count == len(state_trans):
+        print("Yes, the agent given stayed in the same spot for {} iterations...".format(len(state_trans)))
+
+    if not fig or not ax:
+        fig, ax = plt.subplots(1,1)
+    if ax and type(ax) is list:
+        raise ValueError("Given {} axes, but can only use 1 axis".format(len(ax)))
+
+    # Plot starting point
+    plot_pos(start, ax=ax, color='w', marker='o', grid_size=len(wall))
+    # Plot ending trajectory point
+    finish = state_trans[-1][0]
+    plot_pos(finish, ax=ax, color='w', marker='*', grid_size=len(wall))
+    line_artists = plot_lines(ax, trans_list=state_trans, color='w', grid_size=len(wall))
+    ax.set_xticks([])
+    ax.set_yticks([])
+    return fig, ax
+
+def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, config, filename='reward_comparison.png'):
+    """Plots reward vs inferred reward. On the true reward, plot the biased agent's trajectory. On the
+    inferred reward, plot the optimal agent's trajectory.
+
+    true_reward(ndarray): shape=(imsize x imsize)
+    inferred_reward(ndarray): same as above
+    walls(ndarray): shape=(imsize x imsize) of 0s and 1s, where 1s are walls
+    start(tuple): containing (row, col)
+    config(tf.config): config with agent params set
+    filename(string): pathname of saved figure
+    """
+    from agents import OptimalAgent
+    from gridworld_data import create_agents_from_config
+
+    true_agent, other_agent = create_agents_from_config(config)
+    inferred_agent = OptimalAgent()
+
+    _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, start, true_agent, inferred_agent,
+                                         filename)
+
+
+def _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, start, true_agent, inferred_agent,
+                                          filename='reward_comparison.png'):
+    """Plots same thing as plot_reward_and_trajectories, but using only agents, no config"""
+    from agents import OptimalAgent
+    from gridworld_data import create_agents_from_config
+    # 1 Figure, 2 Plots (in a row)
+    # True reward on leftmost plot (axes[0])
+    # Inferred reward on rightmost plot (axes[1])
+    fig, axes = plt.subplots(1, 2)
+
+    # Plot the rewards
+    plot_reward(true_reward, walls, 'True Reward', fig=fig, ax=axes[0])
+    plot_reward(inferred_reward, walls,'Inferred Reward', fig=fig, ax=axes[1])
+    # Plot the agents' trajectories (will perform rollout)
+    plot_trajectory(walls, true_reward, start, true_agent, fig=fig, ax=axes[0])
+    plot_trajectory(walls, inferred_reward, start, inferred_agent, fig=fig, ax=axes[1])
+    # Plot starting positions for agents in both the true and inferred reward plots
+    plot_pos(start, color='m', grid_size=len(walls), ax=axes[0])
+    plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])
 
     # titleing
     fig.suptitle("Comparison of Reward Functions")
 
     # saving to file
     fig.savefig(filename)
+
+
+def test_trajectory_plotting():
+    """Tests trajectory plotting"""
+    from gridworld import GridworldMdp
+    from agents import OptimalAgent, MyopicAgent
+    agent = OptimalAgent()
+    mdp = GridworldMdp.generate_random(12, 12, pr_wall=0.1, pr_reward=0.1)
+    agent.set_mdp(mdp)
+    walls, reward, start = mdp.convert_to_numpy_input()
+    myopic = MyopicAgent(horizon=10)
+    _plot_reward_and_trajectories_helper(reward, reward, walls, start, myopic, OptimalAgent(), filename="trajectory.png")
+    # fig, axes = plt.subplots(1, 2)
+    # fig, axes = plot_reward(reward, reward, walls, filename='trajectory_test.png', fig=fig, axes=axes)
+    # plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])
+    # plot_trajectory(walls, reward, start, agent_type=OptimalAgent, fig=fig, axes=axes[1])
+
+def plot_pos(start, color=None, marker='*', grid_size=None, ax=None):
+    """Plots a small dot on the start location"""
+    if grid_size is None:
+        raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
+    if ax is None:
+        raise ValueError("Please pass MPL axes.")
+    col, row = start
+    if color is None:
+        color = 'r'
+    ax.scatter([col], [row], color=color, s=30, marker=marker)
+
+def plot_lines(ax, trans_list, color='w', grid_size=None):
+    """Plots transitions as lines on a grid (centered on grid points)"""
+    if grid_size is None:
+        raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
+    # from matplotlib.colors import LinearSegmentedColormap
+
+    num_trans = len(trans_list)
+    # RGBA vals that go from pinkish to yellowish -- for dynamic coloring
+    # reds = [(1, 0, 1, 1), (1, 1, 0, 1)]
+    # cgrad = LinearSegmentedColormap.from_list(name="reds", colors=reds, N=num_trans)
+    line_artists = []
+    for i, trans in enumerate(trans_list):
+        start, end = trans
+        p1, p2 = start, end
+        line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=color, ls='--')
+        # For dynamic coloring
+        # line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=cgrad(i), ls='--')
+        # For future matplotlib usage (just in case)
+        line_artists.append(line)
+
+    return line_artists
+
 
 def init_flags():
     # Algorithm
@@ -323,3 +502,7 @@ def concat_folder(folder, element):
     if folder[-1] == '/':
         return folder + element
     return folder + '/' + element
+
+
+if __name__ == '__main__':
+    test_trajectory_plotting()
