@@ -7,7 +7,7 @@ Possible extensions: add 1a) figure which visualizes our synthesized trajectorie
 """
 import numpy as np
 import utils
-from utils import plot_trajectory, plot_reward, init_flags
+from utils import plot_trajectory, plot_reward, plot_policy, init_flags
 from agents import OptimalAgent
 from gridworld import GridworldMdp
 
@@ -196,36 +196,61 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
         # Increase vertical space btwn subplots
     fig.subplots_adjust(hspace=0.2)
     fig.suptitle(figtitle)
-    fig.savefig(filename, bbox_inches='tight')
+    fig.savefig(filename, bbox_inches='tight', dpi=100)
     print("Saved figure to {}.png".format(filename))
 
 
 def random_gridworld_plot(agent, size, filename='RandomGrid'):
     """Plots random gridworld"""
+    from gridworld import Direction
+    from utils import Distribution
     if agent is None:
         raise ValueError("agent cannot be None")
 
     pr_R = 0.01
     pr_W = 0.2
-    grid = GridworldMdp.generate_random(size, size, pr_reward=pr_R, pr_wall=pr_W)
+    mdp = GridworldMdp.generate_random(size, size, pr_reward=pr_R, pr_wall=pr_W)
 
-    walls, reward, start = grid.convert_to_numpy_input()
+    walls, reward, start = mdp.convert_to_numpy_input()
+
+    def get_policy():
+        num_actions = 5
+        imsize = len(walls)
+
+        def dist_to_numpy(dist):
+            return dist.as_numpy_array(Direction.get_number_from_direction, num_actions)
+
+        def action(state):
+            # Walls are invalid states and the MDP will refuse to give an action for
+            # them. However, the VIN's architecture requires it to provide an action
+            # distribution for walls too, so hardcode it to always be STAY.
+            x, y = state
+            if mdp.walls[y][x]:
+                return dist_to_numpy(Distribution({Direction.STAY : 1}))
+            return dist_to_numpy(agent.get_action_distribution(state))
+
+        agent.set_mdp(mdp)
+        action_dists = [[action((x, y)) for x in range(imsize)] for y in range(imsize)]
+        action_dists = np.array(action_dists)
+        return action_dists
 
     fig, axes = plt.subplots(1, 1)
     fig.set_size_inches(5, 5)
 
     # Walls only
     plot_reward(np.zeros_like(reward), walls, fig=fig, ax=axes, ax_title='')
-    fig.savefig(filename+'W', dpi=100)
+    fig.savefig(filename+'W', bbox_inches='tight', dpi=100)
 
     # Reward only
     plot_reward(reward, np.zeros_like(walls), fig=fig, ax=axes, ax_title='')
-    fig.savefig(filename+'R', dpi=100)
+    fig.savefig(filename+'R', bbox_inches='tight', dpi=100)
 
     # Trajectory + Walls + Rewards
     plot_reward(reward, walls, fig=fig, ax=axes, ax_title='')
-    plot_trajectory(walls, reward, start, agent, fig=fig, ax=axes)
-    fig.savefig(filename+'T', dpi=100)
+    # plot_trajectory(walls, reward, start, agent, fig=fig, ax=axes)
+    policy = get_policy()
+    plot_policy(walls, policy, fig=fig, ax=axes)
+    fig.savefig(filename+'T', bbox_inches='tight', dpi=100)
 
 
 if __name__ == "__main__":

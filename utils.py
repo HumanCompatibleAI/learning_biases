@@ -123,21 +123,20 @@ def hatch_walls(walls, ax, mark='/'):
 def plot_policy(walls, policy, fig, ax):
     """Plots arrows in direction of arg max policy"""
     from gridworld import Direction
-    w = walls.length
-    h = walls[0].length
     dir2mark = {
         Direction.NORTH: '^',
-        Direction.SOUTH: 'V',
-        Direction.EAST: '<',
-        Direction.WEST: '>',
+        Direction.SOUTH: 'v',
+        Direction.EAST: '>',
+        Direction.WEST: '<',
         Direction.STAY: '*',
     }
-    for col in walls.length:
-        for row in walls[0].length:
+    policy = np.argmax(policy, axis=-1)
+    for row in range(len(walls)):
+        for col in range(len(walls[row])):
             if walls[col][row] != 1:
-                dist = policy[col][row]
-                direction = D
-                plot_pos((col, row), marker=dir2mark[move], grid_size=walls.length, fig=fig, ax=ax)
+                dist = Direction.ALL_DIRECTIONS[policy[col, row]]
+                mark = dir2mark[dist]
+                plot_pos((row, col), marker=mark, color='r', grid_size=len(walls), ax=ax)
 
 
 def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
