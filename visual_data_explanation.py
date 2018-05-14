@@ -188,7 +188,7 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
             ax.set_aspect('equal')
 
             plot_reward(reward, walls, '', fig=fig, ax=ax)
-            plot_trajectory(walls, reward, start, agent, fig=fig, ax=ax)
+            plot_trajectory(walls, reward, start, agent, arrow_width=0.35, fig=fig, ax=ax)
             # Only write Agent names if it's the first row
             if i == 0:
                 ax.set_title(agent_names[idx])
@@ -276,7 +276,7 @@ if __name__ == "__main__":
     # grid = grids[1]
     grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
     # Show how agents perform on that grid
-    # show_agents(grids, agent_list, agent_names, grid_titles, figtitle='', filename='AgentComparison')
+    show_agents(grids, agent_list, agent_names, grid_titles, figtitle='', filename='AgentComparison')
 
-    for i in range(3):
-        random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))
+    # for i in range(3):
+    #     random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))

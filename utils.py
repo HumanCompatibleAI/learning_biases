@@ -139,7 +139,7 @@ def plot_policy(walls, policy, fig, ax):
                 plot_pos((row, col), marker=mark, color='r', grid_size=len(walls), ax=ax)
 
 
-def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
+def plot_trajectory(wall, reward, start, agent, fig, ax, arrow_width=0.5, EPISODE_LENGTH=35):
     """Simulates a rollout of an agent given an MDP specified
     by the wall, reward, and start state. And plots it.
     """
@@ -175,7 +175,7 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
     # Plot ending trajectory point
     finish = state_trans[-1][0]
     plot_pos(finish, ax=ax, color='k', marker='*', grid_size=len(wall))
-    line_artists = plot_lines(ax, trans_list=state_trans, color='black', grid_size=len(wall))
+    line_artists = plot_lines(ax, trans_list=state_trans, color='black', arrow_width=arrow_width, grid_size=len(wall))
     ax.set_xticks([])
     ax.set_yticks([])
     return fig, ax
@@ -254,7 +254,7 @@ def plot_pos(start, color=None, marker='*', grid_size=None, ax=None):
         color = 'r'
     ax.scatter([col], [row], color=color, s=30, marker=marker)
 
-def plot_lines(ax, trans_list, color='w', grid_size=None):
+def plot_lines(ax, trans_list, arrow_width=0.5, color='w', grid_size=None):
     """Plots transitions as lines on a grid (centered on grid points)"""
     from gridworld import Direction
     if grid_size is None:
@@ -275,7 +275,8 @@ def plot_lines(ax, trans_list, color='w', grid_size=None):
         # midY = (4*p2[1] + p1[1]) / 5.0
         midX = p2[0]
         midY = p2[1]
-        ax.annotate('', xy=(midX, midY), xytext=(p1[0], p1[1]), arrowprops=dict(arrowstyle='simple,head_width=0.5,tail_width=0', facecolor='k'))
+        arrow_style = 'simple,head_width={},tail_width=0'.format(arrow_width)
+        ax.annotate('', xy=(midX, midY), xytext=(p1[0], p1[1]), arrowprops=dict(arrowstyle=arrow_style, facecolor='k'))
         # For dynamic coloring
         # line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=cgrad(i), ls='--')
         # For future matplotlib usage (just in case)
