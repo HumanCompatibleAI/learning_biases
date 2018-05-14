@@ -69,39 +69,39 @@ grids = [
     #  ['X',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','X'],
     #  ['X','X','X','X','X','X','X','X','X','X','X','X','X','X','X','X'],
     #  ],
-    [['X','X','X','X','X','X','X','X'],
-     ['X','X','X',' ',' ', 10,' ','X'],
-     ['X','X',  5,' ','X','X',' ','X'],
-     ['X','X','X',' ','X','X',' ','X'],
-     ['X','X','X',' ','X','X',' ','X'],
-     ['X',  5,' ',' ',' ',' ',' ','X'],
-     ['X','X','X','A',' ',' ',  5,'X'],
-     ['X','X','X','X','X','X','X','X'],
-    ],
-    [['X','X','X','X','X','X','X','X'],
-     ['X',' ',' ',' ',' ','X',  5,'X'],
-     ['X',' ','X',' ',' ',' ',' ','X'],
-     ['X',  3,' ',' ','X','X','X','X'],
-     ['X',' ','X',' ','X',' ',  1,'X'],
-     ['X','X','X',' ','X',' ',' ','X'],
-     ['X','A',' ',' ',' ',' ',' ','X'],
-     ['X','X','X','X','X','X','X','X'],
-    ],
-    [['X','X','X','X','X','X','X','X'],
-     ['X','X','X', 10,'X','X','X','X'],
-     ['X','X',' ',' ',' ',' ','X','X'],
-     ['X',  7,' ','X','X',' ',  4,'X'],
-     ['X','X',' ','X',  3,' ','X','X'],
-     ['X','X',' ','X','X',' ','X','X'],
-     ['X','X',' ',' ',' ','A','X','X'],
-     ['X','X','X','X','X','X','X','X'],
-     ],
+    # [['X','X','X','X','X','X','X','X'],
+    #  ['X','X','X',' ',' ', 10,' ','X'],
+    #  ['X','X',  5,' ','X','X',' ','X'],
+    #  ['X','X','X',' ','X','X',' ','X'],
+    #  ['X','X','X',' ','X','X',' ','X'],
+    #  ['X',  5,' ',' ',' ',' ',' ','X'],
+    #  ['X','X','X','A',' ',' ',  5,'X'],
+    #  ['X','X','X','X','X','X','X','X'],
+    # ],
+    # [['X','X','X','X','X','X','X','X'],
+    #  ['X',' ',' ',' ',' ','X',  5,'X'],
+    #  ['X',' ','X',' ',' ',' ',' ','X'],
+    #  ['X',  3,' ',' ','X','X','X','X'],
+    #  ['X',' ','X',' ','X',' ',  1,'X'],
+    #  ['X','X','X',' ','X',' ',' ','X'],
+    #  ['X','A',' ',' ',' ',' ',' ','X'],
+    #  ['X','X','X','X','X','X','X','X'],
+    # ],
+    # [['X','X','X','X','X','X','X','X'],
+    #  ['X','X','X', 10,'X','X','X','X'],
+    #  ['X','X',' ',' ',' ',' ','X','X'],
+    #  ['X',  7,' ','X','X',' ',  4,'X'],
+    #  ['X','X',' ','X',  3,' ','X','X'],
+    #  ['X','X',' ','X','X',' ','X','X'],
+    #  ['X','X',' ',' ',' ','A','X','X'],
+    #  ['X','X','X','X','X','X','X','X'],
+    #  ],
     [['X','X','X','X','X','X','X','X'],
      ['X', 10,  1,' ',' ','X', -1,'X'],
      ['X',' ',  1,' ',' ',' ',' ','X'],
      ['X','X','X',' ','X','X','X','X'],
      ['X',' ',' ',' ','X',' ',' ','X'],
-     ['X',  2,' ',' ','X',' ',' ','X'],
+     ['X',  2,' ',' ','X', -5,' ','X'],
      ['X','A',' ',' ',' ',' ',' ','X'],
      ['X','X','X','X','X','X','X','X'],
      ]
@@ -196,7 +196,7 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
         # Increase vertical space btwn subplots
     fig.subplots_adjust(hspace=0.2)
     fig.suptitle(figtitle)
-    fig.savefig(filename)
+    fig.savefig(filename, bbox_inches='tight')
     print("Saved figure to {}.png".format(filename))
 
 
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     # grid = grids[1]
     grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
     # Show how agents perform on that grid
-    show_agents(grids, agent_list, agent_names, grid_titles, figtitle='Agent Comparisons')
+    # show_agents(grids, agent_list, agent_names, grid_titles, figtitle='', filename='AgentComparison')
 
-    # for i in range(3):
-    #     random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))
+    for i in range(3):
+        random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))

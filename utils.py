@@ -6,10 +6,12 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Comment this line out to return to matplotlib plot defaults
-# I just thought this looked a tiny bit cleaner
 sns.set(rc={'text.usetex': False,
             'font.serif': 'Times New Roman',
-            'hatch.linewidth': 1.0})
+            # This controls linewidth of the hatching that represents the walls
+            'hatch.linewidth': 1.5,
+            }
+        )
 
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 # helper methods to print nice table (taken from CGT code)
@@ -24,6 +26,8 @@ def fmt_item(x, l):
 def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
+
+# <\End borrowed code>
 
 def set_seeds(seed):
     random.seed(seed)
@@ -71,15 +75,23 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
         # wall_color = np.einsum("ij,k->ijk", walls, BROWN)
 
         # to get our true reward (blue) values on the right scale, we'll create our own color scale
-        small = np.array((45, 100, 245, 0)) / 255.0
-        big = np.array((82, 219, 255, 0)) / 255.0
-        diff = small - big
+        small = np.array((100,149,237, 0)) / 255.0
+        big = np.array((0, 0, 205, 0)) / 255.0
+        diff = big - small
         blue = np.stack([np.zeros(neg_label.shape), np.zeros(neg_label.shape), pos_label.copy(), np.zeros(neg_label.shape)], axis=-1)
-        blue[pos_label > 0, :] = np.einsum('i,j->ij', pos_label[pos_label > 0], diff) + big
+        blue[pos_label > 0, :] = np.einsum('i,j->ij', pos_label[pos_label > 0], diff) + small
 
-        label = np.stack([neg_label, np.zeros(pos_label.shape), np.zeros(pos_label.shape), alphas], axis=-1)
+
+        # Negative reward (violet -> indigo)
+        violet = np.array((195, 171, 219, 0)) / 255.0
+        dark_violet = np.array((96, 30, 158, 0)) / 255.0
+        diff = dark_violet - violet
+        neg_color = np.stack([neg_label.copy(), np.zeros_like(neg_label), np.zeros_like(neg_label), np.zeros_like(neg_label)], axis=-1)
+        neg_color[neg_label > 0, :] = np.einsum('i,j->ij', neg_label[neg_label > 0], diff) + violet
+
+        label = np.stack([np.zeros_like(neg_label), np.zeros(pos_label.shape), np.zeros(pos_label.shape), alphas], axis=-1)
         # label = label + blue + wall_color
-        label = label + blue
+        label = label + blue + neg_color
 
         # Set all the black (0,0,0,1) RGBA tuples to be white
         label[np.sum(label, 2) == 1] = np.array([0.9, 0.9, 0.9,1])
