@@ -257,11 +257,11 @@ def plot_pos(start, color=None, marker='*', grid_size=None, ax=None):
 
 def plot_lines(ax, trans_list, color='w', grid_size=None):
     """Plots transitions as lines on a grid (centered on grid points)"""
+    from gridworld import Direction
     if grid_size is None:
         raise ValueError("Need a value for `grid_size`. Nothing was passed in.")
     # from matplotlib.colors import LinearSegmentedColormap
 
-    num_trans = len(trans_list)
     # RGBA vals that go from pinkish to yellowish -- for dynamic coloring
     # reds = [(1, 0, 1, 1), (1, 1, 0, 1)]
     # cgrad = LinearSegmentedColormap.from_list(name="reds", colors=reds, N=num_trans)
@@ -269,7 +269,14 @@ def plot_lines(ax, trans_list, color='w', grid_size=None):
     for i, trans in enumerate(trans_list):
         start, end = trans
         p1, p2 = start, end
-        line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=color, ls='--')
+        # This just draws arrows of form, arrow(x, y, dx, dy)
+        # line = ax.arrow(p1[0], p1[1], p2[0] - p1[0], p2[1] - p1[1], color=color, head_width=0.3, head_length=0.25, length_includes_head=True)
+        line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=color, ls='-')
+        # midX = (4*p2[0] + p1[0]) / 5.0
+        # midY = (4*p2[1] + p1[1]) / 5.0
+        midX = p2[0]
+        midY = p2[1]
+        ax.annotate('', xy=(midX, midY), xytext=(p1[0], p1[1]), arrowprops=dict(arrowstyle='simple,head_width=0.5,tail_width=0', facecolor='k'))
         # For dynamic coloring
         # line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=cgrad(i), ls='--')
         # For future matplotlib usage (just in case)
