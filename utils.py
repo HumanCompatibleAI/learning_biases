@@ -7,7 +7,9 @@ import matplotlib.pyplot as plt
 
 # Comment this line out to return to matplotlib plot defaults
 # I just thought this looked a tiny bit cleaner
-sns.set()
+sns.set(rc={'text.usetex': False,
+            'font.serif': 'Times New Roman',
+            'hatch.linewidth': 1.0})
 
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 # helper methods to print nice table (taken from CGT code)
@@ -65,8 +67,8 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
         alphas[neg_label > 0] = alpha
 
         # Coloring the walls brown
-        BROWN = np.array((133, 87, 35, 0)) / 255.0
-        wall_color = np.einsum("ij,k->ijk", walls, BROWN)
+        # BROWN = np.array((133, 87, 35, 0)) / 255.0
+        # wall_color = np.einsum("ij,k->ijk", walls, BROWN)
 
         # to get our true reward (blue) values on the right scale, we'll create our own color scale
         small = np.array((45, 100, 245, 0)) / 255.0
@@ -76,11 +78,17 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
         blue[pos_label > 0, :] = np.einsum('i,j->ij', pos_label[pos_label > 0], diff) + big
 
         label = np.stack([neg_label, np.zeros(pos_label.shape), np.zeros(pos_label.shape), alphas], axis=-1)
-        label = label + blue + wall_color
+        # label = label + blue + wall_color
+        label = label + blue
+
+        # Set all the black (0,0,0,1) RGBA tuples to be white
+        label[np.sum(label, 2) == 1] = np.array([0.9, 0.9, 0.9,1])
         return label.reshape(list(walls.shape)+[4])
 
     # truth plot
     true = ax.imshow(make_pic(pos_label, walls, neg_label))
+    hatch_walls(walls, ax)
+
     ax.set_title(ax_title)
 
     # Remove xticks, yticks
@@ -89,6 +97,16 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
 
     return fig, ax
 
+def hatch_walls(walls, ax, mark='/'):
+    """Hatches wall colors.
+    Acceptable marks: [‘/’ | ‘' | ‘|’ | ‘-‘ | ‘+’ | ‘x’ | ‘o’ | ‘O’ | ‘.’ | ‘*’]"""
+    for row in range(len(walls)):
+        for col in range(len(walls[row])):
+            if walls[col][row] == 1:
+                # Draw via XY points
+                Xs = [row - 0.5, row - 0.5, row + 0.5, row + 0.5]
+                Ys = [col - 0.5, col + 0.5, col + 0.5, col - 0.5]
+                ax.fill(Xs, Ys, hatch=mark*5, fill=False)
 
 def plot_policy(walls, policy, fig, ax):
     """Plots arrows in direction of arg max policy"""
@@ -142,11 +160,11 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
         raise ValueError("Given {} axes, but can only use 1 axis".format(len(ax)))
 
     # Plot starting point
-    plot_pos(start, ax=ax, color='w', marker='o', grid_size=len(wall))
+    plot_pos(start, ax=ax, color='k', marker='o', grid_size=len(wall))
     # Plot ending trajectory point
     finish = state_trans[-1][0]
-    plot_pos(finish, ax=ax, color='w', marker='*', grid_size=len(wall))
-    line_artists = plot_lines(ax, trans_list=state_trans, color='w', grid_size=len(wall))
+    plot_pos(finish, ax=ax, color='k', marker='*', grid_size=len(wall))
+    line_artists = plot_lines(ax, trans_list=state_trans, color='black', grid_size=len(wall))
     ax.set_xticks([])
     ax.set_yticks([])
     return fig, ax
