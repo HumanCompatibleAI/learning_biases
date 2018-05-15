@@ -2,6 +2,8 @@ import argparse
 import os
 import subprocess as sp
 import sys
+
+from multiprocessing.pool import ThreadPool
 from utils import concat_folder
 
 INTERPRETER="python"
@@ -22,7 +24,7 @@ CONSTANT_FLAGS = [
     ('simple_mdp', False),
     ('imsize', 16),
     ('noise', 0.2),
-    ('num_rewards', 5),
+    ('num_rewards', 7),
     ('num_human_trajectories', 8000),
     ('vin_regularizer_C', 1e-4),
     ('reward_regularizer_C', 0),
@@ -102,22 +104,39 @@ def flag_generator(flags):
             yield [(flag_name, value)] + sublst
 
 
-def run_command(interpreter, flags, dest):
-    base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
-    flag_strs = ['--{}={}'.format(name, val) for name, val in flags]
-    command = base_command + flag_strs
-    command_str = ' '.join(command)
-    error_file = concat_folder(dest, 'errors.log')
-    print('Running {}'.format(command_str))
-    try:
-        with open(error_file, 'a') as errtxt:
-            proc = sp.call(command, stderr=errtxt)
-        return True
-    except Exception as e:
-        print("Failed to run: {} because of exception {}".format(command_str, e))
-        return False
+class CommandRunner(object):
+    def __init__(self, pool_size):
+        self.pool = ThreadPool(pool_size)
 
-def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest):
+    def add_command_to_pool(self, command, error_file):
+        command_str = ' '.join(command)
+        try:
+            proc = sp.Popen(command, stdout=sp.PIPE, stderr=sp.PIPE)
+            out, err = proc.communicate()
+            print('Ran command: {}'.format(command_str))
+            print(out)
+            with open(error_file, 'a') as errtxt:
+                errtxt.write(command_str + '\n')
+                errtxt.write(err)
+            return True
+        except Exception as e:
+            print("Failed to run: {} because of exception {}".format(command_str))
+            return False
+
+    def run_command(self, interpreter, flags, dest):
+        base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
+        flag_strs = ['--{}={}'.format(name, val) for name, val in flags]
+        command = base_command + flag_strs
+        error_file = concat_folder(dest, 'errors.log')
+        self.pool.apply_async(self.add_command_to_pool, (command, error_file))
+
+    def close(self):
+        self.pool.close()
+
+    def join(self):
+        self.pool.join()
+
+def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, pool_size, dest):
     """
     :param interpreter: path to relevant python executable
     :param flags: dictionary of flags: [benchmark_values]
@@ -125,8 +144,7 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
     if not os.path.isdir(dest):
         os.mkdir(dest)
 
-    base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
-    success, count_calls = 0, 0
+    runner = CommandRunner(pool_size)
     for start in range(low, high):
         seeds = range(10 * start, 10 * (start + 1))
         seed_flag = ('seeds', ','.join([str(seed) for seed in seeds]))
@@ -135,18 +153,15 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
             agent_flags = get_agent_specific_flags(flags)
             beta_flag = get_beta_flag(flags)
             all_flags = [seed_flag] + flags + constant_flags + algorithm_flags + agent_flags
-            if run_command(interpreter, all_flags, dest):
-                success += 1
-            if run_command(interpreter, [beta_flag] + all_flags, dest):
-                success += 1
-            count_calls += 2
-            print('{} successful commands run!'.format(success))
+            runner.run_command(interpreter, all_flags, dest)
+            runner.run_command(interpreter, [beta_flag] + all_flags, dest)
 
-        # Delete the generated gridworld data, since it is quite large
-        for seed in seeds:
-            sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
+    runner.close()
+    runner.join()
 
-    print("{} out of {} calls ran (but may have thrown an exception)".format(success, count_calls))
+    # Delete the generated gridworld data, since it is quite large
+    for seed in range(10 * low, 10 * high):
+        sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
 
 
 def parse_args():
@@ -154,9 +169,10 @@ def parse_args():
     parser.add_argument('--low', required=True)
     parser.add_argument('--high', required=True)
     parser.add_argument('-f', '--folder', required=True)
+    parser.add_argument('-s', '--pool_size', required=True)
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_args()
-    low, high = int(args.low), int(args.high)
-    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, args.folder)
+    low, high, pool_size = map(int, (args.low, args.high, args.pool_size))
+    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, pool_size, args.folder)
