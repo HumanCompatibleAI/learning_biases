@@ -2,8 +2,8 @@ import argparse
 import os
 import subprocess as sp
 import sys
-
-from multiprocessing.pool import ThreadPool
+import threading
+import time
 from utils import concat_folder
 
 INTERPRETER="python"
@@ -104,39 +104,59 @@ def flag_generator(flags):
             yield [(flag_name, value)] + sublst
 
 
-class CommandRunner(object):
-    def __init__(self, pool_size):
-        self.pool = ThreadPool(pool_size)
-
-    def add_command_to_pool(self, command, error_file):
-        command_str = ' '.join(command)
-        try:
+def run_command(command, error_file, gpu_id, gpu_utilization, lock):
+    command_str = ' '.join(command)
+    try:
+        with lock:
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
             proc = sp.Popen(command, stdout=sp.PIPE, stderr=sp.PIPE)
-            out, err = proc.communicate()
+            # Give it a few seconds to start up and read CUDA_VISIBLE_DEVICES
+            time.sleep(5)
+        out, err = proc.communicate()
+        with lock:
+            gpu_utilization[gpu_id] -= 1
             print('Ran command: {}'.format(command_str))
-            print(out)
+            print(out.decode('utf-8'))
             with open(error_file, 'a') as errtxt:
                 errtxt.write(command_str + '\n')
-                errtxt.write(err)
-            return True
-        except Exception as e:
-            print("Failed to run: {} because of exception {}".format(command_str))
-            return False
+                errtxt.write(err.decode('utf-8'))
+        return True
+    except Exception as e:
+        print("Failed to run: {} because of exception {}".format(command_str))
+        return False
 
-    def run_command(self, interpreter, flags, dest):
+class CommandRunner(object):
+    def __init__(self, num_gpus):
+        self.num_gpus = num_gpus
+        self.gpu_utilization = {numeric_id:0 for numeric_id in range(num_gpus)}
+        self.lock = threading.Lock()
+
+    def find_gpu(self):
+        with self.lock:
+            gpu_id, utilization = min(self.gpu_utilization.items(), key=lambda x: x[1])
+            if utilization >= 4:
+                return None
+            self.gpu_utilization[gpu_id] += 1
+            return gpu_id
+
+    def run_command_async(self, interpreter, flags, dest):
         base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
         flag_strs = ['--{}={}'.format(name, val) for name, val in flags]
         command = base_command + flag_strs
         error_file = concat_folder(dest, 'errors.log')
-        self.pool.apply_async(self.add_command_to_pool, (command, error_file))
+        gpu_id = self.find_gpu()
+        while gpu_id is None:
+            time.sleep(10)
+            gpu_id = self.find_gpu()
+        threading.Thread(
+            target=run_command,
+            args=(command, error_file, gpu_id, self.gpu_utilization, self.lock)).start()
 
-    def close(self):
-        self.pool.close()
+    def is_done(self):
+        return set(self.gpu_utilization.values()) == set([0])
 
-    def join(self):
-        self.pool.join()
 
-def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, pool_size, dest):
+def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, num_gpus, dest):
     """
     :param interpreter: path to relevant python executable
     :param flags: dictionary of flags: [benchmark_values]
@@ -144,7 +164,7 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, pool
     if not os.path.isdir(dest):
         os.mkdir(dest)
 
-    runner = CommandRunner(pool_size)
+    runner = CommandRunner(num_gpus)
     for start in range(low, high):
         seeds = range(10 * start, 10 * (start + 1))
         seed_flag = ('seeds', ','.join([str(seed) for seed in seeds]))
@@ -153,15 +173,15 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, pool
             agent_flags = get_agent_specific_flags(flags)
             beta_flag = get_beta_flag(flags)
             all_flags = [seed_flag] + flags + constant_flags + algorithm_flags + agent_flags
-            runner.run_command(interpreter, all_flags, dest)
-            runner.run_command(interpreter, [beta_flag] + all_flags, dest)
+            runner.run_command_async(interpreter, all_flags, dest)
+            runner.run_command_async(interpreter, [beta_flag] + all_flags, dest)
 
-    runner.close()
-    runner.join()
+    while not runner.is_done():
+        time.sleep(30)
 
     # Delete the generated gridworld data, since it is quite large
-    for seed in range(10 * low, 10 * high):
-        sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
+    # for seed in range(10 * low, 10 * high):
+    #     sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
 
 
 def parse_args():
@@ -169,10 +189,10 @@ def parse_args():
     parser.add_argument('--low', required=True)
     parser.add_argument('--high', required=True)
     parser.add_argument('-f', '--folder', required=True)
-    parser.add_argument('-s', '--pool_size', required=True)
+    parser.add_argument('-g', '--num_gpus', required=True)
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_args()
-    low, high, pool_size = map(int, (args.low, args.high, args.pool_size))
-    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, pool_size, args.folder)
+    low, high, num_gpus = map(int, (args.low, args.high, args.num_gpus))
+    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, num_gpus, args.folder)

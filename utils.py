@@ -1,13 +1,13 @@
 import tensorflow as tf
 import numpy as np
 import random
-import matplotlib
-import seaborn as sns
-import matplotlib.pyplot as plt
+#import matplotlib
+#import seaborn as sns
+#import matplotlib.pyplot as plt
 
 # Comment this line out to return to matplotlib plot defaults
 # I just thought this looked a tiny bit cleaner
-sns.set()
+#sns.set()
 
 # Code taken from https://github.com/TheAbhiKumar/tensorflow-value-iteration-networks
 # helper methods to print nice table (taken from CGT code)

@@ -681,7 +681,8 @@ def make_evenly_batched(n, config):
         print('Reducing to {} MDPs to be divisible by the batch size'.format(n))
     return n
 
-def save_results(logs, config, seeds):
+
+def get_output_stuff(config, seeds):
     IGNORED_FLAGS = ['output_folder', 'seeds']
     flags_dict = config.__dict__['__flags']  # Hacky but works
     flags_dict = {k:v for k, v in flags_dict.items() if k not in IGNORED_FLAGS}
@@ -689,24 +690,40 @@ def save_results(logs, config, seeds):
     kvs = tuple(sorted(flags_dict.items()))
     kv_hash = hashlib.sha224(str(kvs).encode()).hexdigest()
     folder = concat_folder(config.output_folder, kv_hash)
+
+    seed_str = ','.join([str(seed) for seed in seeds])
+    filename = concat_folder(folder, 'seeds-{}.npz'.format(seed_str))
+    return flags_dict, folder, filename
+
+def save_results(logs, config, seeds):
+    flags_dict, folder, filename = get_output_stuff(config, seeds)
     if not os.path.exists(folder):
         os.mkdir(folder)
         with open(concat_folder(folder, 'flags.pickle'), 'wb') as f:
             pickle.dump(flags_dict, f)
 
-    seed_str = ','.join([str(seed) for seed in seeds])
-    filename = concat_folder(folder, 'seeds-{}.npz'.format(seed_str))
     if os.path.exists(filename):
         print('Warning: Overwriting existing file {}'.format(filename))
     logs = {k:np.array(v) for k, v in logs.items()}
     np.savez(filename, **logs)
 
+def results_present(config, seeds):
+    _, _, filename = get_output_stuff(config, seeds)
+    return os.path.exists(filename)
 
-if __name__=='__main__':
+
+def main():
     # get flags || Data
     config = init_flags()
     seeds = config.seeds[:]
+    if results_present(config, seeds):
+        print('Results already present!')
+        return
     logs = run_algorithm(config)
     save_results(logs, config, seeds)
     print("<1>N/A<1>")
     print("<2>{}<2>".format(logs['Average %reward']))
+
+
+if __name__=='__main__':
+    main()
