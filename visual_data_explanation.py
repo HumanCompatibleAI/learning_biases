@@ -7,7 +7,7 @@ Possible extensions: add 1a) figure which visualizes our synthesized trajectorie
 """
 import numpy as np
 import utils
-from utils import plot_trajectory, plot_reward, plot_policy, init_flags
+from utils import plot_trajectory, plot_reward, plot_policy, init_flags, set_seeds
 from agents import OptimalAgent
 from gridworld import GridworldMdp
 
@@ -207,9 +207,8 @@ def random_gridworld_plot(agent, size, filename='RandomGrid'):
     if agent is None:
         raise ValueError("agent cannot be None")
 
-    pr_R = 0.01
-    pr_W = 0.2
-    mdp = GridworldMdp.generate_random(size, size, pr_reward=pr_R, pr_wall=pr_W)
+    num_R = 5
+    mdp = GridworldMdp.generate_random_connected(size, size, num_R, noise=0)
 
     walls, reward, start = mdp.convert_to_numpy_input()
 
@@ -256,20 +255,27 @@ def random_gridworld_plot(agent, size, filename='RandomGrid'):
 if __name__ == "__main__":
     # config = init_flags()
     # agent, _ = create_agents_from_config(config)
+    set_seeds(0)
     from fast_agents import FastMyopicAgent as Myopic, \
         FastNaiveTimeDiscountingAgent as Naive,\
-        FastSophisticatedTimeDiscountingAgent as Sophisticated
-    kwargs = {'max_delay': 10,
+        FastSophisticatedTimeDiscountingAgent as Sophisticated,\
+        FastUncalibratedAgent as Uncalibrated
+    kwargs = {'gamma': 0.95,
+              'max_delay': 10,
               'discount_constant': 0.9}
-    agent_list = [OptimalAgent(),
+    agent_list = [OptimalAgent(gamma=0.95),
                   Naive(**kwargs),
                   Sophisticated(**kwargs),
-                  Myopic(horizon=10),
+                  Myopic(gamma=0.95, horizon=10),
+                  Uncalibrated(gamma=0.95, calibration_factor=5),
+                  Uncalibrated(gamma=0.95, calibration_factor=0.5)
                   ]
     agent_names = ['Optimal',
                    'Naive',
                    'Sophisticated',
                    'Myopic',
+                   'Overconfident',
+                   'Underconfident'
                    ]
     
     # Choose grid

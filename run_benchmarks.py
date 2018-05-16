@@ -2,6 +2,8 @@ import argparse
 import os
 import subprocess as sp
 import sys
+import threading
+import time
 from utils import concat_folder
 
 INTERPRETER="python"
@@ -22,7 +24,7 @@ CONSTANT_FLAGS = [
     ('simple_mdp', False),
     ('imsize', 16),
     ('noise', 0.2),
-    ('num_rewards', 5),
+    ('num_rewards', 7),
     ('num_human_trajectories', 8000),
     ('vin_regularizer_C', 1e-4),
     ('reward_regularizer_C', 0),
@@ -102,22 +104,59 @@ def flag_generator(flags):
             yield [(flag_name, value)] + sublst
 
 
-def run_command(interpreter, flags, dest):
-    base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
-    flag_strs = ['--{}={}'.format(name, val) for name, val in flags]
-    command = base_command + flag_strs
+def run_command(command, error_file, gpu_id, gpu_utilization, lock):
     command_str = ' '.join(command)
-    error_file = concat_folder(dest, 'errors.log')
-    print('Running {}'.format(command_str))
     try:
-        with open(error_file, 'a') as errtxt:
-            proc = sp.call(command, stderr=errtxt)
+        with lock:
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+            proc = sp.Popen(command, stdout=sp.PIPE, stderr=sp.PIPE)
+            # Give it a few seconds to start up and read CUDA_VISIBLE_DEVICES
+            time.sleep(5)
+        out, err = proc.communicate()
+        with lock:
+            gpu_utilization[gpu_id] -= 1
+            print('Ran command: {}'.format(command_str))
+            print(out.decode('utf-8'))
+            with open(error_file, 'a') as errtxt:
+                errtxt.write(command_str + '\n')
+                errtxt.write(err.decode('utf-8'))
         return True
     except Exception as e:
-        print("Failed to run: {} because of exception {}".format(command_str, e))
+        print("Failed to run: {} because of exception {}".format(command_str))
         return False
 
-def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest):
+class CommandRunner(object):
+    def __init__(self, num_gpus):
+        self.num_gpus = num_gpus
+        self.gpu_utilization = {numeric_id:0 for numeric_id in range(num_gpus)}
+        self.lock = threading.Lock()
+
+    def find_gpu(self):
+        with self.lock:
+            gpu_id, utilization = min(self.gpu_utilization.items(), key=lambda x: x[1])
+            if utilization >= 4:
+                return None
+            self.gpu_utilization[gpu_id] += 1
+            return gpu_id
+
+    def run_command_async(self, interpreter, flags, dest):
+        base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
+        flag_strs = ['--{}={}'.format(name, val) for name, val in flags]
+        command = base_command + flag_strs
+        error_file = concat_folder(dest, 'errors.log')
+        gpu_id = self.find_gpu()
+        while gpu_id is None:
+            time.sleep(10)
+            gpu_id = self.find_gpu()
+        threading.Thread(
+            target=run_command,
+            args=(command, error_file, gpu_id, self.gpu_utilization, self.lock)).start()
+
+    def is_done(self):
+        return set(self.gpu_utilization.values()) == set([0])
+
+
+def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, num_gpus, dest):
     """
     :param interpreter: path to relevant python executable
     :param flags: dictionary of flags: [benchmark_values]
@@ -125,8 +164,7 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
     if not os.path.isdir(dest):
         os.mkdir(dest)
 
-    base_command = [interpreter, 'train.py', '--output_folder={}'.format(dest)]
-    success, count_calls = 0, 0
+    runner = CommandRunner(num_gpus)
     for start in range(low, high):
         seeds = range(10 * start, 10 * (start + 1))
         seed_flag = ('seeds', ','.join([str(seed) for seed in seeds]))
@@ -135,18 +173,15 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, dest
             agent_flags = get_agent_specific_flags(flags)
             beta_flag = get_beta_flag(flags)
             all_flags = [seed_flag] + flags + constant_flags + algorithm_flags + agent_flags
-            if run_command(interpreter, all_flags, dest):
-                success += 1
-            if run_command(interpreter, [beta_flag] + all_flags, dest):
-                success += 1
-            count_calls += 2
-            print('{} successful commands run!'.format(success))
+            runner.run_command_async(interpreter, all_flags, dest)
+            runner.run_command_async(interpreter, [beta_flag] + all_flags, dest)
 
-        # Delete the generated gridworld data, since it is quite large
-        for seed in seeds:
-            sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
+    while not runner.is_done():
+        time.sleep(30)
 
-    print("{} out of {} calls ran (but may have thrown an exception)".format(success, count_calls))
+    # Delete the generated gridworld data, since it is quite large
+    # for seed in range(10 * low, 10 * high):
+    #     sp.call('rm datasets/*-seed-{}-*.npz'.format(seed), shell=True)
 
 
 def parse_args():
@@ -154,9 +189,10 @@ def parse_args():
     parser.add_argument('--low', required=True)
     parser.add_argument('--high', required=True)
     parser.add_argument('-f', '--folder', required=True)
+    parser.add_argument('-g', '--num_gpus', required=True)
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_args()
-    low, high = int(args.low), int(args.high)
-    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, args.folder)
+    low, high, num_gpus = map(int, (args.low, args.high, args.num_gpus))
+    run_benchmarks(low, high, INTERPRETER, FLAGS, CONSTANT_FLAGS, num_gpus, args.folder)
