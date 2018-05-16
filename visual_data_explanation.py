@@ -236,13 +236,13 @@ def random_gridworld_plot(agent, size, filename='RandomGrid'):
     fig, axes = plt.subplots(1, 1)
     fig.set_size_inches(5, 5)
 
-    # Walls only
-    plot_reward(np.zeros_like(reward), walls, fig=fig, ax=axes, ax_title='')
-    fig.savefig(filename+'W', bbox_inches='tight', dpi=100)
-
     # Reward only
     plot_reward(reward, np.zeros_like(walls), fig=fig, ax=axes, ax_title='')
     fig.savefig(filename+'R', bbox_inches='tight', dpi=100)
+
+    # Walls only
+    plot_reward(np.zeros_like(reward), walls, fig=fig, ax=axes, ax_title='')
+    fig.savefig(filename+'W', bbox_inches='tight', dpi=100)
 
     # Trajectory + Walls + Rewards
     plot_reward(reward, walls, fig=fig, ax=axes, ax_title='')
@@ -282,7 +282,7 @@ if __name__ == "__main__":
     # grid = grids[1]
     grid_titles = ["Easy", "Medium", "Hard", "Bonus"]
     # Show how agents perform on that grid
-    show_agents(grids, agent_list, agent_names, grid_titles, figtitle='', filename='AgentComparison')
+    # show_agents(grids, agent_list, agent_names, grid_titles, figtitle='', filename='AgentComparison')
 
-    # for i in range(3):
-    #     random_gridworld_plot(OptimalAgent(), 20, filename='random/RandomGrid-{}'.format(i))
+    for i in range(3):
+        random_gridworld_plot(OptimalAgent(), 10, filename='random/RandomGrid-{}'.format(i))
