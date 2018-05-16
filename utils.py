@@ -75,19 +75,23 @@ def plot_reward(reward, walls, ax_title, fig, ax, alpha=1):
         # wall_color = np.einsum("ij,k->ijk", walls, BROWN)
 
         # to get our true reward (blue) values on the right scale, we'll create our own color scale
-        small = np.array((100,149,237, 0)) / 255.0
-        big = np.array((0, 0, 205, 0)) / 255.0
-        diff = big - small
+        # Another possibility: 123, 176, 32
+        small_positive = np.array((150,189,3, 0)) / 255.0
+        # Another possibility: 26,147,111
+        big_positive = np.array((85,135,80, 0)) / 255.0
+        diff = big_positive - small_positive
         blue = np.stack([np.zeros(neg_label.shape), np.zeros(neg_label.shape), pos_label.copy(), np.zeros(neg_label.shape)], axis=-1)
-        blue[pos_label > 0, :] = np.einsum('i,j->ij', pos_label[pos_label > 0], diff) + small
+        blue[pos_label > 0, :] = np.einsum('i,j->ij', pos_label[pos_label > 0], diff) + small_positive
 
 
-        # Negative reward (violet -> indigo)
-        violet = np.array((195, 171, 219, 0)) / 255.0
-        dark_violet = np.array((96, 30, 158, 0)) / 255.0
-        diff = dark_violet - violet
+        # Negative reward
+        # Another possibility: 223, 161, 177
+        small_negative = np.array((227,126,126, 0)) / 255.0
+        # Another possibility: 195, 75, 123
+        big_negative = np.array((180,27,27, 0)) / 255.0
+        diff = big_negative - small_negative
         neg_color = np.stack([neg_label.copy(), np.zeros_like(neg_label), np.zeros_like(neg_label), np.zeros_like(neg_label)], axis=-1)
-        neg_color[neg_label > 0, :] = np.einsum('i,j->ij', neg_label[neg_label > 0], diff) + violet
+        neg_color[neg_label > 0, :] = np.einsum('i,j->ij', neg_label[neg_label > 0], diff) + small_negative
 
         label = np.stack([np.zeros_like(neg_label), np.zeros(pos_label.shape), np.zeros(pos_label.shape), alphas], axis=-1)
         # label = label + blue + wall_color
@@ -118,7 +122,7 @@ def hatch_walls(walls, ax, mark='/'):
                 # Draw via XY points
                 Xs = [row - 0.5, row - 0.5, row + 0.5, row + 0.5]
                 Ys = [col - 0.5, col + 0.5, col + 0.5, col - 0.5]
-                ax.fill(Xs, Ys, hatch=mark*5, fill=False)
+                ax.fill(Xs, Ys, hatch=mark*5, fill=False, color='grey')
 
 def plot_policy(walls, policy, fig, ax):
     """Plots arrows in direction of arg max policy"""
@@ -136,7 +140,7 @@ def plot_policy(walls, policy, fig, ax):
             if walls[col][row] != 1:
                 dist = Direction.ALL_DIRECTIONS[policy[col, row]]
                 mark = dir2mark[dist]
-                plot_pos((row, col), marker=mark, color='r', grid_size=len(walls), ax=ax)
+                plot_pos((row, col), marker=mark, color='black', grid_size=len(walls), ax=ax)
 
 
 def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
