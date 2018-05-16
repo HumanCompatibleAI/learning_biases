@@ -142,6 +142,24 @@ def plot_policy(walls, policy, fig, ax):
                 mark = dir2mark[dist]
                 plot_pos((row, col), marker=mark, color='black', grid_size=len(walls), ax=ax)
 
+def plot_policy_diff(predicted, true, walls, fig, ax):
+    """Plots policy, boxes wrong answers"""
+    from matplotlib.patches import Rectangle
+
+    plot_policy(walls, predicted, fig, ax)
+
+    predicted = np.argmax(predicted, axis=-1)
+    true = np.argmax(true, axis=-1)
+
+    for i in range(len(predicted)):
+        for j in range(len(predicted)):
+            if predicted[i, j] != true[i, j]:
+                ax.add_patch(
+                    Rectangle(
+                        (j-0.5, i-0.5), 1, 1, fill=False, edgecolor='red', linewidth=1.5
+                ))
+
+
 
 def plot_trajectory(wall, reward, start, agent, fig, ax, arrow_width=0.5, EPISODE_LENGTH=35):
     """Simulates a rollout of an agent given an MDP specified

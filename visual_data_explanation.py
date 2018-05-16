@@ -7,7 +7,7 @@ Possible extensions: add 1a) figure which visualizes our synthesized trajectorie
 """
 import numpy as np
 import utils
-from utils import plot_trajectory, plot_reward, plot_policy, init_flags, set_seeds
+from utils import plot_trajectory, plot_reward, plot_policy, plot_policy_diff, set_seeds
 from agents import OptimalAgent
 from gridworld import GridworldMdp
 
@@ -200,7 +200,7 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
     print("Saved figure to {}.png".format(filename))
 
 
-def random_gridworld_plot(agent, size, filename='RandomGrid'):
+def random_gridworld_plot(agent, other_agent, size, filename='RandomGrid'):
     """Plots random gridworld"""
     from gridworld import Direction
     from utils import Distribution
@@ -212,7 +212,7 @@ def random_gridworld_plot(agent, size, filename='RandomGrid'):
 
     walls, reward, start = mdp.convert_to_numpy_input()
 
-    def get_policy():
+    def get_policy(agent):
         num_actions = 5
         imsize = len(walls)
 
@@ -247,9 +247,15 @@ def random_gridworld_plot(agent, size, filename='RandomGrid'):
     # Trajectory + Walls + Rewards
     plot_reward(reward, walls, fig=fig, ax=axes, ax_title='')
     # plot_trajectory(walls, reward, start, agent, fig=fig, ax=axes)
-    policy = get_policy()
+    policy = get_policy(agent)
     plot_policy(walls, policy, fig=fig, ax=axes)
-    fig.savefig(filename+'T', bbox_inches='tight', dpi=100)
+    fig.savefig(filename+'Ptrue', bbox_inches='tight', dpi=100)
+
+    axes.clear()
+    plot_reward(reward, walls, fig=fig, ax=axes, ax_title='')
+    predicted = get_policy(other_agent)
+    plot_policy_diff(predicted, policy, walls, fig=fig, ax=axes)
+    fig.savefig(filename+'Ppredicted', bbox_inches='tight', dpi=100)
 
 
 if __name__ == "__main__":
@@ -285,4 +291,4 @@ if __name__ == "__main__":
     # show_agents(grids, agent_list, agent_names, grid_titles, figtitle='', filename='AgentComparison')
 
     for i in range(3):
-        random_gridworld_plot(OptimalAgent(), 10, filename='random/RandomGrid-{}'.format(i))
+        random_gridworld_plot(OptimalAgent(), Myopic(gamma=0.95, horizon=5),  10, filename='random/RandomGrid-{}'.format(i))
