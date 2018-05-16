@@ -196,7 +196,7 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
         # Increase vertical space btwn subplots
     fig.subplots_adjust(hspace=0.2)
     fig.suptitle(figtitle)
-    fig.savefig(filename, bbox_inches='tight', dpi=100)
+    fig.savefig(filename, bbox_inches='tight', dpi=200)
     print("Saved figure to {}.png".format(filename))
 
 

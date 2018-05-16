@@ -6,8 +6,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Comment this line out to return to matplotlib plot defaults
-sns.set(rc={'text.usetex': False,
-            'font.serif': 'Times New Roman',
+sns.set(rc={'text.usetex': True,
+            'font.family': 'Times New Roman',
             # This controls linewidth of the hatching that represents the walls
             'hatch.linewidth': 1.5,
             }
