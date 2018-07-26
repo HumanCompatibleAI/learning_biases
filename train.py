@@ -122,6 +122,7 @@ class PlannerArchitecture(object):
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
         # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
+        self.sess = sess
         sess.run(self.initialize_op)
         # if self.config.log:
         #     self.builder.add_meta_graph_and_variables(
@@ -247,6 +248,13 @@ class PlannerArchitecture(object):
                 print('Validation Accuracy: ' + str(100 * (1 - err)))
 
         # Saving SavedModel instance
+        if self.config.savemodel:
+            savepath = "model_save/"
+            tf.saved_model.simple_save(self.sess,
+                                       savepath,
+                                       inputs={"rewardinput": self.reward_input,
+                                               "image": self.image},
+                                       outputs={"qvalues": self.model.output_probs})
         # if self.config.log:
         #     savepath = self.builder.save()
         #     print("Model saved to: {}".format(savepath))
@@ -438,8 +446,8 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
 
         reward_percents = []
         for label, reward, wall, start_state, i in zip(reward_irl, inferred_rewards, image_irl, start_states_irl, range(len(reward_irl))):
-            if config.plot_rewards and i < 10:
-                plot_reward_and_trajectories(label, reward, wall, start_state, config, 'reward_pics/reward_{}'.format(i))
+            # if config.plot_rewards and i < 10:
+            #     plot_reward_and_trajectories(label, reward, wall, start_state, config, 'reward_pics/reward_{}'.format(i))
             reward_percents.append(
                 evaluate_proxy(wall, start_state, reward, label, episode_length=20))
 
@@ -716,11 +724,12 @@ def main():
     # get flags || Data
     config = init_flags()
     seeds = config.seeds[:]
-    if results_present(config, seeds):
-        print('Results already present!')
-        return
+    # if results_present(config, seeds):
+    #     print('Results already present!')
+    #     return
     logs = run_algorithm(config)
-    save_results(logs, config, seeds)
+    # save_results(logs, config, seeds)
+    # For bash scripts which read from stdout
     print("<1>N/A<1>")
     print("<2>{}<2>".format(logs['Average %reward']))
 

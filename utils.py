@@ -367,6 +367,8 @@ def init_flags():
         """)
     tf.app.flags.DEFINE_boolean(
         'plot_rewards', True, 'Whether or not to plot rewards')
+    tf.app.flags.DEFINE_boolean(
+        'savemodel', False, 'Whether or not to save the model')
 
     # Miscellaneous
     tf.app.flags.DEFINE_string(
