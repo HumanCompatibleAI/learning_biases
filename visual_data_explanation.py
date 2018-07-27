@@ -7,7 +7,8 @@ Possible extensions: add 1a) figure which visualizes our synthesized trajectorie
 """
 import numpy as np
 import utils
-from utils import plot_trajectory, plot_reward, plot_policy, plot_policy_diff, set_seeds
+from utils import plot_trajectory, plot_reward, plot_policy, plot_policy_diff, set_seeds,\
+    _plot_reward_and_trajectories_helper
 from agents import OptimalAgent
 from gridworld import GridworldMdp
 
@@ -122,7 +123,7 @@ def problem_description():
     pass
 
 
-def get_policy(self, agent, grid):
+def get_policy(agent, grid):
     """Returns the policy of the agent given"""
     from gridworld import GridworldMdp, Direction
     from utils import Distribution
@@ -290,5 +291,10 @@ if __name__ == "__main__":
     # Show how agents perform on that grid
     # show_agents(grids, agent_list, agent_names, grid_titles, figtitle='', filename='AgentComparison')
 
-    for i in range(3):
-        random_gridworld_plot(OptimalAgent(), Myopic(gamma=0.95, horizon=5),  10, filename='random/RandomGrid-{}'.format(i))
+    grid = grids[0]
+    mdp = GridworldMdp(grid)
+    walls, reward, start = mdp.convert_to_numpy_input()
+    _plot_reward_and_trajectories_helper(reward, reward, walls, start,
+                                         agent_list[0], agent_list[2], animate=True)
+    # for i in range(3):
+    #     random_gridworld_plot(OptimalAgent(), Myopic(gamma=0.95, horizon=5),  10, filename='random/RandomGrid-{}'.format(i))
