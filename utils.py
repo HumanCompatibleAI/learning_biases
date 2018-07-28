@@ -6,8 +6,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Comment this line out to return to matplotlib plot defaults
-sns.set(rc={'text.usetex': False,
-            'font.serif': 'Times New Roman',
+sns.set(rc={ # 'text.usetex': True,
+            'font.family': 'Times New Roman',
             # This controls linewidth of the hatching that represents the walls
             'hatch.linewidth': 1.5,
             }
@@ -142,10 +142,31 @@ def plot_policy(walls, policy, fig, ax):
                 mark = dir2mark[dist]
                 plot_pos((row, col), marker=mark, color='black', grid_size=len(walls), ax=ax)
 
+def plot_policy_diff(predicted, true, walls, fig, ax):
+    """Plots policy, boxes wrong answers"""
+    from matplotlib.patches import Rectangle
 
-def plot_trajectory(wall, reward, start, agent, fig, ax, noise=0.2, EPISODE_LENGTH=35):
+    plot_policy(walls, predicted, fig, ax)
+
+    predicted = np.argmax(predicted, axis=-1)
+    true = np.argmax(true, axis=-1)
+
+    for i in range(len(predicted)):
+        for j in range(len(predicted)):
+            if predicted[i, j] != true[i, j]:
+                ax.add_patch(
+                    Rectangle(
+                        (j-0.5, i-0.5), 1, 1, fill=False, edgecolor='red', linewidth=1.5
+                ))
+
+
+
+def plot_trajectory(wall, reward, start, agent, fig, ax, arrow_width=0.5, EPISODE_LENGTH=35,
+                    animate=False, fname=None):
     """Simulates a rollout of an agent given an MDP specified
     by the wall, reward, and start state. And plots it.
+
+    If animate is true, an animation object will be returned
     """
     from gridworld import GridworldMdp
     from mdp_interface import Mdp
@@ -179,12 +200,14 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, noise=0.2, EPISODE_LENG
     # Plot ending trajectory point
     finish = state_trans[-1][0]
     plot_pos(finish, ax=ax, color='k', marker='*', grid_size=len(wall))
-    line_artists = plot_lines(ax, trans_list=state_trans, color='black', grid_size=len(wall))
+    plot_lines(ax, fig, trans_list=state_trans, color='black', arrow_width=arrow_width, grid_size=len(wall),
+               animate=animate, fname=fname)
     ax.set_xticks([])
     ax.set_yticks([])
     return fig, ax
 
-def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, config, filename='reward_comparison.png'):
+def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, config, filename='reward_comparison.png',
+                                 animate=False):
     """Plots reward vs inferred reward. On the true reward, plot the biased agent's trajectory. On the
     inferred reward, plot the optimal agent's trajectory.
 
@@ -206,7 +229,7 @@ def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, con
 
 
 def _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, start, true_agent, inferred_agent,
-                                          filename='reward_comparison.png'):
+                                          filename='reward_comparison.png', animate=False):
     """Plots same thing as plot_reward_and_trajectories, but using only agents, no config"""
     from agents import OptimalAgent
     from gridworld_data import create_agents_from_config
@@ -219,14 +242,17 @@ def _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, st
     plot_reward(true_reward, walls, 'True Reward', fig=fig, ax=axes[0])
     plot_reward(inferred_reward, walls,'Inferred Reward', fig=fig, ax=axes[1])
     # Plot the agents' trajectories (will perform rollout)
-    plot_trajectory(walls, true_reward, start, true_agent, fig=fig, ax=axes[0])
-    plot_trajectory(walls, inferred_reward, start, inferred_agent, fig=fig, ax=axes[1])
+    plot_trajectory(walls, true_reward, start, true_agent, fig=fig, ax=axes[0], animate=animate,
+                    fname=filename+'0')
+    plot_trajectory(walls, inferred_reward, start, inferred_agent, fig=fig, ax=axes[1], animate=animate,
+                    fname=filename+'1')
     # Plot starting positions for agents in both the true and inferred reward plots
     plot_pos(start, color='m', grid_size=len(walls), ax=axes[0])
     plot_pos(start, color='m', grid_size=len(walls), ax=axes[1])
 
     # titleing
     fig.suptitle("Comparison of Reward Functions")
+    fig.set_tight_layout(True)
 
     # saving to file
     fig.savefig(filename)
@@ -258,7 +284,8 @@ def plot_pos(start, color=None, marker='*', grid_size=None, ax=None):
         color = 'r'
     ax.scatter([col], [row], color=color, s=30, marker=marker)
 
-def plot_lines(ax, trans_list, color='w', grid_size=None):
+def plot_lines(ax, fig, trans_list, arrow_width=0.5, color='w', grid_size=None, animate=False, fname=None):
+    from matplotlib.animation import FuncAnimation
     """Plots transitions as lines on a grid (centered on grid points)"""
     from gridworld import Direction
     if grid_size is None:
@@ -268,8 +295,9 @@ def plot_lines(ax, trans_list, color='w', grid_size=None):
     # RGBA vals that go from pinkish to yellowish -- for dynamic coloring
     # reds = [(1, 0, 1, 1), (1, 1, 0, 1)]
     # cgrad = LinearSegmentedColormap.from_list(name="reds", colors=reds, N=num_trans)
-    line_artists = []
-    for i, trans in enumerate(trans_list):
+
+    def drawMove(i):
+        trans = trans_list[i]
         start, end = trans
         p1, p2 = start, end
         # This just draws arrows of form, arrow(x, y, dx, dy)
@@ -279,13 +307,22 @@ def plot_lines(ax, trans_list, color='w', grid_size=None):
         # midY = (4*p2[1] + p1[1]) / 5.0
         midX = p2[0]
         midY = p2[1]
-        ax.annotate('', xy=(midX, midY), xytext=(p1[0], p1[1]), arrowprops=dict(arrowstyle='simple,head_width=0.5,tail_width=0', facecolor='k'))
+        arrow_style = 'simple,head_width={},tail_width=0'.format(arrow_width)
+        ax.annotate('', xy=(midX, midY), xytext=(p1[0], p1[1]), arrowprops=dict(arrowstyle=arrow_style, facecolor='k'))
         # For dynamic coloring
         # line = ax.plot((p1[0], p2[0]), (p1[1], p2[1]), color=cgrad(i), ls='--')
-        # For future matplotlib usage (just in case)
-        line_artists.append(line)
+        return ax
 
-    return line_artists
+    if not animate:
+        # line_artists = []
+        # # For future matplotlib usage (just in case)
+        # line_artists.append(line)
+        for i in range(len((trans_list))):
+            drawMove(i)
+    else:
+        anim = FuncAnimation(fig=fig, frames=np.arange(0, len(trans_list)), func=drawMove, interval=70)
+        anim.save(fname+'.mp4', dpi=100)
+
 
 
 def init_flags():

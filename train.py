@@ -2,7 +2,6 @@
 
 import time
 import numpy as np
-import random
 import tensorflow as tf
 import hashlib
 import os
@@ -14,7 +13,7 @@ from gridworld_data import generate_data_for_planner, generate_data_for_reward, 
 from model import create_model, calculate_action_distribution
 from utils import fmt_row, init_flags, plot_reward_and_trajectories, set_seeds, concat_folder
 from agent_runner import evaluate_proxy
-import sys
+from utils import plot_reward
 
 class PlannerArchitecture(object):
     """Stores all of the tensors involved in the architecture.
