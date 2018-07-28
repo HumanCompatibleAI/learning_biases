@@ -27,7 +27,7 @@ def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out
 
-# <\End borrowed code>
+# </End borrowed code>
 
 def set_seeds(seed):
     random.seed(seed)
@@ -143,7 +143,7 @@ def plot_policy(walls, policy, fig, ax):
                 plot_pos((row, col), marker=mark, color='black', grid_size=len(walls), ax=ax)
 
 
-def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
+def plot_trajectory(wall, reward, start, agent, fig, ax, noise=0.2, EPISODE_LENGTH=35):
     """Simulates a rollout of an agent given an MDP specified
     by the wall, reward, and start state. And plots it.
     """
@@ -151,11 +151,11 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, EPISODE_LENGTH=35):
     from mdp_interface import Mdp
     from agent_runner import run_agent
 
-    mdp = GridworldMdp.from_numpy_input(wall, reward, start)
+    mdp = GridworldMdp.from_numpy_input(wall, reward, start, noise)
 
     agent.set_mdp(mdp)
     env = Mdp(mdp)
-    trajectory = run_agent(agent, env, episode_length=EPISODE_LENGTH)
+    trajectory = run_agent(agent, env, episode_length=EPISODE_LENGTH, determinism=True)
 
     if len(trajectory) <= 1:
         raise ValueError("Trajectory rolled out unsuccessfully")

@@ -105,7 +105,7 @@ class FastSophisticatedTimeDiscountingAgent(agents.SophisticatedTimeDiscountingA
 
             # First compute Q-values for planning to choose actions
             # TODO(rohinmshah): Should we be using discounted_values[:,:,0]?
-            planning_qvalues = get_next_state_values(vals[:,:,1], noise_info, wall_info)
+            planning_qvalues = get_next_state_values(vals[:,:,0], noise_info, wall_info)
             planning_qvalues += hyperbolic_rewards[:,:,:,0]
             actions_chosen = planning_qvalues.argmax(axis=0)
             onehot_actions = np.eye(5, dtype=bool)[actions_chosen]

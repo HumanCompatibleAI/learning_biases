@@ -62,6 +62,14 @@ def load_experiment_run(filename):
        result['joint_iterations'] = np.arange(1, len(joint_costs[0]) + 1)
     return result
 
+def get_means_and_sterrs(all_results):
+    means_data, sterrs_data = {}, {}
+    for key in all_results[0].keys():
+        data = np.stack([result[key] for result in all_results], axis=0)
+        means_data[key] = np.mean(data, axis=0)
+        sterrs_data[key] = scipy.stats.sem(data, axis=0)
+    return means_data, sterrs_data
+
 def load_experiment(folder):
     """Loads the data from <folder>, specifically from flags.pickle and
     seeds-*.npz, and aggregates the data across seeds.
@@ -78,12 +86,8 @@ def load_experiment(folder):
         if result is not None:
             all_results.append(result)
 
-    means_data, sterrs_data = {}, {}
-    for key in all_results[0].keys():
-        data = np.stack([result[key] for result in all_results], axis=0)
-        means_data[key] = np.mean(data, axis=0)
-        sterrs_data[key] = scipy.stats.sem(data, axis=0)
-    return means_data, sterrs_data
+    means_data, sterrs_data = get_means_and_sterrs(all_results)
+    return means_data, sterrs_data, all_results
 
 def load_data(folder):
     """Loads all experiment data from <folder>.
@@ -91,7 +95,7 @@ def load_data(folder):
     Returns a dictionary from keys of the form ((var, val), ...) to Experiment
     objects.
     """
-    experiments = {}
+    experiments, algorithms_results = {}, {}
     for sha_hash in os.listdir(folder):
         if len(sha_hash) != 56 or not set(sha_hash) <= set('0123456789abcdef'):
             continue
@@ -100,12 +104,20 @@ def load_data(folder):
             continue
 
         key, flags_dict = get_flag_vals(subfolder)
-        means, sterrs = load_experiment(subfolder)
+        alg = flags_dict['algorithm']
+        means, sterrs, all_results = load_experiment(subfolder)
         assert key not in experiments, '{}: {} and {}'.format(key, sha_hash, experiments[key].unique_id)
+        if alg not in algorithms_results:
+            algorithms_results[alg] = []
+        algorithms_results[alg].extend(all_results)
         experiments[key] = Experiment(sha_hash, flags_dict, means, sterrs)
 
+    algorithms_data = {}
+    for alg, results in algorithms_results.items():
+        algorithms_data[alg] = get_means_and_sterrs(results)
+
     print('Loaded {} experiments'.format(len(experiments.items())))
-    return experiments
+    return experiments, algorithms_data
 
 
 ##############
@@ -185,16 +197,17 @@ def get_matching_experiments(experiments, flags_to_match):
     check = lambda exp: all(exp.flags[k] == v for k, v in flags_to_match)
     return [exp for exp in experiments.values() if check(exp)]
 
-def write_table(experiments, dependent_var, output_file):
+def write_table(experiments, algorithms_data, dependent_var, output_file):
     """Writes a table of final results with standard errors.
 
     - experiments: Dictionary from keys of the form ((var, val), ...)
           to Experiment objects
     """
-    row_names = ['Optimal', 'Naive', 'Sophisticated', 'Myopic', 'Overconfident',
-                 'Underconfident', 'Boltzmann-Optimal', 'Boltzmann-Naive',
-                 'Boltzmann-Sophisticated', 'Boltzmann-Myopic',
-                 'Boltzmann-Overconfident', 'Boltzmann-Underconfident']
+    row_names = ['Average', 'Optimal', 'Naive', 'Sophisticated', 'Myopic',
+                 'Overconfident', 'Underconfident', 'Boltzmann-Optimal',
+                 'Boltzmann-Naive', 'Boltzmann-Sophisticated',
+                 'Boltzmann-Myopic', 'Boltzmann-Overconfident',
+                 'Boltzmann-Underconfident']
     col_names = ['optimal_planner', 'boltzmann_planner', 'given_rewards',
                  'em_with_init', 'joint_with_init', 'em_without_init',
                  'joint_without_init', 'vi_inference']
@@ -220,6 +233,12 @@ def write_table(experiments, dependent_var, output_file):
         return row, col
 
     results = [[(None, None)] * len(col_names) for _ in range(len(row_names))]
+    for col, col_name in enumerate(col_names):
+        if col_name not in algorithms_data:
+            continue
+        means, sterrs = algorithms_data[col_name]
+        results[0][col] = (means[key], sterrs[key])
+
     for exp in experiments.values():
         mean = exp.means_data[key]
         sterr = exp.sterrs_data[key]
@@ -237,6 +256,14 @@ def write_table(experiments, dependent_var, output_file):
             return 'N/A' if mean is None else '"[%.1f, %.1f]"' % (factor*(mean-sterr), factor*(mean+sterr))
         else:
             raise ValueError('Unknown type of output')
+
+    for col in range(len(results[0])):
+        things_to_average = [results[i][col][0] for i in range(len(results))
+                             if results[i][col][0] is not None]
+        if things_to_average == []:
+            continue
+        avg = sum(things_to_average) / len(things_to_average)
+        print('{} has average {}'.format(col_names[col], 100 * avg))
 
     with open(output_file, 'w') as f:
         f.write('Agent,' + ','.join(col_names) + '\n')
@@ -272,8 +299,8 @@ def maybe_num(x):
 
 if __name__ == '__main__':
     args = parse_args()
-    experiments = load_data(args.folder)
+    experiments, algorithms_data = load_data(args.folder)
     experiments, all_vars, _ = process_data(experiments)
     controls = parse_kv_pairs(args.control_var_val)
     # extra_experiments = [parse_kv_pairs(x.split(',')) for x in args.experiment]
-    write_table(experiments, args.dependent_var, args.output_file)
+    write_table(experiments, algorithms_data, args.dependent_var, args.output_file)
