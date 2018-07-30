@@ -92,6 +92,9 @@ class PlannerArchitecture(object):
         else:
             self.step2_cost = self.logits_cost
 
+        # Naming step2_cost op
+        self.step2_cost = tf.identity(self.step2_cost, "step2cost")
+
         # Define optimizers
         if config.model != 'VI':
             planner_optimizer = tf.train.AdamOptimizer(config.lr)
@@ -99,6 +102,8 @@ class PlannerArchitecture(object):
 
         reward_optimizer = tf.train.AdamOptimizer(config.reward_lr)
         self.reward_optimize_op = reward_optimizer.minimize(self.step2_cost, var_list=[self.reward])
+        # Nameing reward optimize op
+        self.reward_optimize_op = tf.identity(self.reward_optimize_op, "reward_optimize_op")
 
         # Test model & calculate accuracy
         cp = tf.cast(tf.argmax(self.model.output_probs, 1), tf.int32)
@@ -107,6 +112,7 @@ class PlannerArchitecture(object):
         most_likely_labels = tf.cast(tf.argmax(labels, axis=1), tf.int32)
         self.err = tf.reduce_mean(
             tf.cast(tf.not_equal(cp, most_likely_labels), dtype=tf.float32))
+        self.err = tf.identity(self.err, "identity")
 
         # Initializing the variables
         self.initialize_op = tf.global_variables_initializer()
@@ -248,7 +254,12 @@ class PlannerArchitecture(object):
 
         # Saving SavedModel instance
         if self.config.savemodel:
+            saver = tf.train.Saver()
+            # This allows for the model to perform reward inference
+            saver.save(sess, "model_save_sess/")
             savepath = "model_save/"
+            # The following line only provides SERVING tags, so it cannot be used (easily)
+            # for reward inference. Which sucks
             tf.saved_model.simple_save(self.sess,
                                        savepath,
                                        inputs={"rewardinput": self.reward_input,
