@@ -102,8 +102,6 @@ class PlannerArchitecture(object):
 
         reward_optimizer = tf.train.AdamOptimizer(config.reward_lr)
         self.reward_optimize_op = reward_optimizer.minimize(self.step2_cost, var_list=[self.reward])
-        # Nameing reward optimize op
-        self.reward_optimize_op = tf.identity(self.reward_optimize_op, "reward_optimize_op")
 
         # Test model & calculate accuracy
         cp = tf.cast(tf.argmax(self.model.output_probs, 1), tf.int32)
@@ -256,8 +254,8 @@ class PlannerArchitecture(object):
         if self.config.savemodel:
             saver = tf.train.Saver()
             # This allows for the model to perform reward inference
-            saver.save(sess, "model_save_sess/")
-            savepath = "model_save/"
+            saver.save(sess, "model_save_sess_0/")
+            savepath = "model_save_k/"
             # The following line only provides SERVING tags, so it cannot be used (easily)
             # for reward inference. Which sucks
             tf.saved_model.simple_save(self.sess,
