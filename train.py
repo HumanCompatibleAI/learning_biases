@@ -98,6 +98,7 @@ class PlannerArchitecture(object):
         # Define optimizers
         if config.model != 'VI':
             planner_optimizer = tf.train.AdamOptimizer(config.lr)
+            tf.add_to_collection("optimizers", planner_optimizer)
             self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
             tf.add_to_collection("optimizers", planner_optimizer)
             tf.add_to_collection("optimizer ops", self.planner_optimize_op)
