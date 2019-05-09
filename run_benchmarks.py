@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 from utils import concat_folder
+from tqdm import tqdm
 
 INTERPRETER="python"
 
@@ -160,15 +161,16 @@ def run_benchmarks(low, high, interpreter, flag_parameters, constant_flags, num_
     """
     :param interpreter: path to relevant python executable
     :param flags: dictionary of flags: [benchmark_values]
+    high-low = # of trials run per config
     """
     if not os.path.isdir(dest):
         os.mkdir(dest)
 
     runner = CommandRunner(num_gpus)
-    for start in range(low, high):
+    for start in tqdm(range(low, high), desc='# trials'):
         seeds = range(10 * start, 10 * (start + 1))
         seed_flag = ('seeds', ','.join([str(seed) for seed in seeds]))
-        for flags in flag_generator(flag_parameters):
+        for flags in tqdm(flag_generator(flag_parameters), desc='parameter combinations'):
             algorithm_flags = get_algorithm_specific_flags(flags)
             agent_flags = get_agent_specific_flags(flags)
             beta_flag = get_beta_flag(flags)
