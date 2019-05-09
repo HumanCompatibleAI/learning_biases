@@ -1,9 +1,11 @@
+import os
 import tensorflow as tf
 import numpy as np
 import random
-#import matplotlib
-#import seaborn as sns
-#import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use("tkagg")
+# import seaborn as sns
+import matplotlib.pyplot as plt
 
 # Comment this line out to return to matplotlib plot defaults
 # I just thought this looked a tiny bit cleaner
@@ -164,6 +166,8 @@ def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, con
     """
     from agents import OptimalAgent
     from gridworld_data import create_agents_from_config
+    dirs = os.path.dirname(filename)
+    os.makedirs(dirs, exist_ok=True)
 
     true_agent, other_agent = create_agents_from_config(config)
     inferred_agent = OptimalAgent()

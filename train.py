@@ -375,8 +375,8 @@ def run_interruptibly(fn, step_name='this step'):
     except KeyboardInterrupt:
         print('Skipping the rest of ' + step_name)
 
-def run_inference(planner_train_data, planner_validation_data, reward_data,
-                  algorithm_fn, config):
+def run_inference(planner_train_data, planner_validation_data, reward_data, 
+                  algorithm_fn, architecture, config):
     """
     Evaluates a given algorithm_fn based upon its inferred reward
 
@@ -402,7 +402,6 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         'accuracy': [],
     }
     # use flags to create model and retrieve relevant operations
-    architecture = PlannerArchitecture(config)
 
     if planner_train_data and planner_validation_data:
         image_train, reward_train, _, y_train = planner_train_data
@@ -562,7 +561,7 @@ def vi_algorithm(architecture, sess, train_data, validation_data, reward_data,
 def infer_given_some_rewards(config):
     if config.verbosity >= 2:
         print('Assumption: We have some human data where the rewards are known')
-
+    architecture = PlannerArchitecture(config)
     agent, other_agents = create_agents_from_config(config)
     num_traj, num_with_reward = config.num_human_trajectories, config.num_with_rewards
     num_without_reward = make_evenly_batched(num_traj - num_with_reward, config)
@@ -573,12 +572,13 @@ def infer_given_some_rewards(config):
         num_train, num_validation, agent, config, other_agents)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data,
-                         two_phase_algorithm, config)
+    return run_inference(train_data, validation_data, reward_data, 
+                         two_phase_algorithm, architecture, config)
 
 def infer_with_rational_planner(config, beta=None):
     if config.verbosity >= 2:
         print('Using a rational planner with beta {} to mimic normal IRL'.format(beta))
+    architecture = PlannerArchitecture(config)
 
     agent, other_agents = create_agents_from_config(config)
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
@@ -590,14 +590,16 @@ def infer_with_rational_planner(config, beta=None):
         num_simulated, num_validation, optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data,
-                         two_phase_algorithm, config)
+    return run_inference(train_data, validation_data, reward_data, 
+                         two_phase_algorithm, architecture, config)
 
 def infer_with_no_rewards(config, train_jointly, initialize):
     if config.verbosity >= 2:
         s1 = 'jointly' if train_jointly else 'iteratively'
         s2 = 'with' if initialize else 'without'
         print('No rewards given, training planner and reward {} {} initialization'.format(s1, s2))
+    architecture = PlannerArchitecture(config)
+
     agent, other_agents = create_agents_from_config(config)
     num_simulated, num_validation = config.num_simulated, config.num_validation
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
@@ -611,18 +613,19 @@ def infer_with_no_rewards(config, train_jointly, initialize):
             gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
         train_data, validation_data = generate_data_for_planner(
             num_simulated, num_validation, optimal_agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data, alg, config)
+    return run_inference(train_data, validation_data, reward_data, alg, architecture, config)
 
 def infer_with_value_iteration(config):
     """ This uses a differentiable value iteration algorithm to infer rewards.
     It's basically just the reward inference part of infer_with_some_rewards, with model=Value_Iter
     """
     print("Using Value Iteration to infer rewards")
+    architecture = PlannerArchitecture(config)
     agent, other_agents = create_agents_from_config(config)
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
-    return run_inference(None, None, reward_data, vi_algorithm, config)
+    return run_inference(None, None, reward_data, vi_algorithm, architecture, config)
 
 def infer_with_max_causal_ent(config):
     """Uses Adam's code to implement Max Causal Entropy for our gridworld MDP."""
