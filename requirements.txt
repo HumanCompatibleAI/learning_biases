@@ -200,6 +200,7 @@ simplegeneric==0.8.1
 singledispatch==3.4.0.3
 six==1.10.0
 snowballstemmer==1.2.1
+sns==0.1
 sortedcollections==0.6.1
 sortedcontainers==1.5.10
 Sphinx==1.7.4

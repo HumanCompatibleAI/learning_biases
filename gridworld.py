@@ -270,7 +270,7 @@ class GridworldMdp(GridworldMdpNoR):
         return walls, rewards, self.start_state
 
     @staticmethod
-    def from_numpy_input(walls, reward, start_state):
+    def from_numpy_input(walls, reward, start_state, noise=0):
         """Creates the MDP from the format output by convert_to_numpy_input.
 
         See convert_to_numpy_input for the types of the parameters. If
@@ -298,7 +298,7 @@ class GridworldMdp(GridworldMdpNoR):
         grid = [[get_elem(x, y) for x in range(width)] for y in range(height)]
         x, y = start_state
         grid[y][x] = 'A'
-        return GridworldMdp(grid)
+        return GridworldMdp(grid, noise=noise)
 
     @staticmethod
     def get_random_state(grid, accepted_tokens):
