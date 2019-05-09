@@ -129,6 +129,8 @@ def generate_n_examples(n, agent, config, seed=0, other_agents=[], goals=None, f
         dataset = load_dataset(filename)
         print('Reusing existing dataset')
         return dataset
+    elif not os.path.exists(folder):
+        os.mkdir(folder)
 
     print('Could not find ' + filename)
     print('Generating {} examples'.format(n))
