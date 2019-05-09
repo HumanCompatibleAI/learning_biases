@@ -15,7 +15,7 @@ import numpy as np
 np.set_printoptions(2)
 import tabular_maxent
 from tabular_maxent import irl, expected_counts
-from gridworld import GridworldMdpNoR
+from gridworld.gridworld import GridworldMdpNoR
 
 
 def irl_with_config(image, action_dists, start, config, verbose=False):
@@ -68,7 +68,7 @@ def flatten_policy(policy):
 
 def testTransition():
     """tests creation of the mdpNoR.get_transition_matrix() method, visually :)"""
-    from gridworld import Direction
+    from gridworld.gridworld import Direction
     walls = [[1,1,1,1],
              [1,0,0,1],
              [1,0,0,1],
@@ -120,7 +120,7 @@ def recover(position, arr):
 
 
 def recoverDirectionTrans(position, direction, trans, size):
-    from gridworld import Direction
+    from gridworld.gridworld import Direction
     """Position is 2d, index into shape image grid
     Direction of form Direction.EAST
 
@@ -138,7 +138,7 @@ def flatten_position(position, size):
 
 
 def test_irl(grid, agent):
-    from gridworld import GridworldMdp, Direction
+    from gridworld.gridworld import GridworldMdp, Direction
     from utils import Distribution
 
     num_actions = len(Direction.ALL_DIRECTIONS)
@@ -177,7 +177,7 @@ def test_irl(grid, agent):
 def test_visitations(grid, agent):
     """Tests the expected_counts calculation--might be einsum error"""
     # print("Testing expected_counts")
-    from gridworld import GridworldMdp, Direction
+    from gridworld.gridworld import GridworldMdp, Direction
     from utils import Distribution
 
     num_actions = len(Direction.ALL_DIRECTIONS)
@@ -223,7 +223,7 @@ def test_visitations(grid, agent):
 
 def test_coherence(grid, agent):
     """Test that these arrays perform as expected under np.einsum"""
-    from gridworld import GridworldMdp, Direction
+    from gridworld.gridworld import GridworldMdp, Direction
     from utils import Distribution
 
     num_actions = len(Direction.ALL_DIRECTIONS)

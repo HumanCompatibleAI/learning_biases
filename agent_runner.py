@@ -1,4 +1,4 @@
-from gridworld import GridworldMdp, Direction
+from gridworld.gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
 from fast_agents import FastOptimalAgent
 import numpy as np

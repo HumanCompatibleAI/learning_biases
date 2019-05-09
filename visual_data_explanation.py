@@ -10,7 +10,7 @@ import utils
 from utils import plot_trajectory, plot_reward, plot_policy, plot_policy_diff, set_seeds,\
     _plot_reward_and_trajectories_helper
 from agents import OptimalAgent
-from gridworld import GridworldMdp
+from gridworld.gridworld import GridworldMdp
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -150,7 +150,7 @@ def problem_description():
 
 def get_policy(agent, grid):
     """Returns the policy of the agent given"""
-    from gridworld import GridworldMdp, Direction
+    from gridworld.gridworld import GridworldMdp, Direction
     from utils import Distribution
 
     num_actions = len(Direction.ALL_DIRECTIONS)
@@ -220,7 +220,7 @@ def show_agents(grids, agent_list, agent_names, grid_names, filename='AgentCompa
 
 def random_gridworld_plot(agent, other_agent, size, filename='RandomGrid'):
     """Plots random gridworld"""
-    from gridworld import Direction
+    from gridworld.gridworld import Direction
     from utils import Distribution
     if agent is None:
         raise ValueError("agent cannot be None")

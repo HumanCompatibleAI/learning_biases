@@ -7,7 +7,7 @@ import fast_agents
 
 from agent_interface import Agent
 from agent_runner import run_agent, get_reward_from_trajectory
-from gridworld import GridworldMdp, Direction
+from gridworld.gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
 from model import tf_value_iter_no_config
 from utils import Distribution, set_seeds

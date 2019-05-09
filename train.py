@@ -9,7 +9,7 @@ import pickle
 
 import agents
 import fast_agents
-from gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
+from gridworld.gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
 from model import create_model, calculate_action_distribution
 from utils import fmt_row, init_flags, plot_reward_and_trajectories, set_seeds, concat_folder
 from agent_runner import evaluate_proxy

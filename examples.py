@@ -1,6 +1,6 @@
 from agent_runner import run_agent
-from gridworld import GridworldMdp
-from gridworld_data import print_training_example
+from gridworld.gridworld import GridworldMdp
+from gridworld.gridworld_data import print_training_example
 from mdp_interface import Mdp
 
 from agents import NaiveTimeDiscountingAgent

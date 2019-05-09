@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from model import tf_value_iter_no_config
 from agents import OptimalAgent
-from gridworld import GridworldMdp
+from gridworld.gridworld import GridworldMdp
 sess = tf.InteractiveSession()
 
 walls  = [[1, 1, 1, 1, 1],
