@@ -690,7 +690,7 @@ def get_output_stuff(config, seeds):
     # flags_dict = config.__dict__['__flags']  # Hacky but works
     # flags_dict = {k:v for k, v in flags_dict.items() if k not in IGNORED_FLAGS}
     flags_dict = dir(config)
-    flags_dict = {k: config[k] for k in flags_dict if k not in IGNORED_FLAGS}
+    flags_dict = {k: config[k].value for k in flags_dict if k not in IGNORED_FLAGS}
 
     kvs = tuple(sorted(flags_dict.items()))
     kv_hash = hashlib.sha224(str(kvs).encode()).hexdigest()
@@ -703,7 +703,7 @@ def get_output_stuff(config, seeds):
 def save_results(logs, config, seeds):
     flags_dict, folder, filename = get_output_stuff(config, seeds)
     if not os.path.exists(folder):
-        os.mkdir(folder)
+        os.makedirs(folder)
         with open(concat_folder(folder, 'flags.pickle'), 'wb') as f:
             pickle.dump(flags_dict, f)
 
