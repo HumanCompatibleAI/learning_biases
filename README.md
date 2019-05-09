@@ -7,6 +7,8 @@ learning.
 
 ## Code
 
+Note that for SIMPLE baseline only gridsizes of 8 & 14 work.
+
 ### Gridworlds
 
 `gridworld.py`: Implements the Gridworld MDP, which is used for simple

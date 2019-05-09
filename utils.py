@@ -259,7 +259,7 @@ def init_flags():
     #   Generate data
     tf.app.flags.DEFINE_boolean(
         'simple_mdp', False, 'Whether to use the simple random MDP generator')
-    tf.app.flags.DEFINE_integer('imsize', 16, 'Size of input image')
+    tf.app.flags.DEFINE_integer('imsize', 14, 'Size of input image')
     tf.app.flags.DEFINE_float(
         'wall_prob', 0.05,
         'Probability of having a wall at any particular space in the gridworld. '
