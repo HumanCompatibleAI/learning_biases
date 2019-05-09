@@ -92,13 +92,21 @@ class PlannerArchitecture(object):
         else:
             self.step2_cost = self.logits_cost
 
+        # Naming step2_cost op
+        self.step2_cost = tf.identity(self.step2_cost, "step2cost")
+
         # Define optimizers
         if config.model != 'VI':
             planner_optimizer = tf.train.AdamOptimizer(config.lr)
+            tf.add_to_collection("optimizers", planner_optimizer)
             self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
+            tf.add_to_collection("optimizers", planner_optimizer)
+            tf.add_to_collection("optimizer ops", self.planner_optimize_op)
 
         reward_optimizer = tf.train.AdamOptimizer(config.reward_lr)
+        tf.add_to_collection("optimizers", reward_optimizer)
         self.reward_optimize_op = reward_optimizer.minimize(self.step2_cost, var_list=[self.reward])
+        tf.add_to_collection("optimizer ops", self.reward_optimize_op)
 
         # Test model & calculate accuracy
         cp = tf.cast(tf.argmax(self.model.output_probs, 1), tf.int32)
@@ -107,6 +115,7 @@ class PlannerArchitecture(object):
         most_likely_labels = tf.cast(tf.argmax(labels, axis=1), tf.int32)
         self.err = tf.reduce_mean(
             tf.cast(tf.not_equal(cp, most_likely_labels), dtype=tf.float32))
+        self.err = tf.identity(self.err, "identity")
 
         # Initializing the variables
         self.initialize_op = tf.global_variables_initializer()
@@ -121,6 +130,7 @@ class PlannerArchitecture(object):
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
         # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
+        self.sess = sess
         sess.run(self.initialize_op)
         # if self.config.log:
         #     self.builder.add_meta_graph_and_variables(
@@ -246,9 +256,10 @@ class PlannerArchitecture(object):
                 print('Validation Accuracy: ' + str(100 * (1 - err)))
 
         # Saving SavedModel instance
-        # if self.config.log:
-        #     savepath = self.builder.save()
-        #     print("Model saved to: {}".format(savepath))
+        if self.config.savemodel:
+            saver = tf.train.Saver()
+            # This allows for the model to perform reward inference
+            saver.save(sess, "model_save_sess_0/")
 
     def train_reward(self, sess, image_data, reward_data, y_data, num_epochs, logs):
         """Infers the reward using backprop, holding the planner fixed.
@@ -720,11 +731,12 @@ def main():
     # get flags || Data
     config = init_flags()
     seeds = config.seeds[:]
-    if results_present(config, seeds):
-        print('Results already present!')
-        return
+    # if results_present(config, seeds):
+    #     print('Results already present!')
+    #     return
     logs = run_algorithm(config)
-    save_results(logs, config, seeds)
+    # save_results(logs, config, seeds)
+    # For bash scripts which read from stdout
     print("<1>N/A<1>")
     print("<2>{}<2>".format(logs['Average %reward']))
 

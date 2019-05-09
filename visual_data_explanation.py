@@ -134,7 +134,6 @@ grids = [
     ]
 ]
 
-
 def problem_description():
 # for i, ax in enumerate(axes[idx]):
 #     if i == 0:

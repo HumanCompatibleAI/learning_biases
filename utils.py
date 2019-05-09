@@ -192,9 +192,9 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, arrow_width=0.5, EPISOD
     if count == len(state_trans):
         print("Yes, the agent given stayed in the same spot for {} iterations...".format(len(state_trans)))
 
-    if not fig or not ax:
-        fig, ax = plt.subplots(1,1)
-    if ax and type(ax) is list:
+    if fig is None or ax is None:
+        fig, ax = plt.subplots(1, 1)
+    if ax is not None and type(ax) is list:
         raise ValueError("Given {} axes, but can only use 1 axis".format(len(ax)))
 
     # Plot starting point
@@ -448,6 +448,8 @@ def init_flags():
         """)
     tf.app.flags.DEFINE_boolean(
         'plot_rewards', True, 'Whether or not to plot rewards')
+    tf.app.flags.DEFINE_boolean(
+        'savemodel', False, 'Whether or not to save the model')
 
     # Miscellaneous
     tf.app.flags.DEFINE_string(
