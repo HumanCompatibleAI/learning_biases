@@ -684,8 +684,10 @@ def make_evenly_batched(n, config):
 
 def get_output_stuff(config, seeds):
     IGNORED_FLAGS = ['output_folder', 'seeds']
-    flags_dict = config.__dict__['__flags']  # Hacky but works
-    flags_dict = {k:v for k, v in flags_dict.items() if k not in IGNORED_FLAGS}
+    # flags_dict = config.__dict__['__flags']  # Hacky but works
+    # flags_dict = {k:v for k, v in flags_dict.items() if k not in IGNORED_FLAGS}
+    flags_dict = dir(config)
+    flags_dict = {k: config[k] for k in flags_dict if k not in IGNORED_FLAGS}
 
     kvs = tuple(sorted(flags_dict.items()))
     kv_hash = hashlib.sha224(str(kvs).encode()).hexdigest()
