@@ -163,7 +163,7 @@ def VI_Block(X, config):
     q_out = tf.reshape(q, [-1, ch_q])
 
     # add logits
-    logits = tf.matmul(q_out, w_o)
+    logits = tf.matmul(q_out, w_o, name="logits")
 
     # softmax output weights
     output = tf.nn.softmax(logits, name="output")

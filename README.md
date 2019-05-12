@@ -7,6 +7,11 @@ learning.
 
 ## Code
 
+Note that for **SIMPLE** baseline only gridsizes of 8 & 14 work.
+
+To run benchmark testing, run `python run_benchmarks.py --low LOW --high HIGH` etc.
+
+
 ### Gridworlds
 
 `gridworld.py`: Implements the Gridworld MDP, which is used for simple

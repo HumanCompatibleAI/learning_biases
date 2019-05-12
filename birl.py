@@ -3,8 +3,8 @@ import numpy as np
 import random
 
 from fast_agents import FastOptimalAgent
-from gridworld import GridworldMdpNoR, GridworldMdp, Direction
-from gridworld_data import load_dataset
+from gridworld.gridworld import GridworldMdpNoR, GridworldMdp, Direction
+from gridworld.gridworld_data import load_dataset
 from utils import plot_reward, set_seeds
 
 

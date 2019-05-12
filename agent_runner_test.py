@@ -1,7 +1,7 @@
 import unittest
 from agent_interface import Agent
 from agent_runner import run_agent, evaluate_proxy
-from gridworld import GridworldMdp, Direction
+from gridworld.gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
 import numpy as np
 import pdb

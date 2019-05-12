@@ -2,7 +2,6 @@
 
 import time
 import numpy as np
-import random
 import tensorflow as tf
 import hashlib
 import os
@@ -10,11 +9,11 @@ import pickle
 
 import agents
 import fast_agents
-from gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
+from gridworld.gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
 from model import create_model, calculate_action_distribution
 from utils import fmt_row, init_flags, plot_reward_and_trajectories, set_seeds, concat_folder
 from agent_runner import evaluate_proxy
-import sys
+from utils import plot_reward
 
 class PlannerArchitecture(object):
     """Stores all of the tensors involved in the architecture.
@@ -93,13 +92,21 @@ class PlannerArchitecture(object):
         else:
             self.step2_cost = self.logits_cost
 
+        # Naming step2_cost op
+        self.step2_cost = tf.identity(self.step2_cost, "step2cost")
+
         # Define optimizers
         if config.model != 'VI':
             planner_optimizer = tf.train.AdamOptimizer(config.lr)
+            tf.add_to_collection("optimizers", planner_optimizer)
             self.planner_optimize_op = planner_optimizer.minimize(self.step1_cost)
+            tf.add_to_collection("optimizers", planner_optimizer)
+            tf.add_to_collection("optimizer ops", self.planner_optimize_op)
 
         reward_optimizer = tf.train.AdamOptimizer(config.reward_lr)
+        tf.add_to_collection("optimizers", reward_optimizer)
         self.reward_optimize_op = reward_optimizer.minimize(self.step2_cost, var_list=[self.reward])
+        tf.add_to_collection("optimizer ops", self.reward_optimize_op)
 
         # Test model & calculate accuracy
         cp = tf.cast(tf.argmax(self.model.output_probs, 1), tf.int32)
@@ -108,6 +115,7 @@ class PlannerArchitecture(object):
         most_likely_labels = tf.cast(tf.argmax(labels, axis=1), tf.int32)
         self.err = tf.reduce_mean(
             tf.cast(tf.not_equal(cp, most_likely_labels), dtype=tf.float32))
+        self.err = tf.identity(self.err, "identity")
 
         # Initializing the variables
         self.initialize_op = tf.global_variables_initializer()
@@ -122,6 +130,7 @@ class PlannerArchitecture(object):
     def register_new_session(self, sess):
         # The tag on this model is to access the weights explicitly
         # I think SERVING vs TRAINING tags means you can save static & dynamic weights 4 a model
+        self.sess = sess
         sess.run(self.initialize_op)
         # if self.config.log:
         #     self.builder.add_meta_graph_and_variables(
@@ -247,9 +256,10 @@ class PlannerArchitecture(object):
                 print('Validation Accuracy: ' + str(100 * (1 - err)))
 
         # Saving SavedModel instance
-        # if self.config.log:
-        #     savepath = self.builder.save()
-        #     print("Model saved to: {}".format(savepath))
+        if self.config.savemodel:
+            saver = tf.train.Saver()
+            # This allows for the model to perform reward inference
+            saver.save(sess, "model_save_sess_0/")
 
     def train_reward(self, sess, image_data, reward_data, y_data, num_epochs, logs):
         """Infers the reward using backprop, holding the planner fixed.
@@ -375,8 +385,8 @@ def run_interruptibly(fn, step_name='this step'):
     except KeyboardInterrupt:
         print('Skipping the rest of ' + step_name)
 
-def run_inference(planner_train_data, planner_validation_data, reward_data,
-                  algorithm_fn, config):
+def run_inference(planner_train_data, planner_validation_data, reward_data, 
+                  algorithm_fn, architecture, config):
     """
     Evaluates a given algorithm_fn based upon its inferred reward
 
@@ -402,7 +412,6 @@ def run_inference(planner_train_data, planner_validation_data, reward_data,
         'accuracy': [],
     }
     # use flags to create model and retrieve relevant operations
-    architecture = PlannerArchitecture(config)
 
     if planner_train_data and planner_validation_data:
         image_train, reward_train, _, y_train = planner_train_data
@@ -562,7 +571,7 @@ def vi_algorithm(architecture, sess, train_data, validation_data, reward_data,
 def infer_given_some_rewards(config):
     if config.verbosity >= 2:
         print('Assumption: We have some human data where the rewards are known')
-
+    architecture = PlannerArchitecture(config)
     agent, other_agents = create_agents_from_config(config)
     num_traj, num_with_reward = config.num_human_trajectories, config.num_with_rewards
     num_without_reward = make_evenly_batched(num_traj - num_with_reward, config)
@@ -573,12 +582,13 @@ def infer_given_some_rewards(config):
         num_train, num_validation, agent, config, other_agents)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data,
-                         two_phase_algorithm, config)
+    return run_inference(train_data, validation_data, reward_data, 
+                         two_phase_algorithm, architecture, config)
 
 def infer_with_rational_planner(config, beta=None):
     if config.verbosity >= 2:
         print('Using a rational planner with beta {} to mimic normal IRL'.format(beta))
+    architecture = PlannerArchitecture(config)
 
     agent, other_agents = create_agents_from_config(config)
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
@@ -590,14 +600,16 @@ def infer_with_rational_planner(config, beta=None):
         num_simulated, num_validation, optimal_agent, config, other_agents)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data,
-                         two_phase_algorithm, config)
+    return run_inference(train_data, validation_data, reward_data, 
+                         two_phase_algorithm, architecture, config)
 
 def infer_with_no_rewards(config, train_jointly, initialize):
     if config.verbosity >= 2:
         s1 = 'jointly' if train_jointly else 'iteratively'
         s2 = 'with' if initialize else 'without'
         print('No rewards given, training planner and reward {} {} initialization'.format(s1, s2))
+    architecture = PlannerArchitecture(config)
+
     agent, other_agents = create_agents_from_config(config)
     num_simulated, num_validation = config.num_simulated, config.num_validation
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
@@ -611,18 +623,19 @@ def infer_with_no_rewards(config, train_jointly, initialize):
             gamma=config.gamma, beta=config.beta, num_iters=config.num_iters)
         train_data, validation_data = generate_data_for_planner(
             num_simulated, num_validation, optimal_agent, config, other_agents)
-    return run_inference(train_data, validation_data, reward_data, alg, config)
+    return run_inference(train_data, validation_data, reward_data, alg, architecture, config)
 
 def infer_with_value_iteration(config):
     """ This uses a differentiable value iteration algorithm to infer rewards.
     It's basically just the reward inference part of infer_with_some_rewards, with model=Value_Iter
     """
     print("Using Value Iteration to infer rewards")
+    architecture = PlannerArchitecture(config)
     agent, other_agents = create_agents_from_config(config)
     num_without_reward = make_evenly_batched(config.num_human_trajectories, config)
     reward_data = generate_data_for_reward(
         num_without_reward, agent, config, other_agents)
-    return run_inference(None, None, reward_data, vi_algorithm, config)
+    return run_inference(None, None, reward_data, vi_algorithm, architecture, config)
 
 def infer_with_max_causal_ent(config):
     """Uses Adam's code to implement Max Causal Entropy for our gridworld MDP."""
@@ -684,8 +697,10 @@ def make_evenly_batched(n, config):
 
 def get_output_stuff(config, seeds):
     IGNORED_FLAGS = ['output_folder', 'seeds']
-    flags_dict = config.__dict__['__flags']  # Hacky but works
-    flags_dict = {k:v for k, v in flags_dict.items() if k not in IGNORED_FLAGS}
+    # flags_dict = config.__dict__['__flags']  # Hacky but works
+    # flags_dict = {k:v for k, v in flags_dict.items() if k not in IGNORED_FLAGS}
+    flags_dict = dir(config)
+    flags_dict = {k: config[k].value for k in flags_dict if k not in IGNORED_FLAGS}
 
     kvs = tuple(sorted(flags_dict.items()))
     kv_hash = hashlib.sha224(str(kvs).encode()).hexdigest()
@@ -698,7 +713,7 @@ def get_output_stuff(config, seeds):
 def save_results(logs, config, seeds):
     flags_dict, folder, filename = get_output_stuff(config, seeds)
     if not os.path.exists(folder):
-        os.mkdir(folder)
+        os.makedirs(folder)
         with open(concat_folder(folder, 'flags.pickle'), 'wb') as f:
             pickle.dump(flags_dict, f)
 
@@ -716,11 +731,12 @@ def main():
     # get flags || Data
     config = init_flags()
     seeds = config.seeds[:]
-    if results_present(config, seeds):
-        print('Results already present!')
-        return
+    # if results_present(config, seeds):
+    #     print('Results already present!')
+    #     return
     logs = run_algorithm(config)
-    save_results(logs, config, seeds)
+    # save_results(logs, config, seeds)
+    # For bash scripts which read from stdout
     print("<1>N/A<1>")
     print("<2>{}<2>".format(logs['Average %reward']))
 
