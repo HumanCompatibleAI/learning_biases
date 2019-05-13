@@ -172,7 +172,7 @@ def plot_trajectory(wall, reward, start, agent, fig, ax, arrow_width=0.5, EPISOD
     """
     from gridworld.gridworld import GridworldMdp
     from mdp_interface import Mdp
-    from agent_runner import run_agent
+    from agents.agent_runner import run_agent
 
     mdp = GridworldMdp.from_numpy_input(wall, reward, start)
 
