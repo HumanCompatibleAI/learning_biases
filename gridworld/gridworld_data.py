@@ -4,10 +4,10 @@ import random
 import csv
 import os
 
-import agents
-import fast_agents
-from agent_runner import run_agent
-from gridworld import GridworldMdp, Direction
+from agents import agents as agents
+from agents import fast_agents as fast_agents
+from agents.agent_runner import run_agent
+from gridworld.gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
 from utils import Distribution, init_flags
 

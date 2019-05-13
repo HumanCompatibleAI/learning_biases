@@ -7,7 +7,7 @@ import hashlib
 import os
 import pickle
 
-import agents
+from agents import  agents
 import fast_agents
 from gridworld.gridworld_data import generate_data_for_planner, generate_data_for_reward, create_agents_from_config
 from model import create_model, calculate_action_distribution

@@ -1,6 +1,6 @@
 from gridworld.gridworld import GridworldMdp, Direction
 from mdp_interface import Mdp
-from fast_agents import FastOptimalAgent
+from .fast_agents import FastOptimalAgent
 import numpy as np
 
 def run_agent(agent, env, episode_length=float("inf"), determinism=False):

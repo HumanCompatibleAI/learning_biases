@@ -1,10 +1,10 @@
-from agent_runner import run_agent
+from agents.agent_runner import run_agent
 from gridworld.gridworld import GridworldMdp
 from gridworld.gridworld_data import print_training_example
 from mdp_interface import Mdp
 
-from agents import NaiveTimeDiscountingAgent
-import fast_agents
+from agents.agents import NaiveTimeDiscountingAgent
+import agents.fast_agents as fast_agents
 
 def main():
     grid = [

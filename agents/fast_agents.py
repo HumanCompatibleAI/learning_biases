@@ -1,5 +1,5 @@
 from utils import Distribution
-import agents
+from agents import agents
 import numpy as np
 
 
