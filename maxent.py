@@ -291,8 +291,8 @@ def test_coherence(grid, agent):
 
 
 if __name__ == '__main__':
-    from agents import OptimalAgent
-    from agent_runner import evaluate_proxy
+    from agents.agents import OptimalAgent
+    from agents.agent_runner import evaluate_proxy
     import copy
 
     # testTransition()

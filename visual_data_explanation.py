@@ -9,7 +9,7 @@ import numpy as np
 import utils
 from utils import plot_trajectory, plot_reward, plot_policy, plot_policy_diff, set_seeds,\
     _plot_reward_and_trajectories_helper
-from agents import OptimalAgent
+from agents.agents import OptimalAgent
 from gridworld.gridworld import GridworldMdp
 
 import matplotlib.pyplot as plt

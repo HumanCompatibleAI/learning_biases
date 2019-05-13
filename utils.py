@@ -220,7 +220,7 @@ def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, con
     config(tf.config): config with agent params set
     filename(string): pathname of saved figure
     """
-    from agents import OptimalAgent
+    from agents.agents import OptimalAgent
     from gridworld.gridworld_data import create_agents_from_config
     dirs = os.path.dirname(filename)
     os.makedirs(dirs, exist_ok=True)
@@ -235,7 +235,7 @@ def plot_reward_and_trajectories(true_reward, inferred_reward, walls, start, con
 def _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, start, true_agent, inferred_agent,
                                           filename='reward_comparison.png', animate=False):
     """Plots same thing as plot_reward_and_trajectories, but using only agents, no config"""
-    from agents import OptimalAgent
+    from agents.agents import OptimalAgent
     from gridworld.gridworld_data import create_agents_from_config
     # 1 Figure, 2 Plots (in a row)
     # True reward on leftmost plot (axes[0])
@@ -265,7 +265,7 @@ def _plot_reward_and_trajectories_helper(true_reward, inferred_reward, walls, st
 def test_trajectory_plotting():
     """Tests trajectory plotting"""
     from gridworld.gridworld import GridworldMdp
-    from agents import OptimalAgent, MyopicAgent
+    from agents.agents import OptimalAgent, MyopicAgent
     agent = OptimalAgent()
     mdp = GridworldMdp.generate_random(12, 12, pr_wall=0.1, pr_reward=0.1)
     agent.set_mdp(mdp)

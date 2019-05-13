@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from model import tf_value_iter_no_config
-from agents import OptimalAgent
+from agents.agents import OptimalAgent
 from gridworld.gridworld import GridworldMdp
 sess = tf.InteractiveSession()
 
