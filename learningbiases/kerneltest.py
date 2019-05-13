@@ -31,7 +31,7 @@ def tf_value_iter_model(wall_tf, reward_tf):
     a = tf.reshape(wall_tf, [1, imsize, imsize])
     b = tf.reshape(reward_tf, [1, imsize, imsize])
     X = tf.stack([a, b],axis=-1)
-    qvals = tf_value_iter_no_config(X, ch_q=5, imsize=imsize, bsize=1, num_iters=num_iters, discount=0.9)
+    qvals = tf_value_iter_no_config(X, ch_q=5, imsize=imsize, bsize=1, noise=1.0, num_iters=num_iters, discount=0.9)
     return qvals.logits
 
 def castAgentValuesToNumpy(agent_dict):
