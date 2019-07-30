@@ -376,7 +376,6 @@ class GridworldMdp(GridworldMdpNoR):
             grid[y][x] = ' '
             walls.remove((x, y))
             dsets.add_singleton((x, y))
-            dsets.union((x, y), first_state)
 
         min_free_spots = len(walls) / 2
         random.shuffle(walls)
